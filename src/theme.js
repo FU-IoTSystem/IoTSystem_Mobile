@@ -152,3 +152,142 @@ export const spacing = {
   tabBarHeight: 80,
   bottomSheetPadding: 24,
 };
+
+export const typography = {
+  // Display text
+  displayLarge: {
+    fontSize: 57,
+    fontWeight: '400',
+    lineHeight: 64,
+    letterSpacing: -0.25,
+  },
+  displayMedium: {
+    fontSize: 45,
+    fontWeight: '400',
+    lineHeight: 52,
+  },
+  displaySmall: {
+    fontSize: 36,
+    fontWeight: '400',
+    lineHeight: 44,
+  },
+  
+  // Headlines
+  headlineLarge: {
+    fontSize: 32,
+    fontWeight: '400',
+    lineHeight: 40,
+  },
+  headlineMedium: {
+    fontSize: 28,
+    fontWeight: '400',
+    lineHeight: 36,
+  },
+  headlineSmall: {
+    fontSize: 24,
+    fontWeight: '400',
+    lineHeight: 32,
+  },
+  
+  // Titles
+  titleLarge: {
+    fontSize: 22,
+    fontWeight: '500',
+    lineHeight: 28,
+  },
+  titleMedium: {
+    fontSize: 16,
+    fontWeight: '500',
+    lineHeight: 24,
+    letterSpacing: 0.15,
+  },
+  titleSmall: {
+    fontSize: 14,
+    fontWeight: '500',
+    lineHeight: 20,
+    letterSpacing: 0.1,
+  },
+  
+  // Body text
+  bodyLarge: {
+    fontSize: 16,
+    fontWeight: '400',
+    lineHeight: 24,
+    letterSpacing: 0.5,
+  },
+  bodyMedium: {
+    fontSize: 14,
+    fontWeight: '400',
+    lineHeight: 20,
+    letterSpacing: 0.25,
+  },
+  bodySmall: {
+    fontSize: 12,
+    fontWeight: '400',
+    lineHeight: 16,
+    letterSpacing: 0.4,
+  },
+  
+  // Labels
+  labelLarge: {
+    fontSize: 14,
+    fontWeight: '500',
+    lineHeight: 20,
+    letterSpacing: 0.1,
+  },
+  labelMedium: {
+    fontSize: 12,
+    fontWeight: '500',
+    lineHeight: 16,
+    letterSpacing: 0.5,
+  },
+  labelSmall: {
+    fontSize: 11,
+    fontWeight: '500',
+    lineHeight: 16,
+    letterSpacing: 0.5,
+  },
+  
+  // Legacy support
+  h1: {
+    fontSize: 32,
+    fontWeight: '700',
+    lineHeight: 40,
+  },
+  h2: {
+    fontSize: 24,
+    fontWeight: '700',
+    lineHeight: 32,
+  },
+  h3: {
+    fontSize: 20,
+    fontWeight: '600',
+    lineHeight: 28,
+  },
+  h4: {
+    fontSize: 18,
+    fontWeight: '600',
+    lineHeight: 24,
+  },
+  body1: {
+    fontSize: 16,
+    fontWeight: '400',
+    lineHeight: 24,
+  },
+  body2: {
+    fontSize: 14,
+    fontWeight: '400',
+    lineHeight: 20,
+  },
+  caption: {
+    fontSize: 12,
+    fontWeight: '400',
+    lineHeight: 16,
+  },
+  button: {
+    fontSize: 14,
+    fontWeight: '500',
+    lineHeight: 20,
+    letterSpacing: 0.1,
+  },
+};
