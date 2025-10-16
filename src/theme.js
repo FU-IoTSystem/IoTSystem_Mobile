@@ -129,3 +129,26 @@ export const colors = {
   member: '#f59e0b',
   academic: '#8b5cf6',
 };
+
+export const spacing = {
+  xs: 4,
+  sm: 8,
+  md: 16,
+  lg: 24,
+  xl: 32,
+  xxl: 48,
+  xxxl: 64,
+  
+  // Component-specific spacing
+  cardPadding: 20,
+  buttonPadding: 16,
+  inputPadding: 12,
+  sectionMargin: 24,
+  itemMargin: 12,
+  
+  // Layout spacing
+  screenPadding: 20,
+  headerHeight: 60,
+  tabBarHeight: 80,
+  bottomSheetPadding: 24,
+};
