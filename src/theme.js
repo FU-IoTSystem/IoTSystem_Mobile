@@ -388,3 +388,47 @@ export const shadows = {
     elevation: 8,
   },
 };
+
+// Animation constants
+export const animations = {
+  // Duration
+  duration: {
+    fast: 150,
+    normal: 300,
+    slow: 500,
+    slower: 800,
+  },
+  
+  // Easing curves
+  easing: {
+    linear: 'linear',
+    ease: 'ease',
+    easeIn: 'ease-in',
+    easeOut: 'ease-out',
+    easeInOut: 'ease-in-out',
+    // Material Design easing curves
+    standard: 'cubic-bezier(0.4, 0.0, 0.2, 1)',
+    decelerate: 'cubic-bezier(0.0, 0.0, 0.2, 1)',
+    accelerate: 'cubic-bezier(0.4, 0.0, 1, 1)',
+    sharp: 'cubic-bezier(0.4, 0.0, 0.6, 1)',
+  },
+  
+  // Spring configurations
+  spring: {
+    gentle: {
+      damping: 20,
+      stiffness: 300,
+      mass: 1,
+    },
+    wobbly: {
+      damping: 18,
+      stiffness: 180,
+      mass: 1,
+    },
+    stiff: {
+      damping: 26,
+      stiffness: 400,
+      mass: 1,
+    },
+  },
+};
