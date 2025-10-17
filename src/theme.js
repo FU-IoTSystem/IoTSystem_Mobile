@@ -452,3 +452,68 @@ export const borderRadius = {
   modal: 20,
   sheet: 24,
 };
+
+// Z-index system
+export const zIndex = {
+  base: 0,
+  dropdown: 1000,
+  sticky: 1020,
+  fixed: 1030,
+  modalBackdrop: 1040,
+  modal: 1050,
+  popover: 1060,
+  tooltip: 1070,
+  toast: 1080,
+};
+
+// Breakpoints for responsive design
+export const breakpoints = {
+  sm: 576,
+  md: 768,
+  lg: 992,
+  xl: 1200,
+  xxl: 1400,
+};
+
+// Component variants
+export const variants = {
+  button: {
+    primary: {
+      backgroundColor: colors.primary,
+      color: colors.textOnPrimary,
+    },
+    secondary: {
+      backgroundColor: colors.secondary,
+      color: colors.textOnSecondary,
+    },
+    outline: {
+      backgroundColor: 'transparent',
+      borderColor: colors.primary,
+      borderWidth: 1,
+      color: colors.primary,
+    },
+    ghost: {
+      backgroundColor: 'transparent',
+      color: colors.primary,
+    },
+  },
+  
+  card: {
+    default: {
+      backgroundColor: colors.surface,
+      borderRadius: borderRadius.card,
+      ...shadows.elevation2,
+    },
+    elevated: {
+      backgroundColor: colors.surface,
+      borderRadius: borderRadius.card,
+      ...shadows.elevation4,
+    },
+    outlined: {
+      backgroundColor: colors.surface,
+      borderRadius: borderRadius.card,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+  },
+};
