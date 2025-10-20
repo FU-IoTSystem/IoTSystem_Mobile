@@ -1,10 +1,11 @@
 import { LinearGradient } from 'expo-linear-gradient';
-import React from 'react';
+import React, { useState } from 'react';
 import { Pressable, Text, TouchableOpacity, View } from 'react-native';
 import { Surface } from 'react-native-paper';
 import {
   FadeIn,
   LoadingSpinner,
+  Shake,
   SlideIn
 } from './animations';
 import {
@@ -110,3 +111,67 @@ export const ModernButton = ({
     </TouchableOpacity>
   );
 };
+
+// Modern Input Component
+export const ModernInput = ({ 
+  label, 
+  value, 
+  onChangeText, 
+  placeholder, 
+  error, 
+  animated = true,
+  style,
+  ...props 
+}) => {
+  const [isFocused, setIsFocused] = useState(false);
+  const [hasError, setHasError] = useState(false);
+
+  React.useEffect(() => {
+    setHasError(!!error);
+  }, [error]);
+
+  const inputContent = (
+    <View style={[styles.inputContainer, style]}>
+      <Text style={[
+        styles.inputLabel,
+        (isFocused || value) && styles.inputLabelFocused,
+        hasError && styles.inputLabelError,
+      ]}>
+        {label}
+      </Text>
+      <View style={[
+        styles.inputWrapper,
+        isFocused && styles.inputWrapperFocused,
+        hasError && styles.inputWrapperError,
+      ]}>
+        <Text
+          style={[
+            styles.inputText,
+            !value && styles.inputPlaceholder,
+          ]}
+          onPress={() => setIsFocused(true)}
+        >
+          {value || placeholder}
+        </Text>
+      </View>
+      {hasError && (
+        <Shake trigger={hasError}>
+          <Text style={styles.inputError}>{error}</Text>
+        </Shake>
+      )}
+    </View>
+  );
+
+  if (animated) {
+    return (
+      <FadeIn>
+        <SlideIn direction="up" distance={10}>
+          {inputContent}
+        </SlideIn>
+      </FadeIn>
+    );
+  }
+
+  return inputContent;
+};
+
