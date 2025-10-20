@@ -220,3 +220,38 @@ export const ModernTab = ({
 
   return tabContent;
 };
+
+// Modern Badge Component
+export const ModernBadge = ({ 
+  text, 
+  variant = 'default', 
+  size = 'medium',
+  animated = true,
+  style 
+}) => {
+  const badgeContent = (
+    <View style={[
+      styles.badge,
+      styles[`badge${variant.charAt(0).toUpperCase() + variant.slice(1)}`],
+      styles[`badge${size.charAt(0).toUpperCase() + size.slice(1)}`],
+      style,
+    ]}>
+      <Text style={[
+        styles.badgeText,
+        styles[`badgeText${size.charAt(0).toUpperCase() + size.slice(1)}`],
+      ]}>
+        {text}
+      </Text>
+    </View>
+  );
+
+  if (animated) {
+    return (
+      <BounceIn>
+        {badgeContent}
+      </BounceIn>
+    );
+  }
+
+  return badgeContent;
+};
