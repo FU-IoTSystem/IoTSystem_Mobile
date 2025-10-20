@@ -269,3 +269,26 @@ export const ModernLoading = ({
     </View>
   );
 };
+
+// Modern Skeleton Component
+export const ModernSkeleton = ({ 
+  lines = 3, 
+  animated = true,
+  style 
+}) => {
+  const skeletonLines = Array.from({ length: lines }, (_, index) => (
+    <Skeleton
+      key={index}
+      width={index === lines - 1 ? '70%' : '100%'}
+      height={16}
+      borderRadius={8}
+      style={{ marginBottom: spacing.sm }}
+    />
+  ));
+
+  return (
+    <View style={style}>
+      {skeletonLines}
+    </View>
+  );
+};
