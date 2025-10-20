@@ -1,15 +1,21 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useState } from 'react';
-import { Pressable, Text, TouchableOpacity, View } from 'react-native';
+import { Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Surface } from 'react-native-paper';
 import {
+  BounceIn,
   FadeIn,
   LoadingSpinner,
   Shake,
+  Skeleton,
   SlideIn
 } from './animations';
 import {
+  borderRadius,
   colors,
+  shadows,
+  spacing,
+  typography,
   variants
 } from './theme';
 
@@ -349,3 +355,229 @@ const getButtonGradient = (variant) => {
       return [colors.primary, colors.primaryVariant];
   }
 };
+
+const styles = StyleSheet.create({
+  // Card styles
+  cardPressable: {
+    borderRadius: borderRadius.card,
+  },
+
+  // Button styles
+  button: {
+    borderRadius: borderRadius.button,
+    paddingHorizontal: spacing.buttonPadding,
+    paddingVertical: spacing.buttonPadding,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  buttonSmall: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+  },
+  buttonLarge: {
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+  },
+  buttonDisabled: {
+    opacity: 0.6,
+  },
+  buttonTouchable: {
+    borderRadius: borderRadius.button,
+  },
+  buttonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  buttonIcon: {
+    marginRight: spacing.xs,
+  },
+  buttonText: {
+    ...typography.button,
+    color: colors.textOnPrimary,
+    fontWeight: '600',
+  },
+  buttonTextSmall: {
+    fontSize: 12,
+  },
+  buttonTextLarge: {
+    fontSize: 16,
+  },
+
+  // Input styles
+  inputContainer: {
+    marginBottom: spacing.md,
+  },
+  inputLabel: {
+    ...typography.labelMedium,
+    color: colors.textSecondary,
+    marginBottom: spacing.xs,
+  },
+  inputLabelFocused: {
+    color: colors.primary,
+  },
+  inputLabelError: {
+    color: colors.error,
+  },
+  inputWrapper: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: borderRadius.input,
+    paddingHorizontal: spacing.inputPadding,
+    paddingVertical: spacing.inputPadding,
+    backgroundColor: colors.surface,
+  },
+  inputWrapperFocused: {
+    borderColor: colors.primary,
+    ...shadows.elevation1,
+  },
+  inputWrapperError: {
+    borderColor: colors.error,
+  },
+  inputText: {
+    ...typography.bodyLarge,
+    color: colors.text,
+  },
+  inputPlaceholder: {
+    color: colors.placeholder,
+  },
+  inputError: {
+    ...typography.bodySmall,
+    color: colors.error,
+    marginTop: spacing.xs,
+  },
+
+  // Tab styles
+  tabContainer: {
+    flexDirection: 'row',
+    backgroundColor: colors.surfaceVariant,
+    borderRadius: borderRadius.md,
+    padding: spacing.xs,
+    marginBottom: spacing.md,
+  },
+  tab: {
+    flex: 1,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    alignItems: 'center',
+    position: 'relative',
+  },
+  tabActive: {
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.sm,
+  },
+  tabText: {
+    ...typography.labelLarge,
+    color: colors.textSecondary,
+  },
+  tabTextActive: {
+    color: colors.primary,
+    fontWeight: '600',
+  },
+  tabIndicator: {
+    position: 'absolute',
+    bottom: -spacing.xs,
+    left: '50%',
+    marginLeft: -8,
+    width: 16,
+    height: 2,
+    backgroundColor: colors.primary,
+    borderRadius: 1,
+  },
+
+  // Badge styles
+  badge: {
+    borderRadius: borderRadius.full,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    alignSelf: 'flex-start',
+  },
+  badgeDefault: {
+    backgroundColor: colors.grayLight,
+  },
+  badgePrimary: {
+    backgroundColor: colors.primary,
+  },
+  badgeSuccess: {
+    backgroundColor: colors.success,
+  },
+  badgeWarning: {
+    backgroundColor: colors.warning,
+  },
+  badgeError: {
+    backgroundColor: colors.error,
+  },
+  badgeSmall: {
+    paddingHorizontal: spacing.xs,
+    paddingVertical: 2,
+  },
+  badgeLarge: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+  },
+  badgeText: {
+    ...typography.labelSmall,
+    color: colors.text,
+    fontWeight: '600',
+  },
+  badgeTextSmall: {
+    fontSize: 10,
+  },
+  badgeTextLarge: {
+    fontSize: 14,
+  },
+
+  // Loading styles
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: spacing.xl,
+  },
+  loadingText: {
+    ...typography.bodyLarge,
+    color: colors.textSecondary,
+    marginTop: spacing.md,
+  },
+
+  // Status card styles
+  statusCard: {
+    marginBottom: spacing.md,
+  },
+  statusCardContent: {
+    padding: spacing.cardPadding,
+  },
+  statusCardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: spacing.sm,
+  },
+  statusCardTitle: {
+    ...typography.labelLarge,
+    color: colors.textSecondary,
+  },
+  statusCardIcon: {
+    width: 24,
+    height: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  statusCardValue: {
+    ...typography.headlineSmall,
+    color: colors.text,
+    fontWeight: '700',
+  },
+  statusCardValueSuccess: {
+    color: colors.success,
+  },
+  statusCardValueWarning: {
+    color: colors.warning,
+  },
+  statusCardValueError: {
+    color: colors.error,
+  },
+  statusCardValueInfo: {
+    color: colors.info,
+  },
+});
