@@ -255,3 +255,17 @@ export const ModernBadge = ({
 
   return badgeContent;
 };
+
+// Modern Loading Component
+export const ModernLoading = ({ 
+  message = 'Loading...', 
+  size = 'large',
+  style 
+}) => {
+  return (
+    <View style={[styles.loadingContainer, style]}>
+      <LoadingSpinner size={size === 'large' ? 48 : 32} />
+      <Text style={styles.loadingText}>{message}</Text>
+    </View>
+  );
+};
