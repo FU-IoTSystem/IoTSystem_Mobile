@@ -1,11 +1,14 @@
+import { LinearGradient } from 'expo-linear-gradient';
 import React from 'react';
-import { Pressable } from 'react-native';
+import { Pressable, Text, TouchableOpacity, View } from 'react-native';
 import { Surface } from 'react-native-paper';
 import {
   FadeIn,
+  LoadingSpinner,
   SlideIn
 } from './animations';
 import {
+  colors,
   variants
 } from './theme';
 
@@ -50,3 +53,60 @@ export const ModernCard = ({
   );
 };
 
+// Modern Button Component
+export const ModernButton = ({ 
+  title, 
+  variant = 'primary', 
+  size = 'medium',
+  loading = false,
+  disabled = false,
+  animated = true,
+  onPress,
+  style,
+  textStyle,
+  icon,
+  ...props 
+}) => {
+  const handlePress = () => {
+    console.log('Button pressed:', title, { disabled, loading, hasOnPress: !!onPress });
+    if (!disabled && !loading && onPress) {
+      onPress();
+    }
+  };
+
+  return (
+    <TouchableOpacity
+      onPress={handlePress}
+      disabled={disabled || loading}
+      activeOpacity={0.8}
+      style={[
+        styles.buttonTouchable,
+        style,
+        disabled && styles.buttonDisabled,
+      ]}
+      {...props}
+    >
+      <LinearGradient
+        colors={getButtonGradient(variant)}
+        style={[
+          styles.button,
+          styles[`button${size.charAt(0).toUpperCase() + size.slice(1)}`],
+        ]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+      >
+        <View style={styles.buttonContent}>
+          {loading && <LoadingSpinner size={16} color={colors.textOnPrimary} />}
+          {icon && !loading && <View style={styles.buttonIcon}>{icon}</View>}
+          <Text style={[
+            styles.buttonText,
+            styles[`buttonText${size.charAt(0).toUpperCase() + size.slice(1)}`],
+            textStyle,
+          ]}>
+            {title}
+          </Text>
+        </View>
+      </LinearGradient>
+    </TouchableOpacity>
+  );
+};
