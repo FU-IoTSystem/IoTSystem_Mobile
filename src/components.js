@@ -175,3 +175,48 @@ export const ModernInput = ({
   return inputContent;
 };
 
+// Modern Tab Component
+export const ModernTab = ({ 
+  tabs, 
+  activeTab, 
+  onTabChange, 
+  animated = true,
+  style 
+}) => {
+  const tabContent = (
+    <View style={[styles.tabContainer, style]}>
+      {tabs.map((tab, index) => (
+        <TouchableOpacity
+          key={tab.key}
+          style={[
+            styles.tab,
+            activeTab === tab.key && styles.tabActive,
+          ]}
+          onPress={() => onTabChange(tab.key)}
+        >
+          <Text style={[
+            styles.tabText,
+            activeTab === tab.key && styles.tabTextActive,
+          ]}>
+            {tab.label}
+          </Text>
+          {activeTab === tab.key && (
+            <View style={styles.tabIndicator} />
+          )}
+        </TouchableOpacity>
+      ))}
+    </View>
+  );
+
+  if (animated) {
+    return (
+      <FadeIn>
+        <SlideIn direction="down" distance={20}>
+          {tabContent}
+        </SlideIn>
+      </FadeIn>
+    );
+  }
+
+  return tabContent;
+};
