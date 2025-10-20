@@ -292,3 +292,40 @@ export const ModernSkeleton = ({
     </View>
   );
 };
+
+// Modern Status Card Component
+export const ModernStatusCard = ({ 
+  title, 
+  value, 
+  status = 'default', 
+  icon,
+  animated = true,
+  delay = 0,
+  onPress,
+  style 
+}) => {
+  const cardContent = (
+    <ModernCard
+      variant="elevated"
+      animated={animated}
+      delay={delay}
+      onPress={onPress}
+      style={[styles.statusCard, style]}
+    >
+      <View style={styles.statusCardContent}>
+        <View style={styles.statusCardHeader}>
+          <Text style={styles.statusCardTitle}>{title}</Text>
+          {icon && <View style={styles.statusCardIcon}>{icon}</View>}
+        </View>
+        <Text style={[
+          styles.statusCardValue,
+          styles[`statusCardValue${status.charAt(0).toUpperCase() + status.slice(1)}`],
+        ]}>
+          {value}
+        </Text>
+      </View>
+    </ModernCard>
+  );
+
+  return cardContent;
+};
