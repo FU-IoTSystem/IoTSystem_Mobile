@@ -329,3 +329,23 @@ export const ModernStatusCard = ({
 
   return cardContent;
 };
+
+// Helper functions
+const getButtonGradient = (variant) => {
+  switch (variant) {
+    case 'primary':
+      return [colors.primary, colors.primaryVariant];
+    case 'secondary':
+      return [colors.secondary, colors.secondaryVariant];
+    case 'success':
+      return [colors.success, colors.successDark];
+    case 'warning':
+      return [colors.warning, colors.warningDark];
+    case 'error':
+      return [colors.error, colors.errorDark];
+    case 'info':
+      return [colors.info, colors.infoDark];
+    default:
+      return [colors.primary, colors.primaryVariant];
+  }
+};
