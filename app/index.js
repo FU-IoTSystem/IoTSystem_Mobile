@@ -8,6 +8,54 @@ import { Floating } from '../src/animations';
 import { ModernButton, ModernCard } from '../src/components';
 import { colors, spacing, typography } from '../src/theme';
 
+const demoUsers = [
+  { 
+    email: 'admin@fpt.edu.vn', 
+    password: 'admin', 
+    role: 'admin', 
+    color: colors.admin,
+    title: 'Administrator',
+    description: 'Manage system, approve requests, view reports',
+    icon: '👨‍💼'
+  },
+  { 
+    email: 'leader@fpt.edu.vn', 
+    password: 'leader', 
+    role: 'leader', 
+    color: colors.leader,
+    title: 'Group Leader',
+    description: 'Manage group members, coordinate projects',
+    icon: '👥'
+  },
+  { 
+    email: 'lecturer@fpt.edu.vn', 
+    password: 'lecturer', 
+    role: 'lecturer', 
+    color: colors.lecturer,
+    title: 'Lecturer',
+    description: 'Monitor student progress, manage borrowings',
+    icon: '👨‍🏫'
+  },
+  { 
+    email: 'member@fpt.edu.vn', 
+    password: 'member', 
+    role: 'member', 
+    color: colors.member,
+    title: 'Group Member',
+    description: 'Join groups, request kit rentals',
+    icon: '👤'
+  },
+  { 
+    email: 'academic@fpt.edu.vn', 
+    password: 'academic', 
+    role: 'academic', 
+    color: colors.academic,
+    title: 'Academic Affairs',
+    description: 'Manage semesters, classes, and assignments',
+    icon: '📚'
+  },
+];
+
 export default function Home() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
