@@ -19,6 +19,12 @@ import {
   variants
 } from './theme';
 
+// Export BottomNavigation components
+export {
+  BottomNavigation,
+  FloatingActionButton,
+  PortalHeader
+} from './BottomNavigation';
 // Modern Card Component
 export const ModernCard = ({ 
   children, 
