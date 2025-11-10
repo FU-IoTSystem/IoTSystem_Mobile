@@ -2,13 +2,12 @@
   "expo": {
     "name": "IoTSystem_Mobile",
     "slug": "IoTSystem_Mobile",
-    "version": "1.0.0",
+     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
-    "newArchEnabled": true,
     "splash": {
-      "image": "./assets/splash-icon.png",
+      "image": "./assets/splash.png",
       "resizeMode": "contain",
       "backgroundColor": "#667eea"
     },
@@ -17,55 +16,17 @@
     ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.fpt.iotkitrental",
-      "buildNumber": "1.0.0"
+      "bundleIdentifier": "com.iokitrental.mobile"
     },
     "android": {
-      "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#667eea"
-      },
-      "package": "com.fpt.iotkitrental",
-      "versionCode": 1,
-      "permissions": [
-        "android.permission.CAMERA",
-        "android.permission.READ_EXTERNAL_STORAGE",
-        "android.permission.WRITE_EXTERNAL_STORAGE",
-        "android.permission.INTERNET",
-        "android.permission.ACCESS_NETWORK_STATE",
-        "android.permission.USE_FINGERPRINT",
-        "android.permission.USE_BIOMETRIC"
-      ],
-      "edgeToEdgeEnabled": true,
-      "softwareKeyboardLayoutMode": "pan"
+      "package": "com.iokitrental.mobile"
     },
     "web": {
-      "favicon": "./assets/favicon.png",
-      "bundler": "metro"
+      "favicon": "./assets/favicon.png"
     },
-    "plugins": [
-      "expo-router",
-      [
-        "expo-image-picker",
-        {
-          "photosPermission": "The app accesses your photos to let you share them with your IoT kit rental requests."
-        }
-      ],
-      [
-        "expo-camera",
-        {
-          "cameraPermission": "Allow $(PRODUCT_NAME) to access your camera to scan QR codes for kit rental."
-        }
-      ],
-      "expo-web-browser"
-    ],
-    "scheme": "iotkitrental",
     "extra": {
-      "router": {
-        "origin": false
-      },
       "eas": {
-        "projectId": "your-project-id-here"
+        "projectId": "6b8cbba0-d6db-4ec3-969d-8c23c727cf59"
       }
     }
   }
