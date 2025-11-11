@@ -1,0 +1,640 @@
+import React, { useState, useEffect } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  RefreshControl,
+  TouchableOpacity,
+  TextInput,
+  Modal,
+  Alert,
+  FlatList,
+} from 'react-native';
+import { useNavigation } from '@react-navigation/native';
+import { MaterialIcons as Icon } from '@expo/vector-icons';
+import AdminLayout from '../../components/AdminLayout';
+import { userAPI, authAPI } from '../../services/api';
+
+const AdminUsers = ({ onLogout }) => {
+  const navigation = useNavigation();
+  const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [modalVisible, setModalVisible] = useState(false);
+  const [editingUser, setEditingUser] = useState(null);
+  const [formData, setFormData] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    role: 'student',
+    studentCode: '',
+    password: '',
+  });
+
+  useEffect(() => {
+    loadUsers();
+  }, []);
+
+  const loadUsers = async () => {
+    setLoading(true);
+    try {
+      const usersData = await userAPI.getAllAccounts(0, 100);
+      console.log('Users response:', usersData);
+      
+      if (usersData && usersData.length > 0) {
+        const mappedUsers = usersData.map(profile => ({
+          id: profile.id,
+          name: profile.fullName || profile.email || 'Unknown',
+          email: profile.email,
+          phone: profile.phone,
+          studentCode: profile.studentCode,
+          role: profile.role?.toLowerCase() || 'member',
+          status: 'Active',
+          createdAt: profile.createdAt,
+        }));
+        setUsers(mappedUsers);
+      } else {
+        setUsers([]);
+        console.log('No users found or invalid response format');
+      }
+    } catch (error) {
+      console.error('Error loading users:', error);
+      Alert.alert('Error', 'Failed to load users');
+      setUsers([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAddUser = () => {
+    setEditingUser(null);
+    setFormData({
+      name: '',
+      email: '',
+      phone: '',
+      role: 'student',
+      studentCode: '',
+      password: '',
+    });
+    setModalVisible(true);
+  };
+
+  const handleEditUser = (user) => {
+    setEditingUser(user);
+    setFormData({
+      name: user.name || user.fullName || '',
+      email: user.email || '',
+      phone: user.phone || '',
+      role: user.role || 'student',
+      studentCode: user.studentCode || '',
+      password: '',
+    });
+    setModalVisible(true);
+  };
+
+  const handleSaveUser = async () => {
+    if (!formData.email.trim() || !formData.name.trim()) {
+      Alert.alert('Error', 'Please fill in all required fields');
+      return;
+    }
+
+    if (!editingUser && !formData.password.trim()) {
+      Alert.alert('Error', 'Password is required for new users');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      if (editingUser) {
+        // Update existing user
+        const updateData = {
+          username: formData.email,
+          password: formData.password || undefined,
+          studentCode: formData.studentCode || null,
+          roles: formData.role.toUpperCase(),
+          phoneNumber: formData.phone || null,
+          fullName: formData.name || null,
+        };
+        
+        await authAPI.updateUser(editingUser.id, updateData);
+        Alert.alert('Success', 'User updated successfully');
+      } else {
+        // Create new user
+        const userData = {
+          username: formData.email,
+          password: formData.password,
+          studentCode: formData.studentCode || null,
+          roles: formData.role.toUpperCase(),
+          phoneNumber: formData.phone || null,
+          fullName: formData.name || null,
+        };
+
+        await authAPI.register(
+          userData.username,
+          userData.password,
+          userData.studentCode,
+          userData.roles,
+          userData.phoneNumber,
+          userData.fullName
+        );
+        Alert.alert('Success', 'User created successfully');
+      }
+      
+      setModalVisible(false);
+      await loadUsers();
+    } catch (error) {
+      console.error('Error saving user:', error);
+      Alert.alert('Error', error.message || 'Failed to save user');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteUser = (userId) => {
+    Alert.alert(
+      'Delete User',
+      'Are you sure you want to delete this user? This action cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              // TODO: Implement delete user API call
+              Alert.alert('Info', 'Delete user functionality needs to be implemented in API');
+            } catch (error) {
+              console.error('Error deleting user:', error);
+              Alert.alert('Error', 'Failed to delete user');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const getRoleColor = (role) => {
+    switch (role?.toLowerCase()) {
+      case 'admin':
+        return '#ff4d4f';
+      case 'lecturer':
+        return '#faad14';
+      case 'academic':
+        return '#722ed1';
+      case 'leader':
+        return '#1890ff';
+      default:
+        return '#52c41a';
+    }
+  };
+
+  const renderUserItem = ({ item }) => (
+    <View style={styles.userCard}>
+      <View style={styles.userHeader}>
+        <View style={styles.userInfo}>
+          <Text style={styles.userName}>{item.name}</Text>
+          <Text style={styles.userEmail}>{item.email}</Text>
+        </View>
+        <View style={[styles.roleBadge, { backgroundColor: `${getRoleColor(item.role)}15` }]}>
+          <Text style={[styles.roleText, { color: getRoleColor(item.role) }]}>
+            {item.role?.toUpperCase() || 'MEMBER'}
+          </Text>
+        </View>
+      </View>
+
+      <View style={styles.userDetails}>
+        {item.phone && (
+          <View style={styles.detailRow}>
+            <Icon name="phone" size={16} color="#666" />
+            <Text style={styles.detailText}>{item.phone}</Text>
+          </View>
+        )}
+        {item.studentCode && (
+          <View style={styles.detailRow}>
+            <Icon name="badge" size={16} color="#666" />
+            <Text style={styles.detailText}>{item.studentCode}</Text>
+          </View>
+        )}
+        <View style={styles.detailRow}>
+          <Icon name="check-circle" size={16} color="#52c41a" />
+          <Text style={[styles.detailText, { color: '#52c41a' }]}>
+            {item.status || 'Active'}
+          </Text>
+        </View>
+      </View>
+
+      <View style={styles.userActions}>
+        <TouchableOpacity
+          style={[styles.actionButton, { backgroundColor: '#1890ff15' }]}
+          onPress={() => handleEditUser(item)}
+        >
+          <Icon name="edit" size={18} color="#1890ff" />
+          <Text style={[styles.actionButtonText, { color: '#1890ff' }]}>Edit</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.actionButton, { backgroundColor: '#ff4d4f15' }]}
+          onPress={() => handleDeleteUser(item.id)}
+        >
+          <Icon name="delete" size={18} color="#ff4d4f" />
+          <Text style={[styles.actionButtonText, { color: '#ff4d4f' }]}>Delete</Text>
+        </TouchableOpacity>
+      </View>
+  </View>
+);
+
+  const handleLogout = async () => {
+    Alert.alert(
+      'Logout',
+      'Are you sure you want to logout?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Logout',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              if (onLogout) {
+                await onLogout();
+              }
+            } catch (error) {
+              console.error('Logout failed:', error);
+              Alert.alert('Error', 'Failed to logout');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  return (
+    <AdminLayout 
+      title="User Management"
+      rightAction={{
+        icon: 'add',
+      }}
+      onRightAction={handleAddUser}
+    >
+
+      <FlatList
+        data={users}
+        renderItem={renderUserItem}
+        keyExtractor={(item) => item.id?.toString() || Math.random().toString()}
+        refreshControl={
+          <RefreshControl refreshing={loading} onRefresh={loadUsers} />
+        }
+        contentContainerStyle={styles.listContent}
+        ListEmptyComponent={
+          <View style={styles.emptyState}>
+            <Icon name="people" size={64} color="#ccc" />
+            <Text style={styles.emptyText}>No users available</Text>
+            <TouchableOpacity style={styles.emptyButton} onPress={handleAddUser}>
+              <Text style={styles.emptyButtonText}>Add First User</Text>
+            </TouchableOpacity>
+          </View>
+        }
+      />
+
+      {/* Add/Edit User Modal */}
+      <Modal
+        visible={modalVisible}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>
+                {editingUser ? 'Edit User' : 'Add User'}
+              </Text>
+              <TouchableOpacity onPress={() => setModalVisible(false)}>
+                <Icon name="close" size={24} color="#666" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={styles.modalBody}>
+              <View style={styles.formGroup}>
+                <Text style={styles.label}>Full Name *</Text>
+                <TextInput
+                  style={styles.input}
+                  value={formData.name}
+                  onChangeText={(text) => setFormData({ ...formData, name: text })}
+                  placeholder="Enter full name"
+                />
+              </View>
+
+              <View style={styles.formGroup}>
+                <Text style={styles.label}>Email *</Text>
+                <TextInput
+                  style={styles.input}
+                  value={formData.email}
+                  onChangeText={(text) => setFormData({ ...formData, email: text })}
+                  placeholder="Enter email"
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  editable={!editingUser}
+                />
+              </View>
+
+              <View style={styles.formGroup}>
+                <Text style={styles.label}>Phone Number</Text>
+                <TextInput
+                  style={styles.input}
+                  value={formData.phone}
+                  onChangeText={(text) => setFormData({ ...formData, phone: text })}
+                  placeholder="Enter phone number"
+                  keyboardType="phone-pad"
+                />
+              </View>
+
+              <View style={styles.formGroup}>
+                <Text style={styles.label}>Role *</Text>
+                <View style={styles.roleGrid}>
+                  {['student', 'lecturer', 'admin', 'academic', 'leader', 'member'].map((role) => (
+                    <TouchableOpacity
+                      key={role}
+                      style={[
+                        styles.roleButton,
+                        formData.role === role && styles.roleButtonActive
+                      ]}
+                      onPress={() => setFormData({ ...formData, role })}
+                    >
+                      <Text style={[
+                        styles.roleButtonText,
+                        formData.role === role && styles.roleButtonTextActive
+                      ]}>
+                        {role.charAt(0).toUpperCase() + role.slice(1)}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+
+              {formData.role === 'student' && (
+                <View style={styles.formGroup}>
+                  <Text style={styles.label}>Student Code *</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={formData.studentCode}
+                    onChangeText={(text) => setFormData({ ...formData, studentCode: text })}
+                    placeholder="Enter student code"
+                  />
+                </View>
+              )}
+
+              {!editingUser && (
+                <View style={styles.formGroup}>
+                  <Text style={styles.label}>Password *</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={formData.password}
+                    onChangeText={(text) => setFormData({ ...formData, password: text })}
+                    placeholder="Enter password"
+                    secureTextEntry
+                  />
+                </View>
+              )}
+
+              {editingUser && (
+                <View style={styles.formGroup}>
+                  <Text style={styles.label}>New Password (optional)</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={formData.password}
+                    onChangeText={(text) => setFormData({ ...formData, password: text })}
+                    placeholder="Leave empty to keep current password"
+                    secureTextEntry
+                  />
+                </View>
+              )}
+            </ScrollView>
+
+            <View style={styles.modalFooter}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.cancelButton]}
+                onPress={() => setModalVisible(false)}
+              >
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.saveButton]}
+                onPress={handleSaveUser}
+                disabled={loading}
+              >
+                <Text style={styles.saveButtonText}>
+                  {loading ? 'Saving...' : editingUser ? 'Update' : 'Create'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+    </AdminLayout>
+  );
+};
+
+const styles = StyleSheet.create({
+  listContent: {
+    padding: 16,
+  },
+  userCard: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  userHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 12,
+  },
+  userInfo: {
+    flex: 1,
+  },
+  userName: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#2c3e50',
+    marginBottom: 4,
+  },
+  userEmail: {
+    fontSize: 14,
+    color: '#666',
+  },
+  roleBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  roleText: {
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  userDetails: {
+    marginBottom: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#f0f0f0',
+  },
+  detailRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  detailText: {
+    fontSize: 14,
+    color: '#666',
+    marginLeft: 8,
+  },
+  userActions: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#f0f0f0',
+  },
+  actionButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 10,
+    borderRadius: 8,
+    gap: 6,
+  },
+  actionButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  emptyState: {
+    alignItems: 'center',
+    padding: 40,
+    marginTop: 40,
+  },
+  emptyText: {
+    fontSize: 16,
+    color: '#999',
+    marginTop: 12,
+    marginBottom: 20,
+  },
+  emptyButton: {
+    backgroundColor: '#667eea',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  emptyButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: '90%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#2c3e50',
+  },
+  modalBody: {
+    padding: 16,
+    maxHeight: 400,
+  },
+  formGroup: {
+    marginBottom: 16,
+  },
+  label: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#2c3e50',
+    marginBottom: 8,
+  },
+  input: {
+    backgroundColor: '#f5f5f5',
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 16,
+    color: '#2c3e50',
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+  },
+  roleGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  roleButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: '#f5f5f5',
+    borderWidth: 2,
+    borderColor: 'transparent',
+  },
+  roleButtonActive: {
+    backgroundColor: '#667eea15',
+    borderColor: '#667eea',
+  },
+  roleButtonText: {
+    fontSize: 13,
+    color: '#666',
+    fontWeight: '600',
+  },
+  roleButtonTextActive: {
+    color: '#667eea',
+  },
+  modalFooter: {
+    flexDirection: 'row',
+    padding: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#f0f0f0',
+    gap: 12,
+  },
+  modalButton: {
+    flex: 1,
+    padding: 14,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  cancelButton: {
+    backgroundColor: '#f5f5f5',
+  },
+  cancelButtonText: {
+    color: '#666',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  saveButton: {
+    backgroundColor: '#667eea',
+  },
+  saveButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+});
+
+export default AdminUsers;
