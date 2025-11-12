@@ -1,0 +1,39 @@
+# Build artifacts - these are generated during build and shouldn't be uploaded
+android/build/
+android/app/build/
+android/.cxx/
+android/.gradle/
+android/app/.cxx/
+*.apk
+*.aab
+*.keystore
+!android/app/debug.keystore
+
+# Node modules
+node_modules/
+
+# Expo
+.expo/
+.expo-shared/
+
+# Temporary files
+*.log
+*.swp
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.iml
+
+# Environment files
+.env.local
+.env.*.local
+
+# Metro
+.metro-health-check*
+
