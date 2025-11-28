@@ -29,7 +29,14 @@ const LeaderLayout = ({
       setNotificationLoading(true);
       const response = await notificationAPI.getRoleNotifications();
       const data = response?.data ?? response;
-      setNotifications(Array.isArray(data) ? data : []);
+      const notificationsList = Array.isArray(data) ? data : [];
+      // Sort by createdAt descending (newest first)
+      notificationsList.sort((a, b) => {
+        const dateA = new Date(a.createdAt || 0);
+        const dateB = new Date(b.createdAt || 0);
+        return dateB - dateA;
+      });
+      setNotifications(notificationsList);
     } catch (error) {
       console.error('Error loading notifications:', error);
       setNotifications([]);
@@ -47,6 +54,20 @@ const LeaderLayout = ({
   const handleNotificationPress = () => {
     setNotificationModalVisible(true);
     loadNotifications();
+  };
+
+  const handleMarkAsRead = async (notificationId) => {
+    try {
+      await notificationAPI.markAsRead(notificationId);
+      // Update local state to mark as read
+      setNotifications(prevNotifications =>
+        prevNotifications.map(notif =>
+          notif.id === notificationId ? { ...notif, isRead: true } : notif
+        )
+      );
+    } catch (error) {
+      console.error('Error marking notification as read:', error);
+    }
   };
 
   const unreadNotificationsCount = notifications.filter((item) => !item.isRead).length;
@@ -69,29 +90,38 @@ const LeaderLayout = ({
     const notificationDate = formatDateTime(item.createdAt);
 
     return (
-      <Card 
-        style={[
-          styles.notificationCard,
-          !item.isRead && styles.unreadNotification
-        ]}
-        mode="outlined"
+      <TouchableOpacity
+        onPress={() => {
+          if (!item.isRead) {
+            handleMarkAsRead(item.id);
+          }
+        }}
+        activeOpacity={0.7}
       >
-        <Card.Content>
-          <View style={styles.notificationHeader}>
-            <View style={[styles.notificationTypeBadge, { backgroundColor: `${typeInfo.color}15` }]}>
-              <Text style={[styles.notificationTypeText, { color: typeInfo.color }]}>
-                {typeInfo.label}
-              </Text>
+        <Card 
+          style={[
+            styles.notificationCard,
+            !item.isRead && styles.unreadNotification
+          ]}
+          mode="outlined"
+        >
+          <Card.Content>
+            <View style={styles.notificationHeader}>
+              <View style={[styles.notificationTypeBadge, { backgroundColor: `${typeInfo.color}15` }]}>
+                <Text style={[styles.notificationTypeText, { color: typeInfo.color }]}>
+                  {typeInfo.label}
+                </Text>
+              </View>
+              {!item.isRead && (
+                <View style={styles.unreadDot} />
+              )}
             </View>
-            {!item.isRead && (
-              <View style={styles.unreadDot} />
-            )}
-          </View>
-          <Text style={styles.notificationTitle}>{item.title || item.subType || 'Thông báo'}</Text>
-          <Paragraph style={styles.notificationMessage}>{item.message || ''}</Paragraph>
-          <Text style={styles.notificationDate}>{notificationDate}</Text>
-        </Card.Content>
-      </Card>
+            <Text style={styles.notificationTitle}>{item.title || item.subType || 'Thông báo'}</Text>
+            <Paragraph style={styles.notificationMessage}>{item.message || ''}</Paragraph>
+            <Text style={styles.notificationDate}>{notificationDate}</Text>
+          </Card.Content>
+        </Card>
+      </TouchableOpacity>
     );
   };
 
