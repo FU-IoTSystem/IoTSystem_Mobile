@@ -11,6 +11,7 @@ import {
 import { MaterialIcons as Icon } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { walletAPI, borrowingGroupAPI, walletTransactionAPI, studentGroupAPI } from '../../services/api';
+import MemberLayout from '../../components/MemberLayout';
 
 const MemberDashboard = ({ user, onLogout }) => {
   const navigation = useNavigation();
@@ -97,24 +98,38 @@ const MemberDashboard = ({ user, onLogout }) => {
     navigation.navigate('Wallet');
   };
 
-  return (
-    <View style={styles.container}>
-      {/* Header with gradient background */}
-      <View style={styles.header}>
-        <View style={styles.headerContent}>
-          <View>
-            <Text style={styles.headerGreeting}>Welcome back!</Text>
-            <Text style={styles.headerTitle}>{user?.fullName || user?.email || 'Member'}</Text>
-          </View>
-          <TouchableOpacity 
-            style={styles.headerButton}
-            onPress={onLogout}
-          >
-            <Icon name="logout" size={24} color="#fff" />
-          </TouchableOpacity>
-        </View>
-      </View>
+  const handleLogout = async () => {
+    Alert.alert(
+      'Logout',
+      'Are you sure you want to logout?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Logout',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              if (onLogout) {
+                await onLogout();
+              }
+            } catch (error) {
+              console.error('Logout failed:', error);
+              Alert.alert('Error', 'Failed to logout');
+            }
+          },
+        },
+      ]
+    );
+  };
 
+  return (
+    <MemberLayout 
+      title="Member Dashboard"
+      rightAction={{
+        icon: 'logout',
+      }}
+      onRightAction={handleLogout}
+    >
       <ScrollView
         style={styles.content}
         showsVerticalScrollIndicator={false}
@@ -260,51 +275,15 @@ const MemberDashboard = ({ user, onLogout }) => {
           </TouchableOpacity>
         </View>
       </ScrollView>
-    </View>
+    </MemberLayout>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#f5f5f5',
-  },
-  header: {
-    backgroundColor: '#667eea',
-    paddingTop: 50,
-    paddingBottom: 20,
-    paddingHorizontal: 20,
-    borderBottomLeftRadius: 25,
-    borderBottomRightRadius: 25,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 8,
-  },
-  headerContent: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  headerGreeting: {
-    fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.9)',
-    marginBottom: 4,
-  },
-  headerTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#fff',
-  },
-  headerButton: {
-    padding: 8,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    borderRadius: 20,
-  },
   content: {
     flex: 1,
     padding: 16,
+    backgroundColor: '#f5f5f5',
   },
   statsContainer: {
     flexDirection: 'row',
@@ -514,4 +493,3 @@ const styles = StyleSheet.create({
 });
 
 export default MemberDashboard;
-

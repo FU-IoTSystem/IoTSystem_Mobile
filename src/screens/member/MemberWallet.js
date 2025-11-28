@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { MaterialIcons as Icon } from '@expo/vector-icons';
 import { walletAPI, walletTransactionAPI } from '../../services/api';
+import MemberLayout from '../../components/MemberLayout';
 import dayjs from 'dayjs';
 
 const MemberWallet = ({ user, onLogout }) => {
@@ -101,66 +102,49 @@ const MemberWallet = ({ user, onLogout }) => {
   };
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>My Wallet</Text>
-        <TouchableOpacity 
-          style={styles.logoutButton}
-          onPress={handleLogout}
-        >
-          <Icon name="logout" size={24} color="#ff4d4f" />
-        </TouchableOpacity>
-      </View>
-
-      <View style={styles.balanceCard}>
+    <MemberLayout 
+      title="My Wallet"
+      rightAction={{
+        icon: 'logout',
+      }}
+      onRightAction={handleLogout}
+    >
+      <ScrollView
+        style={styles.content}
+        refreshControl={
+          <RefreshControl refreshing={loading} onRefresh={loadData} />
+        }
+      >
+        <View style={styles.balanceCard}>
         <Text style={styles.balanceLabel}>Current Balance</Text>
         <Text style={styles.balanceAmount}>
           {wallet.balance.toLocaleString('vi-VN')} VND
         </Text>
       </View>
 
-      <Text style={styles.sectionTitle}>Transaction History</Text>
+        <Text style={styles.sectionTitle}>Transaction History</Text>
 
-      <FlatList
-        data={transactions}
-        renderItem={renderTransaction}
-        keyExtractor={(item) => item.id?.toString() || Math.random().toString()}
-        refreshControl={
-          <RefreshControl refreshing={loading} onRefresh={loadData} />
-        }
-        ListEmptyComponent={
+        {transactions.length > 0 ? (
+          transactions.map((item) => (
+            <View key={item.id?.toString() || Math.random().toString()}>
+              {renderTransaction({ item })}
+            </View>
+          ))
+        ) : (
           <View style={styles.emptyContainer}>
             <Icon name="history" size={48} color="#ddd" />
             <Text style={styles.emptyText}>No transactions yet</Text>
           </View>
-        }
-      />
-    </View>
+        )}
+      </ScrollView>
+    </MemberLayout>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
+  content: {
     flex: 1,
     backgroundColor: '#f5f5f5',
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 20,
-    paddingTop: 60,
-    backgroundColor: 'white',
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
-  },
-  headerTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#333',
-  },
-  logoutButton: {
-    padding: 4,
   },
   balanceCard: {
     backgroundColor: '#667eea',
@@ -246,4 +230,3 @@ const styles = StyleSheet.create({
 });
 
 export default MemberWallet;
-

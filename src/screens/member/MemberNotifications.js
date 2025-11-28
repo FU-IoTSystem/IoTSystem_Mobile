@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { MaterialIcons as Icon } from '@expo/vector-icons';
 import { notificationAPI } from '../../services/api';
+import MemberLayout from '../../components/MemberLayout';
 import dayjs from 'dayjs';
 
 const MemberNotifications = ({ onLogout }) => {
@@ -105,21 +106,18 @@ const MemberNotifications = ({ onLogout }) => {
   };
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Notifications</Text>
-        <TouchableOpacity 
-          style={styles.logoutButton}
-          onPress={handleLogout}
-        >
-          <Icon name="logout" size={24} color="#ff4d4f" />
-        </TouchableOpacity>
-      </View>
-
+    <MemberLayout 
+      title="Notifications"
+      rightAction={{
+        icon: 'logout',
+      }}
+      onRightAction={handleLogout}
+    >
       <FlatList
         data={notifications}
         renderItem={renderNotification}
         keyExtractor={(item) => item.id?.toString() || Math.random().toString()}
+        contentContainerStyle={styles.listContent}
         refreshControl={
           <RefreshControl refreshing={loading} onRefresh={loadNotifications} />
         }
@@ -130,32 +128,14 @@ const MemberNotifications = ({ onLogout }) => {
           </View>
         }
       />
-    </View>
+    </MemberLayout>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#f5f5f5',
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 20,
-    paddingTop: 60,
-    backgroundColor: 'white',
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
-  },
-  headerTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#333',
-  },
-  logoutButton: {
-    padding: 4,
+  listContent: {
+    padding: 16,
+    paddingTop: 0,
   },
   notificationCard: {
     flexDirection: 'row',
@@ -222,4 +202,3 @@ const styles = StyleSheet.create({
 });
 
 export default MemberNotifications;
-

@@ -15,6 +15,7 @@ import {
 import { MaterialIcons as Icon } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { borrowingGroupAPI, studentGroupAPI, userAPI, classesAPI } from '../../services/api';
+import MemberLayout from '../../components/MemberLayout';
 
 const MemberGroups = ({ user, onLogout }) => {
   const navigation = useNavigation();
@@ -79,11 +80,22 @@ const MemberGroups = ({ user, onLogout }) => {
           const studentGroup = await studentGroupAPI.getById(groupId);
           const allMembers = await borrowingGroupAPI.getByStudentGroupId(groupId);
           
+          // Get classCode from class details if classId exists but classCode doesn't
+          let classCode = studentGroup?.classCode || null;
+          if (!classCode && studentGroup?.classId) {
+            try {
+              const classDetails = await classesAPI.getClassById(studentGroup.classId);
+              classCode = classDetails?.classCode || classDetails?.data?.classCode || null;
+            } catch (error) {
+              console.error('Error fetching class details:', error);
+            }
+          }
+          
           setGroup({
             id: groupId,
             name: studentGroup?.groupName || 'Unknown Group',
             lecturer: studentGroup?.lecturerName || studentGroup?.lecturerEmail || null,
-            classId: studentGroup?.classId || null,
+            classCode: classCode,
             status: studentGroup?.status ? 'active' : 'inactive',
           });
           
@@ -93,6 +105,7 @@ const MemberGroups = ({ user, onLogout }) => {
             name: bg.accountName || bg.accountEmail,
             email: bg.accountEmail,
             role: bg.roles,
+            studentCode: bg.studentCode || null,
           }));
           setMembers(formattedMembers);
         } else {
@@ -128,11 +141,23 @@ const MemberGroups = ({ user, onLogout }) => {
           .map(async (g) => {
             try {
               const members = await borrowingGroupAPI.getByStudentGroupId(g.id);
+              
+              // Get classCode from class details if classId exists but classCode doesn't
+              let classCode = g.classCode || null;
+              if (!classCode && g.classId) {
+                try {
+                  const classDetails = await classesAPI.getClassById(g.classId);
+                  classCode = classDetails?.classCode || classDetails?.data?.classCode || null;
+                } catch (error) {
+                  console.error(`Error fetching class details for group ${g.id}:`, error);
+                }
+              }
+              
               return {
                 id: g.id,
                 name: g.groupName,
                 lecturer: g.lecturerEmail || g.lecturerName,
-                classId: g.classId,
+                classCode: classCode,
                 members: members || [],
                 maxMembers: 4,
                 status: g.status ? 'active' : 'inactive'
@@ -172,7 +197,7 @@ const MemberGroups = ({ user, onLogout }) => {
 
       const groupData = {
         groupName: groupName.trim(),
-        classId: selectedClass || null,
+        classCode: selectedClass ? classes.find(c => c.id === selectedClass)?.classCode : null,
         accountId: lecturer.id,
         status: true
       };
@@ -248,31 +273,6 @@ const MemberGroups = ({ user, onLogout }) => {
     }
   };
 
-  const renderMember = ({ item }) => {
-    const isLeader = (item.role || '').toUpperCase() === 'LEADER';
-    return (
-      <View style={styles.memberCard}>
-        <View style={styles.memberInfo}>
-          <View style={[styles.memberAvatar, isLeader && styles.memberAvatarLeader]}>
-            <Icon
-              name={isLeader ? 'star' : 'person'}
-              size={24}
-              color={isLeader ? '#f39c12' : '#667eea'}
-            />
-          </View>
-          <View style={styles.memberDetails}>
-            <Text style={styles.memberName}>{item.name || item.email}</Text>
-            <Text style={styles.memberEmail}>{item.email}</Text>
-          </View>
-        </View>
-        <View style={[styles.roleBadge, isLeader && styles.roleBadgeLeader]}>
-          <Text style={[styles.roleText, isLeader && styles.roleTextLeader]}>
-            {item.role || 'MEMBER'}
-          </Text>
-        </View>
-      </View>
-    );
-  };
 
   const renderAvailableGroup = ({ item }) => {
     const isFull = (item.members?.length || 0) >= (item.maxMembers || 4);
@@ -310,68 +310,142 @@ const MemberGroups = ({ user, onLogout }) => {
   };
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>My Group</Text>
-        {!group && (
-          <View style={styles.headerButtons}>
-            <TouchableOpacity
-              style={styles.headerActionButton}
-              onPress={() => setCreateModalVisible(true)}
-            >
-              <Icon name="add" size={24} color="#667eea" />
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.headerActionButton}
-              onPress={() => setJoinModalVisible(true)}
-            >
-              <Icon name="group-add" size={24} color="#667eea" />
-            </TouchableOpacity>
-          </View>
-        )}
-      </View>
-
+    <MemberLayout title="My Group">
       <ScrollView
         style={styles.content}
         refreshControl={
           <RefreshControl refreshing={loading} onRefresh={loadGroupData} />
         }
       >
+        {!group && (
+          <View style={styles.actionButtonsHeader}>
+            <TouchableOpacity
+              style={[styles.actionButton, styles.createButton]}
+              onPress={() => setCreateModalVisible(true)}
+            >
+              <Icon name="add-circle" size={20} color="#fff" />
+              <Text style={styles.actionButtonText}>Create Group</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.actionButton, styles.joinButton]}
+              onPress={() => setJoinModalVisible(true)}
+            >
+              <Icon name="group-add" size={20} color="#fff" />
+              <Text style={styles.actionButtonText}>Join Group</Text>
+            </TouchableOpacity>
+          </View>
+        )}
         {group ? (
           <>
+            {/* Group Info Card */}
             <View style={styles.groupCard}>
               <View style={styles.groupHeader}>
-                <Icon name="group" size={48} color="#667eea" />
-                <Text style={styles.groupName}>{group.name}</Text>
-                <View style={[styles.statusBadge, group.status === 'active' && styles.statusBadgeActive]}>
-                  <Text style={styles.statusText}>{group.status || 'inactive'}</Text>
-                </View>
+                <Icon name="group" size={32} color="#667eea" />
+                <Text style={styles.groupName}>{group.name || 'N/A'}</Text>
               </View>
               
-              <View style={styles.groupDetails}>
+              <View style={styles.groupInfo}>
+                <View style={styles.infoRow}>
+                  <Text style={styles.infoLabel}>Group ID:</Text>
+                  <Text style={styles.infoValue}>{group.id || 'N/A'}</Text>
+                </View>
+                
+                <View style={styles.infoRow}>
+                  <Text style={styles.infoLabel}>Status:</Text>
+                  <View style={[
+                    styles.statusBadge,
+                    { backgroundColor: group.status === 'active' ? '#52c41a15' : '#ff4d4f15' }
+                  ]}>
+                    <Text style={[
+                      styles.statusText,
+                      { color: group.status === 'active' ? '#52c41a' : '#ff4d4f' }
+                    ]}>
+                      {group.status === 'active' ? 'Active' : 'Inactive'}
+                    </Text>
+                  </View>
+                </View>
+                
                 {group.lecturer && (
-                  <View style={styles.detailRow}>
-                    <Icon name="school" size={20} color="#666" />
-                    <Text style={styles.detailText}>Lecturer: {group.lecturer}</Text>
+                  <View style={styles.infoRow}>
+                    <Text style={styles.infoLabel}>Lecturer:</Text>
+                    <Text style={styles.infoValue}>{group.lecturer}</Text>
                   </View>
                 )}
-                {group.classId && (
-                  <View style={styles.detailRow}>
-                    <Icon name="class" size={20} color="#666" />
-                    <Text style={styles.detailText}>Class ID: {group.classId}</Text>
+                
+                {group.classCode && (
+                  <View style={styles.infoRow}>
+                    <Text style={styles.infoLabel}>Class Code:</Text>
+                    <Text style={styles.infoValue}>{group.classCode}</Text>
                   </View>
                 )}
               </View>
             </View>
 
+            {/* Leader Section */}
+            {members.find(m => (m.role || '').toUpperCase() === 'LEADER') && (
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Leader</Text>
+                {(() => {
+                  const leader = members.find(m => (m.role || '').toUpperCase() === 'LEADER');
+                  return (
+                    <View style={styles.memberCard}>
+                      <View style={styles.memberHeader}>
+                        <View style={[styles.memberIcon, { backgroundColor: '#667eea15' }]}>
+                          <Icon name="person" size={24} color="#667eea" />
+                        </View>
+                        <View style={styles.memberInfo}>
+                          <Text style={styles.memberName}>
+                            {leader.name || leader.email || 'N/A'}
+                          </Text>
+                          <Text style={styles.memberEmail}>{leader.email || 'N/A'}</Text>
+                        </View>
+                        <View style={[styles.roleBadge, { backgroundColor: '#667eea15' }]}>
+                          <Text style={[styles.roleText, { color: '#667eea' }]}>LEADER</Text>
+                        </View>
+                      </View>
+                    </View>
+                  );
+                })()}
+              </View>
+            )}
+
+            {/* Members Section */}
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Group Members ({members.length})</Text>
-              <FlatList
-                data={members}
-                renderItem={renderMember}
-                keyExtractor={(item) => item.id?.toString() || item.email}
-                scrollEnabled={false}
-              />
+              <Text style={styles.sectionTitle}>
+                Members ({members.filter(m => (m.role || '').toUpperCase() === 'MEMBER').length})
+              </Text>
+              {members.filter(m => (m.role || '').toUpperCase() === 'MEMBER').length > 0 ? (
+                members
+                  .filter(m => (m.role || '').toUpperCase() === 'MEMBER')
+                  .map((member, index) => (
+                    <View key={member.id || index} style={styles.memberCard}>
+                      <View style={styles.memberHeader}>
+                        <View style={[styles.memberIcon, { backgroundColor: '#1890ff15' }]}>
+                          <Icon name="person" size={24} color="#1890ff" />
+                        </View>
+                        <View style={styles.memberInfo}>
+                          <Text style={styles.memberName}>
+                            {member.name || member.email || 'N/A'}
+                          </Text>
+                          <Text style={styles.memberEmail}>{member.email || 'N/A'}</Text>
+                          {member.studentCode && (
+                            <Text style={styles.memberStudentCode}>
+                              Student Code: {member.studentCode}
+                            </Text>
+                          )}
+                        </View>
+                        <View style={[styles.roleBadge, { backgroundColor: '#1890ff15' }]}>
+                          <Text style={[styles.roleText, { color: '#1890ff' }]}>MEMBER</Text>
+                        </View>
+                      </View>
+                    </View>
+                  ))
+              ) : (
+                <View style={styles.emptyMembers}>
+                  <Icon name="people-outline" size={48} color="#ccc" />
+                  <Text style={styles.emptyMembersText}>No members in this group</Text>
+                </View>
+              )}
             </View>
           </>
         ) : (
@@ -553,29 +627,21 @@ const MemberGroups = ({ user, onLogout }) => {
           </View>
         </View>
       </Modal>
-    </View>
+    </MemberLayout>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
+  content: {
     flex: 1,
     backgroundColor: '#f5f5f5',
+    padding: 16,
   },
-  header: {
+  actionButtonsHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 20,
-    paddingTop: 60,
-    backgroundColor: 'white',
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
-  },
-  headerTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#333',
+    gap: 12,
+    padding: 16,
+    paddingBottom: 0,
   },
   headerButtons: {
     flexDirection: 'row',
@@ -586,130 +652,127 @@ const styles = StyleSheet.create({
     backgroundColor: '#f0f4ff',
     borderRadius: 20,
   },
-  content: {
-    flex: 1,
-    padding: 16,
-  },
   groupCard: {
-    backgroundColor: 'white',
-    borderRadius: 16,
-    padding: 24,
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 20,
     marginBottom: 16,
-    alignItems: 'center',
+    elevation: 2,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
-    elevation: 3,
   },
   groupHeader: {
+    flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 16,
   },
   groupName: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#333',
+    color: '#2c3e50',
+    marginLeft: 12,
+  },
+  groupInfo: {
     marginTop: 12,
-    marginBottom: 8,
+  },
+  infoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+    flexWrap: 'wrap',
+  },
+  infoLabel: {
+    fontSize: 14,
+    color: '#666',
+    width: 120,
+    fontWeight: '600',
+  },
+  infoValue: {
+    fontSize: 14,
+    color: '#2c3e50',
+    flex: 1,
   },
   statusBadge: {
-    backgroundColor: '#fee',
-    paddingHorizontal: 12,
+    paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 12,
   },
-  statusBadgeActive: {
-    backgroundColor: '#e8f5e9',
-  },
   statusText: {
     fontSize: 12,
-    fontWeight: 'bold',
-    color: '#c62828',
-  },
-  groupDetails: {
-    width: '100%',
-    marginTop: 12,
-  },
-  detailRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  detailText: {
-    fontSize: 14,
-    color: '#666',
-    marginLeft: 8,
+    fontWeight: '600',
   },
   section: {
-    marginTop: 8,
+    marginBottom: 24,
   },
   sectionTitle: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 12,
+    color: '#2c3e50',
+    marginBottom: 16,
   },
   memberCard: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: 'white',
+    backgroundColor: '#fff',
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
+    elevation: 1,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.05,
     shadowRadius: 2,
-    elevation: 2,
   },
-  memberInfo: {
+  memberHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    flex: 1,
   },
-  memberAvatar: {
+  memberIcon: {
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: '#e3f2fd',
-    alignItems: 'center',
     justifyContent: 'center',
+    alignItems: 'center',
     marginRight: 12,
   },
-  memberAvatarLeader: {
-    backgroundColor: '#fff3cd',
-  },
-  memberDetails: {
+  memberInfo: {
     flex: 1,
   },
   memberName: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#333',
+    color: '#2c3e50',
+    marginBottom: 4,
   },
   memberEmail: {
     fontSize: 14,
     color: '#666',
+    marginBottom: 2,
+  },
+  memberStudentCode: {
+    fontSize: 12,
+    color: '#999',
     marginTop: 2,
   },
   roleBadge: {
-    backgroundColor: '#e3f2fd',
-    paddingHorizontal: 12,
+    paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 12,
   },
-  roleBadgeLeader: {
-    backgroundColor: '#fff3cd',
-  },
   roleText: {
-    fontSize: 12,
-    fontWeight: 'bold',
-    color: '#667eea',
+    fontSize: 11,
+    fontWeight: '600',
   },
-  roleTextLeader: {
-    color: '#f39c12',
+  emptyMembers: {
+    alignItems: 'center',
+    padding: 40,
+    backgroundColor: '#fff',
+    borderRadius: 12,
+  },
+  emptyMembersText: {
+    fontSize: 16,
+    color: '#999',
+    marginTop: 12,
   },
   noGroupContainer: {
     alignItems: 'center',

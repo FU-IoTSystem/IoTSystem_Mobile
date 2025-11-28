@@ -4,43 +4,72 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  RefreshControl,
-  TouchableOpacity,
   Alert,
-  TextInput,
   ActivityIndicator,
+  TouchableOpacity,
+  TextInput,
   Image,
+  Modal,
 } from 'react-native';
 import { MaterialIcons as Icon } from '@expo/vector-icons';
+import MemberLayout from '../../components/MemberLayout';
 import { authAPI } from '../../services/api';
 import dayjs from 'dayjs';
+
+// Password validation helper
+const validatePassword = (password) => {
+  if (!password || password.length < 8) {
+    return 'Password must be at least 8 characters long';
+  }
+  if (!/[A-Z]/.test(password)) {
+    return 'Password must contain at least one uppercase letter';
+  }
+  if (!/[a-z]/.test(password)) {
+    return 'Password must contain at least one lowercase letter';
+  }
+  if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)) {
+    return 'Password must contain at least one special character';
+  }
+  return null;
+};
 
 const MemberProfile = ({ user, onLogout }) => {
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
-  
-  // Form states
-  const [fullName, setFullName] = useState('');
-  const [phone, setPhone] = useState('');
-  const [avatarUrl, setAvatarUrl] = useState('');
+  const [isEditing, setIsEditing] = useState(false);
+  const [formData, setFormData] = useState({
+    fullName: '',
+    phone: '',
+    avatarUrl: '',
+  });
+  const [changePasswordModalVisible, setChangePasswordModalVisible] = useState(false);
+  const [passwordData, setPasswordData] = useState({
+    oldPassword: '',
+    newPassword: '',
+    confirmPassword: '',
+  });
+  const [changingPassword, setChangingPassword] = useState(false);
 
   useEffect(() => {
     loadProfile();
   }, []);
 
   const loadProfile = async () => {
-    setLoading(true);
     try {
+      setLoading(true);
       const response = await authAPI.getProfile();
+      console.log('Profile response:', response);
+      
       const profileData = response?.data || response;
       setProfile(profileData);
       
       if (profileData) {
-        setFullName(profileData.fullName || '');
-        setPhone(profileData.phone || '');
-        setAvatarUrl(profileData.avatarUrl || '');
+        setFormData({
+          fullName: profileData.fullName || '',
+          phone: profileData.phone || '',
+          avatarUrl: profileData.avatarUrl || '',
+        });
       }
     } catch (error) {
       console.error('Error loading profile:', error);
@@ -50,50 +79,105 @@ const MemberProfile = ({ user, onLogout }) => {
     }
   };
 
+  useEffect(() => {
+    loadProfile();
+  }, []);
+
   const handleEdit = () => {
-    setEditing(true);
+    setIsEditing(true);
   };
 
   const handleCancel = () => {
-    setEditing(false);
+    setIsEditing(false);
     if (profile) {
-      setFullName(profile.fullName || '');
-      setPhone(profile.phone || '');
-      setAvatarUrl(profile.avatarUrl || '');
+      setFormData({
+        fullName: profile.fullName || '',
+        phone: profile.phone || '',
+        avatarUrl: profile.avatarUrl || '',
+      });
     }
   };
 
   const handleSave = async () => {
-    if (!fullName.trim()) {
-      Alert.alert('Error', 'Full name is required');
+    if (!formData.fullName || formData.fullName.trim() === '') {
+      Alert.alert('Error', 'Please enter your full name');
       return;
     }
-    
-    if (phone && !/^[0-9]{10,11}$/.test(phone)) {
+
+    if (formData.phone && !/^[0-9]{10,11}$/.test(formData.phone)) {
       Alert.alert('Error', 'Please enter a valid phone number (10-11 digits)');
       return;
     }
 
-    setSaving(true);
     try {
+      setSaving(true);
       const updateData = {
-        fullName: fullName.trim(),
-        phone: phone.trim() || null,
-        avatarUrl: avatarUrl.trim() || null,
+        fullName: formData.fullName,
+        phone: formData.phone,
+        avatarUrl: formData.avatarUrl || null,
       };
 
       const response = await authAPI.updateProfile(updateData);
+      console.log('Update profile response:', response);
+      
       const updatedProfile = response?.data || response;
       setProfile(updatedProfile);
-      setEditing(false);
+      setIsEditing(false);
       
       Alert.alert('Success', 'Profile updated successfully');
+      
+      // Reload profile to get latest data
       await loadProfile();
     } catch (error) {
       console.error('Error updating profile:', error);
-      Alert.alert('Error', error.message || 'Failed to update profile');
+      Alert.alert('Error', 'Failed to update profile: ' + (error.message || 'Unknown error'));
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleChangePassword = async () => {
+    const { oldPassword, newPassword, confirmPassword } = passwordData;
+    
+    if (!oldPassword || !newPassword || !confirmPassword) {
+      Alert.alert('Error', 'Please fill in all password fields');
+      return;
+    }
+    
+    // Validate new password
+    const passwordError = validatePassword(newPassword);
+    if (passwordError) {
+      Alert.alert('Error', passwordError);
+      return;
+    }
+    
+    // Check if passwords match
+    if (newPassword !== confirmPassword) {
+      Alert.alert('Error', 'New password and confirm password do not match');
+      return;
+    }
+    
+    // Check if new password is same as old password
+    if (oldPassword === newPassword) {
+      Alert.alert('Error', 'New password must be different from old password');
+      return;
+    }
+    
+    try {
+      setChangingPassword(true);
+      await authAPI.changePassword(oldPassword, newPassword);
+      Alert.alert('Success', 'Password changed successfully');
+      setChangePasswordModalVisible(false);
+      setPasswordData({
+        oldPassword: '',
+        newPassword: '',
+        confirmPassword: '',
+      });
+    } catch (error) {
+      console.error('Error changing password:', error);
+      Alert.alert('Error', 'Failed to change password: ' + (error.message || 'Unknown error'));
+    } finally {
+      setChangingPassword(false);
     }
   };
 
@@ -103,386 +187,523 @@ const MemberProfile = ({ user, onLogout }) => {
     return date.isValid() ? date.format('DD/MM/YYYY HH:mm') : 'N/A';
   };
 
-  return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>My Profile</Text>
-        {!editing ? (
-          <TouchableOpacity style={styles.editButton} onPress={handleEdit}>
-            <Icon name="edit" size={24} color="#667eea" />
-          </TouchableOpacity>
-        ) : (
-          <View style={styles.headerButtons}>
-            <TouchableOpacity style={styles.cancelButton} onPress={handleCancel}>
-              <Text style={styles.cancelButtonText}>Cancel</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.saveButton, saving && styles.saveButtonDisabled]}
-              onPress={handleSave}
-              disabled={saving}
-            >
-              {saving ? (
-                <ActivityIndicator color="#fff" size="small" />
-              ) : (
-                <Text style={styles.saveButtonText}>Save</Text>
-              )}
-            </TouchableOpacity>
-          </View>
-        )}
+  if (loading) {
+    return (
+      <View style={[styles.container, styles.centered]}>
+        <ActivityIndicator size="large" color="#667eea" />
       </View>
+    );
+  }
 
-      <ScrollView
-        style={styles.content}
-        refreshControl={
-          <RefreshControl refreshing={loading} onRefresh={loadProfile} />
-        }
-      >
-        {profile ? (
-          <>
+  if (!profile) {
+    return (
+      <MemberLayout title="My Profile">
+        <View style={styles.loadingContainer}>
+          <Icon name="error-outline" size={48} color="#ccc" />
+          <Text style={styles.errorText}>Failed to load profile</Text>
+        </View>
+      </MemberLayout>
+    );
+  }
+
+  return (
+    <MemberLayout 
+      title="My Profile"
+      rightAction={!isEditing ? {
+        icon: 'edit',
+      } : null}
+      onRightAction={!isEditing ? handleEdit : null}
+    >
+      {loading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#667eea" />
+        </View>
+      ) : (
+        <>
+          <ScrollView style={styles.content}>
             {/* Avatar Section */}
             <View style={styles.avatarSection}>
-              {profile.avatarUrl ? (
-                <Image
-                  source={{ uri: profile.avatarUrl }}
-                  style={styles.avatar}
-                />
-              ) : (
-                <View style={styles.avatarPlaceholder}>
-                  <Icon name="person" size={64} color="#667eea" />
+              <View style={styles.avatarContent}>
+                <View style={styles.avatarContainer}>
+                  {profile.avatarUrl ? (
+                    <Image
+                      source={{ uri: profile.avatarUrl }}
+                      style={styles.avatarImage}
+                      onError={(error) => {
+                        console.error('Avatar image load error:', error);
+                      }}
+                    />
+                  ) : (
+                    <Icon name="account-circle" size={120} color="#ffffff" />
+                  )}
                 </View>
-              )}
-              {editing && (
-                <View style={styles.avatarEditContainer}>
-                  <TextInput
-                    style={styles.avatarInput}
-                    placeholder="Avatar URL"
-                    placeholderTextColor="#999"
-                    value={avatarUrl}
-                    onChangeText={setAvatarUrl}
-                    keyboardType="url"
-                  />
-                </View>
-              )}
+                {isEditing && (
+                  <View style={styles.avatarUrlContainer}>
+                    <Text style={styles.label}>Avatar URL (optional)</Text>
+                    <TextInput
+                      style={styles.input}
+                      value={formData.avatarUrl}
+                      onChangeText={(text) => setFormData({ ...formData, avatarUrl: text })}
+                      placeholder="Enter avatar URL"
+                    />
+                  </View>
+                )}
+              </View>
             </View>
 
-            {/* Profile Information */}
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Account Information</Text>
-              
-              <View style={styles.infoCard}>
-                <View style={styles.infoRow}>
-                  <Text style={styles.infoLabel}>Account ID</Text>
-                  <Text style={styles.infoValue}>{profile.id || 'N/A'}</Text>
+            {/* Profile Details */}
+            <View style={styles.detailsSection}>
+              <View style={styles.detailItem}>
+                <Text style={styles.detailLabel}>Account ID</Text>
+                <View style={[styles.badge, { backgroundColor: '#1890ff15' }]}>
+                  <Text style={[styles.badgeText, { color: '#1890ff' }]}>{profile.id}</Text>
                 </View>
-                
-                <View style={styles.infoRow}>
-                  <Text style={styles.infoLabel}>Email</Text>
-                  <View style={styles.infoValueContainer}>
-                    <Text style={styles.infoValue}>{profile.email || 'N/A'}</Text>
-                    <View style={styles.readOnlyBadge}>
-                      <Text style={styles.readOnlyText}>Cannot be changed</Text>
-                    </View>
+              </View>
+
+              <View style={styles.divider} />
+
+              <View style={styles.detailItem}>
+                <Text style={styles.detailLabel}>Email</Text>
+                <View style={styles.detailValueRow}>
+                  <Text style={styles.detailValue}>{profile.email || 'N/A'}</Text>
+                  <View style={[styles.badge, { backgroundColor: '#faad1415' }]}>
+                    <Text style={[styles.badgeText, { color: '#faad14' }]}>Cannot be changed</Text>
                   </View>
                 </View>
-                
-                <View style={styles.infoRow}>
-                  <Text style={styles.infoLabel}>Full Name</Text>
-                  {editing ? (
-                    <TextInput
-                      style={styles.input}
-                      value={fullName}
-                      onChangeText={setFullName}
-                      placeholder="Enter your full name"
-                    />
-                  ) : (
-                    <Text style={styles.infoValue}>{profile.fullName || 'N/A'}</Text>
-                  )}
-                </View>
-                
-                <View style={styles.infoRow}>
-                  <Text style={styles.infoLabel}>Phone</Text>
-                  {editing ? (
-                    <TextInput
-                      style={styles.input}
-                      value={phone}
-                      onChangeText={setPhone}
-                      placeholder="Enter phone number"
-                      keyboardType="phone-pad"
-                    />
-                  ) : (
-                    <Text style={styles.infoValue}>{profile.phone || 'N/A'}</Text>
-                  )}
-                </View>
-                
-                <View style={styles.infoRow}>
-                  <Text style={styles.infoLabel}>Student Code</Text>
-                  <View style={styles.infoValueContainer}>
-                    <Text style={styles.infoValue}>{profile.studentCode || 'N/A'}</Text>
-                    <View style={styles.readOnlyBadge}>
-                      <Text style={styles.readOnlyText}>Cannot be changed</Text>
-                    </View>
+              </View>
+
+              <View style={styles.divider} />
+
+              <View style={styles.detailItem}>
+                <Text style={styles.detailLabel}>Full Name</Text>
+                {isEditing ? (
+                  <TextInput
+                    style={styles.input}
+                    value={formData.fullName}
+                    onChangeText={(text) => setFormData({ ...formData, fullName: text })}
+                    placeholder="Enter full name"
+                  />
+                ) : (
+                  <Text style={[styles.detailValue, styles.detailValueLarge]}>
+                    {profile.fullName || 'N/A'}
+                  </Text>
+                )}
+              </View>
+
+              <View style={styles.divider} />
+
+              <View style={styles.detailItem}>
+                <Text style={styles.detailLabel}>Phone</Text>
+                {isEditing ? (
+                  <TextInput
+                    style={styles.input}
+                    value={formData.phone}
+                    onChangeText={(text) => setFormData({ ...formData, phone: text })}
+                    placeholder="Enter phone number"
+                    keyboardType="phone-pad"
+                  />
+                ) : (
+                  <Text style={styles.detailValue}>{profile.phone || 'N/A'}</Text>
+                )}
+              </View>
+
+              <View style={styles.divider} />
+
+              <View style={styles.detailItem}>
+                <Text style={styles.detailLabel}>Student Code</Text>
+                <View style={styles.detailValueRow}>
+                  <Text style={styles.detailValue}>{profile.studentCode || 'N/A'}</Text>
+                  <View style={[styles.badge, { backgroundColor: '#faad1415' }]}>
+                    <Text style={[styles.badgeText, { color: '#faad14' }]}>Cannot be changed</Text>
                   </View>
                 </View>
-                
-                <View style={styles.infoRow}>
-                  <Text style={styles.infoLabel}>Role</Text>
-                  <View style={[styles.roleBadge, styles.roleBadgeMember]}>
-                    <Text style={styles.roleText}>{profile.role || 'MEMBER'}</Text>
-                  </View>
-                </View>
-                
-                <View style={styles.infoRow}>
-                  <Text style={styles.infoLabel}>Account Status</Text>
-                  <View style={[
-                    styles.statusBadge,
-                    profile.isActive ? styles.statusBadgeActive : styles.statusBadgeInactive
-                  ]}>
-                    <Text style={[
-                      styles.statusText,
-                      profile.isActive ? styles.statusTextActive : styles.statusTextInactive
-                    ]}>
-                      {profile.isActive ? 'Active' : 'Inactive'}
+              </View>
+
+              <View style={styles.divider} />
+
+              <View style={styles.detailItem}>
+                <Text style={styles.detailLabel}>Role</Text>
+                <View style={styles.detailValueRow}>
+                  <View style={[styles.badge, { backgroundColor: '#722ed115' }]}>
+                    <Text style={[styles.badgeText, { color: '#722ed1' }]}>
+                      {profile.role?.toUpperCase() || 'N/A'}
                     </Text>
                   </View>
+                  <View style={[styles.badge, { backgroundColor: '#faad1415' }]}>
+                    <Text style={[styles.badgeText, { color: '#faad14' }]}>Cannot be changed</Text>
+                  </View>
                 </View>
-                
-                <View style={styles.infoRow}>
-                  <Text style={styles.infoLabel}>Created At</Text>
-                  <Text style={styles.infoValue}>
-                    {formatDateTimeDisplay(profile.createdAt)}
+              </View>
+
+              <View style={styles.divider} />
+
+              <View style={styles.detailItem}>
+                <Text style={styles.detailLabel}>Account Status</Text>
+                <View style={[
+                  styles.badge,
+                  { backgroundColor: profile.isActive ? '#52c41a15' : '#ff4d4f15' }
+                ]}>
+                  <Text style={[
+                    styles.badgeText,
+                    { color: profile.isActive ? '#52c41a' : '#ff4d4f' }
+                  ]}>
+                    {profile.isActive ? 'Active' : 'Inactive'}
                   </Text>
                 </View>
               </View>
+
+              <View style={styles.divider} />
+
+              <View style={styles.detailItem}>
+                <Text style={styles.detailLabel}>Created At</Text>
+                <Text style={styles.detailValue}>
+                  {formatDateTimeDisplay(profile.createdAt)}
+                </Text>
+              </View>
             </View>
-          </>
-        ) : (
-          <View style={styles.emptyContainer}>
-            <Icon name="person-off" size={64} color="#ddd" />
-            <Text style={styles.emptyText}>Failed to load profile</Text>
-            <TouchableOpacity style={styles.retryButton} onPress={loadProfile}>
-              <Text style={styles.retryButtonText}>Retry</Text>
-            </TouchableOpacity>
+            
+            {/* Change Password Button */}
+            <View style={styles.changePasswordSection}>
+              <TouchableOpacity
+                style={styles.changePasswordButton}
+                onPress={() => setChangePasswordModalVisible(true)}
+              >
+                <Icon name="lock" size={20} color="#667eea" />
+                <Text style={styles.changePasswordButtonText}>Change Password</Text>
+              </TouchableOpacity>
+            </View>
+          </ScrollView>
+          {isEditing && (
+            <View style={styles.editActionsCard}>
+              <TouchableOpacity
+                style={[styles.editButton, styles.cancelButton]}
+                onPress={handleCancel}
+              >
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.editButton, styles.saveButton]}
+                onPress={handleSave}
+                disabled={saving}
+              >
+                {saving ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Text style={styles.saveButtonText}>Save</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          )}
+        </>
+      )}
+      
+      {/* Change Password Modal */}
+      <Modal
+        visible={changePasswordModalVisible}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setChangePasswordModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Change Password</Text>
+              <TouchableOpacity onPress={() => setChangePasswordModalVisible(false)}>
+                <Icon name="close" size={24} color="#666" />
+              </TouchableOpacity>
+            </View>
+            
+            <View style={styles.modalContent}>
+              <Text style={styles.label}>Current Password</Text>
+              <TextInput
+                style={styles.input}
+                value={passwordData.oldPassword}
+                onChangeText={(text) => setPasswordData({ ...passwordData, oldPassword: text })}
+                placeholder="Enter current password"
+                secureTextEntry
+              />
+              
+              <Text style={styles.label}>New Password</Text>
+              <TextInput
+                style={styles.input}
+                value={passwordData.newPassword}
+                onChangeText={(text) => setPasswordData({ ...passwordData, newPassword: text })}
+                placeholder="Enter new password"
+                secureTextEntry
+              />
+              <Text style={styles.helperText}>
+                Password must be at least 8 characters, contain uppercase, lowercase, and special characters
+              </Text>
+              
+              <Text style={styles.label}>Confirm New Password</Text>
+              <TextInput
+                style={styles.input}
+                value={passwordData.confirmPassword}
+                onChangeText={(text) => setPasswordData({ ...passwordData, confirmPassword: text })}
+                placeholder="Confirm new password"
+                secureTextEntry
+              />
+            </View>
+            
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.cancelButton]}
+                onPress={() => {
+                  setChangePasswordModalVisible(false);
+                  setPasswordData({
+                    oldPassword: '',
+                    newPassword: '',
+                    confirmPassword: '',
+                  });
+                }}
+              >
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.saveButton]}
+                onPress={handleChangePassword}
+                disabled={changingPassword}
+              >
+                {changingPassword ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Text style={styles.saveButtonText}>Change Password</Text>
+                )}
+              </TouchableOpacity>
+            </View>
           </View>
-        )}
-      </ScrollView>
-    </View>
+        </View>
+      </Modal>
+    </MemberLayout>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
   },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  centered: {
+    justifyContent: 'center',
     alignItems: 'center',
-    padding: 20,
-    paddingTop: 60,
-    backgroundColor: 'white',
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
   },
-  headerTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#333',
-  },
-  editButton: {
-    padding: 8,
-    backgroundColor: '#f0f4ff',
-    borderRadius: 20,
-  },
-  headerButtons: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  cancelButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 12,
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
     backgroundColor: '#f5f5f5',
-  },
-  cancelButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#666',
-  },
-  saveButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 12,
-    backgroundColor: '#667eea',
-  },
-  saveButtonDisabled: {
-    opacity: 0.6,
-  },
-  saveButtonText: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: '#fff',
   },
   content: {
     flex: 1,
     padding: 16,
+    backgroundColor: '#f5f5f5',
   },
   avatarSection: {
-    alignItems: 'center',
-    marginBottom: 24,
-  },
-  avatar: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    borderWidth: 4,
-    borderColor: '#667eea',
-  },
-  avatarPlaceholder: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: '#e3f2fd',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 4,
-    borderColor: '#667eea',
-  },
-  avatarEditContainer: {
-    marginTop: 16,
-    width: '100%',
-  },
-  avatarInput: {
-    backgroundColor: 'white',
+    backgroundColor: '#fff',
     borderRadius: 12,
-    padding: 12,
-    fontSize: 14,
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
-  },
-  section: {
-    marginBottom: 16,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 12,
-  },
-  infoCard: {
-    backgroundColor: 'white',
-    borderRadius: 16,
     padding: 20,
+    marginBottom: 16,
+    elevation: 2,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
-    elevation: 3,
   },
-  infoRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  avatarContent: {
     alignItems: 'center',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
   },
-  infoLabel: {
+  avatarContainer: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: '#667eea',
+    justifyContent: 'center',
+    alignItems: 'center',
+    overflow: 'hidden',
+  },
+  avatarImage: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+  },
+  avatarUrlContainer: {
+    width: '100%',
+    marginTop: 16,
+  },
+  label: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#2c3e50',
+    marginBottom: 8,
+  },
+  detailsSection: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  detailItem: {
+    marginBottom: 16,
+  },
+  detailLabel: {
     fontSize: 14,
     color: '#666',
-    fontWeight: '500',
-    flex: 1,
+    marginBottom: 8,
   },
-  infoValue: {
-    fontSize: 14,
-    color: '#333',
+  detailValue: {
+    fontSize: 16,
     fontWeight: '600',
-    flex: 1,
-    textAlign: 'right',
+    color: '#2c3e50',
   },
-  infoValueContainer: {
-    flex: 1,
-    alignItems: 'flex-end',
+  detailValueLarge: {
+    fontSize: 18,
+  },
+  detailValueRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 8,
   },
   input: {
-    flex: 1,
     backgroundColor: '#f5f5f5',
     borderRadius: 8,
     padding: 12,
-    fontSize: 14,
+    fontSize: 16,
+    color: '#2c3e50',
     borderWidth: 1,
     borderColor: '#e0e0e0',
-    textAlign: 'right',
   },
-  readOnlyBadge: {
-    backgroundColor: '#fff3cd',
-    paddingHorizontal: 8,
-    paddingVertical: 2,
+  badge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  badgeText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  divider: {
+    height: 1,
+    backgroundColor: '#f0f0f0',
+    marginVertical: 12,
+  },
+  editActionsCard: {
+    flexDirection: 'row',
+    padding: 16,
+    backgroundColor: '#fff',
+    borderTopWidth: 1,
+    borderTopColor: '#f0f0f0',
+    gap: 12,
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  editButton: {
+    flex: 1,
+    paddingVertical: 14,
+    paddingHorizontal: 24,
     borderRadius: 8,
-    marginTop: 4,
-  },
-  readOnlyText: {
-    fontSize: 10,
-    color: '#856404',
-  },
-  roleBadge: {
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  roleBadgeMember: {
-    backgroundColor: '#e3f2fd',
-  },
-  roleText: {
-    fontSize: 12,
-    fontWeight: 'bold',
-    color: '#667eea',
-  },
-  statusBadge: {
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  statusBadgeActive: {
-    backgroundColor: '#e8f5e9',
-  },
-  statusBadgeInactive: {
-    backgroundColor: '#ffebee',
-  },
-  statusText: {
-    fontSize: 12,
-    fontWeight: 'bold',
-  },
-  statusTextActive: {
-    color: '#2e7d32',
-  },
-  statusTextInactive: {
-    color: '#c62828',
-  },
-  emptyContainer: {
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 40,
-    marginTop: 100,
   },
-  emptyText: {
+  cancelButton: {
+    backgroundColor: '#f5f5f5',
+  },
+  cancelButtonText: {
+    color: '#666',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  saveButton: {
+    backgroundColor: '#667eea',
+  },
+  saveButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  errorText: {
     fontSize: 16,
     color: '#999',
     marginTop: 16,
-    marginBottom: 24,
   },
-  retryButton: {
-    backgroundColor: '#667eea',
-    paddingHorizontal: 24,
-    paddingVertical: 12,
+  changePasswordSection: {
+    backgroundColor: '#fff',
     borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
   },
-  retryButtonText: {
-    color: '#fff',
+  changePasswordButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    borderWidth: 1,
+    borderColor: '#667eea',
+    borderRadius: 8,
+    gap: 8,
+  },
+  changePasswordButtonText: {
+    color: '#667eea',
     fontSize: 16,
+    fontWeight: '600',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalCard: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    width: '100%',
+    maxWidth: 400,
+    padding: 20,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  modalTitle: {
+    fontSize: 20,
     fontWeight: 'bold',
+    color: '#2c3e50',
+  },
+  modalContent: {
+    marginBottom: 20,
+  },
+  helperText: {
+    fontSize: 12,
+    color: '#666',
+    marginTop: 4,
+    marginBottom: 8,
+  },
+  modalActions: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  modalButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });
 
 export default MemberProfile;
-
