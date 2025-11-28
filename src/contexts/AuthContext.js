@@ -1,5 +1,6 @@
-import React, { createContext, useCallback, useContext, useState } from 'react';
-import { authAPI, borrowingGroupAPI } from '../services/api';
+import React, { createContext, useContext, useState, useCallback } from 'react';
+import { authAPI } from '../services/api';
+import { borrowingGroupAPI } from '../services/api';
 
 const AuthContext = createContext(null);
 
@@ -156,4 +157,3 @@ export const AuthProvider = ({ children }) => {
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
-
