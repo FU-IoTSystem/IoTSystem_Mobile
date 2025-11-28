@@ -43,11 +43,15 @@ import LecturerFinesRefunds from '../screens/lecturer/LecturerFinesRefunds';
 // Admin Screens
 import AdminDashboard from '../screens/admin/AdminDashboard';
 import AdminApprovals from '../screens/admin/AdminApprovals';
+import AdminReturnKits from '../screens/admin/AdminReturnKits';
 import AdminKits from '../screens/admin/AdminKits';
 import AdminUsers from '../screens/admin/AdminUsers';
 import AdminTransactions from '../screens/admin/AdminTransactions';
 import AdminLogHistory from '../screens/admin/AdminLogHistory';
 import AdminGroups from '../screens/admin/AdminGroups';
+import AdminFines from '../screens/admin/AdminFines';
+import AdminPenaltyPolicies from '../screens/admin/AdminPenaltyPolicies';
+import AdminScanQR from '../screens/admin/AdminScanQR';
 
 // Academic Affairs Screens
 import AcademicDashboard from '../screens/academic/AcademicDashboard';
@@ -75,49 +79,80 @@ function AuthStack() {
   );
 }
 
-// Member Tab Navigator
-function MemberTabs({ user, onLogout }) {
+// Member Drawer Navigator
+function MemberDrawerInner({ user, onLogout }) {
   return (
-    <Tab.Navigator
-      screenOptions={({ route }) => ({
-        tabBarIcon: ({ focused, color, size }) => {
-          let iconName;
-
-          if (route.name === 'Dashboard') {
-            iconName = 'dashboard';
-          } else if (route.name === 'Wallet') {
-            iconName = 'account-balance-wallet';
-          } else if (route.name === 'Groups') {
-            iconName = 'group';
-          } else if (route.name === 'Notifications') {
-            iconName = 'notifications';
-          } else if (route.name === 'Profile') {
-            iconName = 'person';
-          }
-
-          return <Icon name={iconName} size={size} color={color} />;
+    <Drawer.Navigator
+      screenOptions={{
+        drawerActiveTintColor: '#667eea',
+        drawerInactiveTintColor: '#666',
+        drawerStyle: {
+          backgroundColor: '#fff',
+          width: 280,
         },
-        tabBarActiveTintColor: '#667eea',
-        tabBarInactiveTintColor: 'gray',
+        drawerLabelStyle: {
+          fontSize: 16,
+          fontWeight: '500',
+        },
         headerShown: false,
-      })}
+      }}
     >
-      <Tab.Screen name="Dashboard">
+      <Drawer.Screen 
+        name="Dashboard"
+        options={{
+          drawerLabel: 'Dashboard',
+          drawerIcon: ({ color, size }) => (
+            <Icon name="dashboard" size={size} color={color} />
+          ),
+        }}
+      >
         {(props) => <MemberDashboard {...props} user={user} onLogout={onLogout} />}
-      </Tab.Screen>
-      <Tab.Screen name="Wallet">
+      </Drawer.Screen>
+      <Drawer.Screen 
+        name="Wallet"
+        options={{
+          drawerLabel: 'Wallet',
+          drawerIcon: ({ color, size }) => (
+            <Icon name="account-balance-wallet" size={size} color={color} />
+          ),
+        }}
+      >
         {(props) => <MemberWallet {...props} user={user} onLogout={onLogout} />}
-      </Tab.Screen>
-      <Tab.Screen name="Groups">
+      </Drawer.Screen>
+      <Drawer.Screen 
+        name="Groups"
+        options={{
+          drawerLabel: 'My Groups',
+          drawerIcon: ({ color, size }) => (
+            <Icon name="group" size={size} color={color} />
+          ),
+        }}
+      >
         {(props) => <MemberGroups {...props} user={user} onLogout={onLogout} />}
-      </Tab.Screen>
-      <Tab.Screen name="Notifications">
+      </Drawer.Screen>
+      <Drawer.Screen 
+        name="Notifications"
+        options={{
+          drawerLabel: 'Notifications',
+          drawerIcon: ({ color, size }) => (
+            <Icon name="notifications" size={size} color={color} />
+          ),
+        }}
+      >
         {(props) => <MemberNotifications {...props} onLogout={onLogout} />}
-      </Tab.Screen>
-      <Tab.Screen name="Profile">
+      </Drawer.Screen>
+      <Drawer.Screen 
+        name="Profile"
+        options={{
+          drawerLabel: 'Profile',
+          drawerIcon: ({ color, size }) => (
+            <Icon name="person" size={size} color={color} />
+          ),
+        }}
+      >
         {(props) => <MemberProfile {...props} user={user} onLogout={onLogout} />}
-      </Tab.Screen>
-    </Tab.Navigator>
+      </Drawer.Screen>
+    </Drawer.Navigator>
   );
 }
 
@@ -231,12 +266,15 @@ function LeaderDrawerInner({ user, onLogout }) {
   );
 }
 
-// Member Stack Navigator (wraps Tabs with shared screens)
+// Member Stack Navigator (wraps Drawer with shared screens)
 function MemberStack({ user, onLogout }) {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="MemberMain">
-        {(props) => <MemberTabs {...props} user={user} onLogout={onLogout} />}
+        {(props) => <MemberDrawerInner {...props} user={user} onLogout={onLogout} />}
+      </Stack.Screen>
+      <Stack.Screen name="TopUp">
+        {(props) => <TopUpScreen {...props} user={user} />}
       </Stack.Screen>
       <Stack.Screen name="PenaltyPayment">
         {(props) => <PenaltyPaymentScreen {...props} user={user} />}
@@ -450,6 +488,36 @@ function AdminDrawer({ user, onLogout }) {
         {(props) => <AdminApprovals {...props} onLogout={onLogout} />}
       </Drawer.Screen>
       <Drawer.Screen 
+        name="ReturnKits"
+        options={{
+          drawerLabel: 'Return Checking',
+          drawerIcon: ({ color, size }) => (
+            <Icon name="assignment-returned" size={size} color={color} />
+          ),
+        }}
+      >
+        {(props) => <AdminReturnKits {...props} onLogout={onLogout} />}
+      </Drawer.Screen>
+      <Drawer.Screen 
+        name="ScanQRDrawer"
+        options={{
+          drawerLabel: 'Scan QR Code',
+          drawerIcon: ({ color, size }) => (
+            <Icon name="qr-code-scanner" size={size} color={color} />
+          ),
+        }}
+        listeners={({ navigation }) => ({
+          drawerItemPress: (e) => {
+            e.preventDefault();
+            // Navigate to the Stack screen instead
+            navigation.closeDrawer();
+            navigation.getParent()?.navigate('ScanQR');
+          },
+        })}
+      >
+        {(props) => <AdminScanQR {...props} onLogout={onLogout} />}
+      </Drawer.Screen>
+      <Drawer.Screen 
         name="Users"
         options={{
           drawerLabel: 'User Management',
@@ -459,6 +527,17 @@ function AdminDrawer({ user, onLogout }) {
         }}
       >
         {(props) => <AdminUsers {...props} onLogout={onLogout} />}
+      </Drawer.Screen>
+      <Drawer.Screen 
+        name="Groups"
+        options={{
+          drawerLabel: 'Group Management',
+          drawerIcon: ({ color, size }) => (
+            <Icon name="group" size={size} color={color} />
+          ),
+        }}
+      >
+        {(props) => <AdminGroups {...props} onLogout={onLogout} />}
       </Drawer.Screen>
       <Drawer.Screen 
         name="Transactions"
@@ -472,6 +551,28 @@ function AdminDrawer({ user, onLogout }) {
         {(props) => <AdminTransactions {...props} onLogout={onLogout} />}
       </Drawer.Screen>
       <Drawer.Screen 
+        name="Fines"
+        options={{
+          drawerLabel: 'Fine Management',
+          drawerIcon: ({ color, size }) => (
+            <Icon name="attach-money" size={size} color={color} />
+          ),
+        }}
+      >
+        {(props) => <AdminFines {...props} onLogout={onLogout} />}
+      </Drawer.Screen>
+      <Drawer.Screen 
+        name="PenaltyPolicies"
+        options={{
+          drawerLabel: 'Penalty Policies',
+          drawerIcon: ({ color, size }) => (
+            <Icon name="policy" size={size} color={color} />
+          ),
+        }}
+      >
+        {(props) => <AdminPenaltyPolicies {...props} onLogout={onLogout} />}
+      </Drawer.Screen>
+      <Drawer.Screen 
         name="LogHistory"
         options={{
           drawerLabel: 'Log History',
@@ -482,18 +583,21 @@ function AdminDrawer({ user, onLogout }) {
       >
         {(props) => <AdminLogHistory {...props} onLogout={onLogout} />}
       </Drawer.Screen>
-      <Drawer.Screen 
-        name="Groups"
-        options={{
-          drawerLabel: 'Group Management',
-          drawerIcon: ({ color, size }) => (
-            <Icon name="group" size={size} color={color} />
-          ),
-        }}
-      >
-        {(props) => <AdminGroups {...props} onLogout={onLogout} />}
-      </Drawer.Screen>
     </Drawer.Navigator>
+  );
+}
+
+// Admin Stack Navigator (wraps Drawer with shared screens)
+function AdminStack({ user, onLogout }) {
+  return (
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="AdminMain">
+        {(props) => <AdminDrawer {...props} user={user} onLogout={onLogout} />}
+      </Stack.Screen>
+      <Stack.Screen name="ScanQR">
+        {(props) => <AdminScanQR {...props} onLogout={onLogout} />}
+      </Stack.Screen>
+    </Stack.Navigator>
   );
 }
 
@@ -619,7 +723,7 @@ function AppNavigatorInner() {
       case 'lecturer':
         return <LecturerDrawer user={user} onLogout={handleLogout} />;
       case 'admin':
-        return <AdminDrawer user={user} onLogout={handleLogout} />;
+        return <AdminStack user={user} onLogout={handleLogout} />;
       case 'academic':
         return <AcademicStack user={user} onLogout={handleLogout} />;
       default:
@@ -644,4 +748,3 @@ export default function AppNavigator() {
     </AuthProvider>
   );
 }
-
