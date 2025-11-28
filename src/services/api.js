@@ -16,14 +16,41 @@ const getAuthToken = async () => {
 // Helper function to handle API responses
 const handleResponse = async (response) => {
   if (!response.ok) {
+    let errorMessage = `HTTP error! status: ${response.status} ${response.statusText || ''}`;
+    let errorDetails = null;
+    
     try {
-      const errorJson = await response.json();
-      const errorMessage = errorJson.message || errorJson.error || errorJson.details || JSON.stringify(errorJson);
-      throw new Error(errorMessage);
-    } catch (jsonError) {
-      const errorText = await response.text().catch(() => 'Unknown error');
-      throw new Error(errorText || `HTTP error! status: ${response.status}`);
+      // Try to get response as text first
+      const responseText = await response.text();
+      
+      if (responseText) {
+        try {
+          // Try to parse as JSON
+          const errorJson = JSON.parse(responseText);
+          errorMessage = errorJson.message || errorJson.error || errorJson.details || errorJson.errorMessage || errorMessage;
+          errorDetails = errorJson;
+        } catch (jsonError) {
+          // If not JSON, use text as error message
+          errorMessage = responseText || errorMessage;
+        }
+      }
+    } catch (textError) {
+      // If we can't read the response, use status code
+      console.error('Error reading error response:', textError);
+      errorMessage = `HTTP ${response.status}: ${response.statusText || 'Unknown error'}`;
     }
+    
+    const error = new Error(errorMessage);
+    error.status = response.status;
+    error.statusText = response.statusText;
+    error.details = errorDetails;
+    console.error('API Error Response:', {
+      status: response.status,
+      statusText: response.statusText,
+      message: errorMessage,
+      details: errorDetails
+    });
+    throw error;
   }
   
   const contentType = response.headers.get('content-type') || '';
@@ -116,12 +143,22 @@ const apiRequest = async (endpoint, options = {}) => {
     console.log('API response data:', result);
     return result;
   } catch (error) {
-    console.error('API request failed:', error);
-    console.error('Error response:', {
+    console.error('API request failed:', {
+      url: url,
+      method: config.method || 'GET',
       message: error.message,
+      status: error.status,
+      statusText: error.statusText,
+      details: error.details,
       name: error.name,
       stack: error.stack
     });
+    
+    // Re-throw with more context if needed
+    if (!error.status && !error.message.includes('HTTP')) {
+      error.message = `Network error: ${error.message || 'Failed to connect to server'}`;
+    }
+    
     throw error;
   }
 };
@@ -226,6 +263,35 @@ export const walletAPI = {
       }),
     });
   }
+};
+
+// Payment API (PayPal)
+export const paymentAPI = {
+  createPayPalPayment: async (amount, description, returnUrl = null, cancelUrl = null) => {
+    const requestBody = {
+      amount: amount,
+      description: description
+    };
+    
+    if (returnUrl) {
+      requestBody.returnUrl = returnUrl;
+    }
+    if (cancelUrl) {
+      requestBody.cancelUrl = cancelUrl;
+    }
+    
+    return apiRequest('/api/payment/paypal/create', {
+      method: 'POST',
+      body: JSON.stringify(requestBody),
+    });
+  },
+
+  executePayPalPayment: async (paymentId, payerId, transactionId = null) => {
+    const url = `/api/payment/paypal/execute?paymentId=${paymentId}&payerId=${payerId}${transactionId ? `&transactionId=${transactionId}` : ''}`;
+    return apiRequest(url, {
+      method: 'POST',
+    });
+  },
 };
 
 // Wallet Transaction API
@@ -816,6 +882,13 @@ export const notificationAPI = {
       method: 'POST',
       body: JSON.stringify(payload),
     });
+  },
+
+  markAsRead: async (notificationId) => {
+    const response = await apiRequest(`/api/notifications/mark-as-read/${notificationId}`, {
+      method: 'PUT',
+    });
+    return response.data || response;
   }
 };
 
@@ -888,4 +961,3 @@ export const excelImportAPI = {
     return handleResponse(response);
   },
 };
-
