@@ -19,8 +19,24 @@
       "bundleIdentifier": "com.iokitrental.mobile"
     },
     "android": {
-      "package": "com.iokitrental.mobile"
+      "package": "com.iokitrental.mobile",
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "iotkitrental"
+            }
+          ],
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
+        }
+      ]
     },
+    "scheme": "iotkitrental",
     "web": {
       "favicon": "./assets/favicon.png"
     },
