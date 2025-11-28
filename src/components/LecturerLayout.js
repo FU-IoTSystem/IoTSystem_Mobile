@@ -29,7 +29,14 @@ const LecturerLayout = ({
       setNotificationLoading(true);
       const response = await notificationAPI.getRoleNotifications();
       const data = response?.data ?? response;
-      setNotifications(Array.isArray(data) ? data : []);
+      const notificationsList = Array.isArray(data) ? data : [];
+      // Sort by newest first (createdAt descending)
+      notificationsList.sort((a, b) => {
+        const dateA = new Date(a.createdAt || 0);
+        const dateB = new Date(b.createdAt || 0);
+        return dateB - dateA;
+      });
+      setNotifications(notificationsList);
     } catch (error) {
       console.error('Error loading notifications:', error);
       setNotifications([]);
@@ -47,6 +54,34 @@ const LecturerLayout = ({
   const handleNotificationPress = () => {
     setNotificationModalVisible(true);
     loadNotifications();
+  };
+
+  const handleMarkAsRead = async (notificationId) => {
+    try {
+      await notificationAPI.markAsRead(notificationId);
+      // Update local state to mark as read
+      setNotifications(prevNotifications =>
+        prevNotifications.map(notif =>
+          notif.id === notificationId ? { ...notif, isRead: true } : notif
+        )
+      );
+    } catch (error) {
+      console.error('Error marking notification as read:', error);
+    }
+  };
+
+  const handleMarkAllAsRead = async () => {
+    try {
+      const unreadNotifications = notifications.filter(item => !item.isRead);
+      await Promise.all(
+        unreadNotifications.map(notif => notificationAPI.markAsRead(notif.id))
+      );
+      setNotifications(prevNotifications =>
+        prevNotifications.map(notif => ({ ...notif, isRead: true }))
+      );
+    } catch (error) {
+      console.error('Error marking all notifications as read:', error);
+    }
   };
 
   const unreadNotificationsCount = notifications.filter((item) => !item.isRead).length;
@@ -83,9 +118,22 @@ const LecturerLayout = ({
                 {typeInfo.label}
               </Text>
             </View>
-            {!item.isRead && (
-              <View style={styles.unreadDot} />
-            )}
+            <View style={styles.notificationHeaderRight}>
+              {!item.isRead && (
+                <View style={styles.unreadDot} />
+              )}
+              {!item.isRead && (
+                <TouchableOpacity
+                  onPress={(e) => {
+                    e.stopPropagation();
+                    handleMarkAsRead(item.id);
+                  }}
+                  style={styles.markAsReadButton}
+                >
+                  <Text style={styles.markAsReadText}>Mark as read</Text>
+                </TouchableOpacity>
+              )}
+            </View>
           </View>
           <Text style={styles.notificationTitle}>{item.title || item.subType || 'Thông báo'}</Text>
           <Paragraph style={styles.notificationMessage}>{item.message || ''}</Paragraph>
@@ -168,12 +216,22 @@ const LecturerLayout = ({
         <View style={styles.modalContainer}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>Thông báo</Text>
-            <TouchableOpacity
-              onPress={() => setNotificationModalVisible(false)}
-              style={styles.closeButton}
-            >
-              <Icon name="close" size={24} color="#333" />
-            </TouchableOpacity>
+            <View style={styles.modalHeaderActions}>
+              {unreadNotificationsCount > 0 && (
+                <TouchableOpacity
+                  onPress={handleMarkAllAsRead}
+                  style={styles.markAllAsReadButton}
+                >
+                  <Text style={styles.markAllAsReadText}>Mark all as read</Text>
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity
+                onPress={() => setNotificationModalVisible(false)}
+                style={styles.closeButton}
+              >
+                <Icon name="close" size={24} color="#333" />
+              </TouchableOpacity>
+            </View>
           </View>
           {notificationLoading ? (
             <View style={styles.loadingContainer}>
@@ -240,6 +298,22 @@ const styles = StyleSheet.create({
     backgroundColor: '#667eea',
     paddingTop: 50,
   },
+  modalHeaderActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  markAllAsReadButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    borderRadius: 8,
+  },
+  markAllAsReadText: {
+    fontSize: 14,
+    color: '#fff',
+    fontWeight: '600',
+  },
   modalTitle: {
     fontSize: 20,
     fontWeight: 'bold',
@@ -264,6 +338,22 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 8,
+  },
+  notificationHeaderRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  markAsReadButton: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    backgroundColor: '#667eea',
+    borderRadius: 8,
+  },
+  markAsReadText: {
+    fontSize: 12,
+    color: '#fff',
+    fontWeight: '600',
   },
   notificationTypeBadge: {
     paddingHorizontal: 8,
@@ -314,4 +404,3 @@ const styles = StyleSheet.create({
 });
 
 export default LecturerLayout;
-
