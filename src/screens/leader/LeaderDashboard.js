@@ -49,6 +49,13 @@ const LeaderDashboard = ({ user, onLogout }) => {
           loadedRentalRequests = Array.isArray(rentalResponse) 
             ? rentalResponse 
             : (rentalResponse?.data || []);
+          // Sort by createdAt descending
+          loadedRentalRequests.sort((a, b) => {
+            const dateA = new Date(a.createdAt || 0);
+            const dateB = new Date(b.createdAt || 0);
+            return dateB - dateA;
+          });
+          console.log('Loaded rental requests:', loadedRentalRequests);
           setRentalRequests(loadedRentalRequests);
         }
       } catch (error) {
@@ -213,31 +220,75 @@ const LeaderDashboard = ({ user, onLogout }) => {
           <View style={styles.actionsGrid}>
             <TouchableOpacity 
               style={styles.actionCard}
-              onPress={() => navigation?.navigate?.('LeaderRentals')}
+              onPress={() => {
+                if (navigation) {
+                  navigation.navigate('KitRental');
+                }
+              }}
+              activeOpacity={0.7}
             >
               <Icon name="shopping-cart" size={32} color="#667eea" />
               <Text style={styles.actionText}>Rent Kit</Text>
             </TouchableOpacity>
             <TouchableOpacity 
               style={styles.actionCard}
-              onPress={() => navigation?.navigate?.('LeaderWallet')}
+              onPress={() => {
+                if (navigation) {
+                  navigation.navigate('ComponentRental');
+                }
+              }}
+              activeOpacity={0.7}
+            >
+              <Icon name="settings" size={32} color="#667eea" />
+              <Text style={styles.actionText}>Rent Component</Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={styles.actionCard}
+              onPress={() => {
+                if (navigation) {
+                  navigation.navigate('Wallet');
+                }
+              }}
+              activeOpacity={0.7}
             >
               <Icon name="account-balance-wallet" size={32} color="#667eea" />
               <Text style={styles.actionText}>Wallet</Text>
             </TouchableOpacity>
             <TouchableOpacity 
               style={styles.actionCard}
-              onPress={() => navigation?.navigate?.('LeaderBorrowStatus')}
+              onPress={() => {
+                if (navigation) {
+                  navigation.navigate('BorrowStatus');
+                }
+              }}
+              activeOpacity={0.7}
             >
               <Icon name="history" size={32} color="#667eea" />
               <Text style={styles.actionText}>My Rentals</Text>
             </TouchableOpacity>
             <TouchableOpacity 
               style={styles.actionCard}
-              onPress={() => navigation?.navigate?.('QRScanner')}
+              onPress={() => {
+                if (navigation) {
+                  navigation.navigate('Groups');
+                }
+              }}
+              activeOpacity={0.7}
             >
-              <Icon name="qr-code-scanner" size={32} color="#667eea" />
-              <Text style={styles.actionText}>Scan QR</Text>
+              <Icon name="group" size={32} color="#667eea" />
+              <Text style={styles.actionText}>Groups</Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={styles.actionCard}
+              onPress={() => {
+                if (navigation) {
+                  navigation.navigate('Profile');
+                }
+              }}
+              activeOpacity={0.7}
+            >
+              <Icon name="person" size={32} color="#667eea" />
+              <Text style={styles.actionText}>Profile</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -264,7 +315,7 @@ const LeaderDashboard = ({ user, onLogout }) => {
               </View>
               <View style={styles.activityContent}>
                 <Text style={styles.activityText}>
-                  {request.kitName || request.componentName || 'Unknown'} rental request
+                  {request.kitName || request.kit?.kitName || request.componentName || request.component?.componentName || request.requestCode || 'Rental'} rental request
                 </Text>
                 <Text style={styles.activityTime}>
                   {request.createdAt 
@@ -404,6 +455,7 @@ const styles = StyleSheet.create({
     color: '#667eea',
     marginTop: 8,
     fontWeight: '600',
+    textAlign: 'center',
   },
   activityItem: {
     backgroundColor: '#fff',

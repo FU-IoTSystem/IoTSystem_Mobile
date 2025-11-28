@@ -33,6 +33,11 @@ const LeaderRentals = ({ user }) => {
   const [qrCodeData, setQrCodeData] = useState(null);
   const [showQRModal, setShowQRModal] = useState(false);
   const [submittedRequest, setSubmittedRequest] = useState(null);
+  const [searchText, setSearchText] = useState('');
+  const [filterStatus, setFilterStatus] = useState('all');
+  const [filterType, setFilterType] = useState('all');
+  const [statusFilterModalVisible, setStatusFilterModalVisible] = useState(false);
+  const [typeFilterModalVisible, setTypeFilterModalVisible] = useState(false);
 
   // Helper function to safely dismiss keyboard
   const dismissKeyboard = () => {
@@ -53,12 +58,14 @@ const LeaderRentals = ({ user }) => {
       const mappedKits = kitsData.map(kit => ({
         id: kit.id,
         name: kit.kitName,
+        kitName: kit.kitName,
         type: kit.type,
         status: kit.status,
         description: kit.description,
         quantityTotal: kit.quantityTotal,
         quantityAvailable: kit.quantityAvailable,
         amount: kit.amount || 0,
+        imageUrl: kit.imageUrl,
       }));
       setKits(mappedKits);
     } catch (error) {
@@ -237,60 +244,126 @@ const LeaderRentals = ({ user }) => {
     }
   };
 
+  // Filter kits based on search and filters
+  const filteredKits = kits.filter(kit => {
+    // Filter by available quantity
+    if (kit.quantityAvailable <= 0) return false;
+
+    // Filter by search text
+    if (searchText && searchText.trim() !== '') {
+      const searchLower = searchText.toLowerCase();
+      const kitName = (kit.name || kit.kitName || '').toLowerCase();
+      const kitId = (kit.id || '').toString().toLowerCase();
+      if (!kitName.includes(searchLower) && !kitId.includes(searchLower)) {
+        return false;
+      }
+    }
+
+    // Filter by status
+    if (filterStatus !== 'all') {
+      if (kit.status !== filterStatus) {
+        return false;
+      }
+    }
+
+    // Filter by type
+    if (filterType !== 'all') {
+      if (kit.type !== filterType) {
+        return false;
+      }
+    }
+
+    return true;
+  });
+
   const renderKitItem = ({ item }) => (
     <TouchableOpacity 
       style={styles.kitCard}
       onPress={() => handleRent(item)}
       disabled={item.quantityAvailable === 0}
+      activeOpacity={0.8}
     >
-      <View style={styles.kitHeader}>
-        <View style={[styles.iconContainer, { backgroundColor: '#667eea15' }]}>
-          <Icon name="build" size={24} color="#667eea" />
-        </View>
-        <View style={styles.kitInfo}>
-          <Text style={styles.kitName}>{item.name}</Text>
-          <Text style={styles.kitType}>{item.type || 'N/A'}</Text>
-        </View>
-        <View style={[styles.statusBadge, { backgroundColor: `${getStatusColor(item.status)}15` }]}>
-          <Text style={[styles.statusText, { color: getStatusColor(item.status) }]}>
-            {item.status}
-          </Text>
+      {/* Kit Image */}
+      <View style={styles.kitImageContainer}>
+        {item.imageUrl && item.imageUrl !== 'null' && item.imageUrl !== 'undefined' ? (
+          <Image 
+            source={{ uri: item.imageUrl }} 
+            style={styles.kitImage}
+            resizeMode="cover"
+          />
+        ) : (
+          <View style={styles.kitImagePlaceholder}>
+            <Icon name="build" size={48} color="#fff" />
+          </View>
+        )}
+        <View style={styles.kitImageBadge}>
+          <View style={[
+            styles.badge,
+            { backgroundColor: item.status === 'AVAILABLE' ? '#52c41a' : '#faad14' }
+          ]}>
+            <Text style={[styles.badgeText, { color: '#fff' }]}>
+              {item.status || 'AVAILABLE'}
+            </Text>
+          </View>
         </View>
       </View>
 
-      <View style={styles.kitDetails}>
-        <View style={styles.detailRow}>
-          <Icon name="check-circle" size={16} color="#52c41a" />
-          <Text style={styles.detailText}>
-            Available: {item.quantityAvailable}/{item.quantityTotal}
+      <View style={styles.kitCardContent}>
+        <View style={styles.kitHeader}>
+          <Text style={styles.kitName} numberOfLines={2}>
+            {item.name || item.kitName || 'N/A'}
           </Text>
+          <View style={[
+            styles.badge,
+            { backgroundColor: item.type === 'LECTURER_KIT' ? '#ff4d4f15' : '#1890ff15' }
+          ]}>
+            <Text style={[
+              styles.badgeText,
+              { color: item.type === 'LECTURER_KIT' ? '#ff4d4f' : '#1890ff' }
+            ]}>
+              {item.type === 'LECTURER_KIT' ? 'Lecturer' : 'Student'}
+            </Text>
+          </View>
         </View>
-        <View style={styles.detailRow}>
-          <Icon name="attach-money" size={16} color="#faad14" />
-          <Text style={styles.detailText}>
-            Amount: {item.amount?.toLocaleString() || '0'} VND
-          </Text>
+        
+        <View style={styles.kitDetails}>
+          <View style={styles.detailRow}>
+            <Icon name="inventory-2" size={14} color="#666" />
+            <Text style={styles.detailText}>
+              Total: {item.quantityTotal || 0}
+            </Text>
+          </View>
+          <View style={styles.detailRow}>
+            <Icon name="check-circle" size={14} color="#52c41a" />
+            <Text style={[styles.detailText, { color: '#52c41a' }]}>
+              Available: {item.quantityAvailable || 0}
+            </Text>
+          </View>
+          <View style={styles.detailRow}>
+            <Icon name="attach-money" size={14} color="#faad14" />
+            <Text style={styles.detailText}>
+              {item.amount?.toLocaleString() || '0'} VND
+            </Text>
+          </View>
         </View>
-        {item.description && (
-          <Text style={styles.description} numberOfLines={2}>
-            {item.description}
+
+        <TouchableOpacity
+          style={[
+            styles.rentButton,
+            { opacity: item.quantityAvailable === 0 ? 0.5 : 1 }
+          ]}
+          onPress={(e) => {
+            e.stopPropagation();
+            handleRent(item);
+          }}
+          disabled={item.quantityAvailable === 0}
+        >
+          <Icon name="shopping-cart" size={18} color="#fff" />
+          <Text style={styles.rentButtonText}>
+            {item.quantityAvailable === 0 ? 'Sold Out' : 'Rent Kit'}
           </Text>
-        )}
+        </TouchableOpacity>
       </View>
-      
-      <TouchableOpacity
-        style={[
-          styles.rentButton,
-          { opacity: item.quantityAvailable === 0 ? 0.5 : 1 }
-        ]}
-        onPress={() => handleRent(item)}
-        disabled={item.quantityAvailable === 0}
-      >
-        <Icon name="shopping-cart" size={20} color="#fff" />
-        <Text style={styles.rentButtonText}>
-          {item.quantityAvailable === 0 ? 'Sold Out' : 'Rent Kit'}
-        </Text>
-      </TouchableOpacity>
     </TouchableOpacity>
   );
 
@@ -414,31 +487,168 @@ const LeaderRentals = ({ user }) => {
     );
   };
 
-  const availableKits = kits.filter(kit => kit.quantityAvailable > 0);
-
   return (
     <LeaderLayout title="Kit Rental">
-      {loading && !refreshing ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#667eea" />
+      <View style={styles.container}>
+        {/* Search and Filter Section */}
+        <View style={styles.searchFilterContainer}>
+          <View style={styles.searchContainer}>
+            <Icon name="search" size={20} color="#666" style={styles.searchIcon} />
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search by name or ID..."
+              value={searchText}
+              onChangeText={setSearchText}
+              placeholderTextColor="#999"
+            />
+            {searchText.length > 0 && (
+              <TouchableOpacity onPress={() => setSearchText('')} style={styles.clearButton}>
+                <Icon name="close" size={18} color="#666" />
+              </TouchableOpacity>
+            )}
+          </View>
+          <View style={styles.filterRow}>
+            <TouchableOpacity
+              style={styles.filterButton}
+              onPress={() => setStatusFilterModalVisible(true)}
+            >
+              <Text style={styles.filterButtonText}>
+                {filterStatus === 'all' ? 'All Status' : filterStatus}
+              </Text>
+              <Icon name="arrow-drop-down" size={20} color="#666" />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.filterButton}
+              onPress={() => setTypeFilterModalVisible(true)}
+            >
+              <Text style={styles.filterButtonText}>
+                {filterType === 'all' ? 'All Types' : filterType === 'STUDENT_KIT' ? 'Student Kit' : 'Lecturer Kit'}
+              </Text>
+              <Icon name="arrow-drop-down" size={20} color="#666" />
+            </TouchableOpacity>
+          </View>
         </View>
-      ) : (
-        <FlatList
-          data={availableKits}
-          renderItem={renderKitItem}
-          keyExtractor={(item) => item.id?.toString() || Math.random().toString()}
-          contentContainerStyle={styles.listContainer}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-          }
-          ListEmptyComponent={
-            <View style={styles.emptyContainer}>
-              <Icon name="build" size={64} color="#ccc" />
-              <Text style={styles.emptyText}>No kits available</Text>
-            </View>
-          }
-        />
-      )}
+
+        {loading && !refreshing ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#667eea" />
+          </View>
+        ) : (
+          <FlatList
+            data={filteredKits}
+            renderItem={renderKitItem}
+            keyExtractor={(item) => item.id?.toString() || Math.random().toString()}
+            numColumns={2}
+            columnWrapperStyle={styles.row}
+            contentContainerStyle={styles.listContent}
+            refreshControl={
+              <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+            }
+            ListEmptyComponent={
+              <View style={styles.emptyState}>
+                <Icon name="build" size={64} color="#ccc" />
+                <Text style={styles.emptyText}>
+                  {searchText || filterStatus !== 'all' || filterType !== 'all' 
+                    ? 'No kits match your filters' 
+                    : 'No kits available'}
+                </Text>
+              </View>
+            }
+            ListFooterComponent={
+              filteredKits.length > 0 ? (
+                <View style={styles.footerText}>
+                  <Text style={styles.footerTextContent}>
+                    Showing {filteredKits.length} of {kits.filter(k => k.quantityAvailable > 0).length} available kit(s)
+                  </Text>
+                </View>
+              ) : null
+            }
+          />
+        )}
+      </View>
+
+      {/* Status Filter Modal */}
+      <Modal
+        visible={statusFilterModalVisible}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setStatusFilterModalVisible(false)}
+      >
+        <TouchableOpacity
+          style={styles.filterModalOverlay}
+          activeOpacity={1}
+          onPress={() => setStatusFilterModalVisible(false)}
+        >
+          <View style={styles.filterModalContent} onStartShouldSetResponder={() => true}>
+            <Text style={styles.filterModalTitle}>Filter by Status</Text>
+            {['all', 'AVAILABLE', 'BORROWED', 'MAINTENANCE'].map((status) => (
+              <TouchableOpacity
+                key={status}
+                style={[
+                  styles.filterOption,
+                  filterStatus === status && styles.filterOptionSelected
+                ]}
+                onPress={() => {
+                  setFilterStatus(status);
+                  setStatusFilterModalVisible(false);
+                }}
+              >
+                <Text style={[
+                  styles.filterOptionText,
+                  filterStatus === status && styles.filterOptionTextSelected
+                ]}>
+                  {status === 'all' ? 'All Status' : status}
+                </Text>
+                {filterStatus === status && (
+                  <Icon name="check" size={20} color="#667eea" />
+                )}
+              </TouchableOpacity>
+            ))}
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* Type Filter Modal */}
+      <Modal
+        visible={typeFilterModalVisible}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setTypeFilterModalVisible(false)}
+      >
+        <TouchableOpacity
+          style={styles.filterModalOverlay}
+          activeOpacity={1}
+          onPress={() => setTypeFilterModalVisible(false)}
+        >
+          <View style={styles.filterModalContent} onStartShouldSetResponder={() => true}>
+            <Text style={styles.filterModalTitle}>Filter by Type</Text>
+            {['all', 'STUDENT_KIT', 'LECTURER_KIT'].map((type) => (
+              <TouchableOpacity
+                key={type}
+                style={[
+                  styles.filterOption,
+                  filterType === type && styles.filterOptionSelected
+                ]}
+                onPress={() => {
+                  setFilterType(type);
+                  setTypeFilterModalVisible(false);
+                }}
+              >
+                <Text style={[
+                  styles.filterOptionText,
+                  filterType === type && styles.filterOptionTextSelected
+                ]}>
+                  {type === 'all' ? 'All Types' : type === 'STUDENT_KIT' ? 'Student Kit' : 'Lecturer Kit'}
+                </Text>
+                {filterType === type && (
+                  <Icon name="check" size={20} color="#667eea" />
+                )}
+              </TouchableOpacity>
+            ))}
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
       {renderRentModal()}
       {renderQRCodeModal()}
     </LeaderLayout>
@@ -544,110 +754,209 @@ const LeaderRentals = ({ user }) => {
 };
 
 const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#f5f5f5',
+  },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: '#f5f5f5',
   },
-  listContainer: {
+  searchFilterContainer: {
     padding: 16,
+    paddingBottom: 8,
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: '#f5f5f5',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+  },
+  searchIcon: {
+    marginRight: 8,
+  },
+  searchInput: {
+    flex: 1,
+    height: 40,
+    fontSize: 14,
+    color: '#2c3e50',
+  },
+  clearButton: {
+    padding: 4,
+  },
+  filterRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  filterButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#f5f5f5',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+  },
+  filterButtonText: {
+    fontSize: 14,
+    color: '#2c3e50',
+    fontWeight: '500',
+  },
+  filterModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  filterModalContent: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 20,
+    maxHeight: '50%',
+  },
+  filterModalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#2c3e50',
+    marginBottom: 16,
+  },
+  filterOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 14,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    marginBottom: 8,
+    backgroundColor: '#f5f5f5',
+  },
+  filterOptionSelected: {
+    backgroundColor: '#667eea15',
+  },
+  filterOptionText: {
+    fontSize: 16,
+    color: '#2c3e50',
+  },
+  filterOptionTextSelected: {
+    color: '#667eea',
+    fontWeight: '600',
+  },
+  listContent: {
+    padding: 16,
+  },
+  row: {
+    justifyContent: 'space-between',
   },
   kitCard: {
     backgroundColor: '#fff',
     borderRadius: 12,
-    padding: 16,
     marginBottom: 12,
+    width: '48%',
     elevation: 2,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
+    overflow: 'hidden',
   },
-  iconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: 'center',
+  kitImageContainer: {
+    height: 150,
+    position: 'relative',
+  },
+  kitImage: {
+    width: '100%',
+    height: '100%',
+  },
+  kitImagePlaceholder: {
+    width: '100%',
+    height: '100%',
+    backgroundColor: '#667eea',
     justifyContent: 'center',
-    marginRight: 12,
+    alignItems: 'center',
   },
-  statusBadge: {
+  kitImageBadge: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+  },
+  badge: {
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 12,
   },
-  statusText: {
+  badgeText: {
     fontSize: 11,
     fontWeight: '600',
   },
-  kitHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
+  kitCardContent: {
+    padding: 12,
   },
-  kitInfo: {
-    flex: 1,
-    marginLeft: 12,
+  kitHeader: {
+    marginBottom: 12,
   },
   kitName: {
     fontSize: 18,
     fontWeight: 'bold',
     color: '#2c3e50',
-    marginBottom: 4,
-  },
-  kitType: {
-    fontSize: 14,
-    color: '#666',
+    marginBottom: 8,
   },
   kitDetails: {
-    marginTop: 12,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: '#f0f0f0',
+    marginBottom: 12,
   },
   detailRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 8,
-    paddingLeft: 8,
+    marginBottom: 6,
   },
   detailText: {
     fontSize: 14,
     color: '#666',
     marginLeft: 8,
   },
-  description: {
-    fontSize: 14,
-    color: '#666',
-    marginTop: 8,
-  },
   rentButton: {
-    marginTop: 12,
     backgroundColor: '#667eea',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 12,
+    paddingVertical: 10,
     borderRadius: 8,
-    gap: 8,
+    gap: 6,
+    marginTop: 8,
   },
   rentButtonText: {
     color: '#fff',
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '600',
   },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: 'center',
+  emptyState: {
     alignItems: 'center',
-    paddingVertical: 64,
+    padding: 40,
+    marginTop: 40,
   },
   emptyText: {
     fontSize: 16,
     color: '#999',
-    marginTop: 16,
+    marginTop: 12,
+  },
+  footerText: {
+    padding: 16,
+    alignItems: 'center',
+  },
+  footerTextContent: {
+    fontSize: 12,
+    color: '#999',
   },
   modalOverlay: {
     flex: 1,

@@ -33,7 +33,7 @@ const validatePassword = (password) => {
   return null;
 };
 
-const LecturerProfile = ({ user, navigation }) => {
+const LeaderProfile = ({ user, navigation }) => {
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -709,5 +709,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default LecturerProfile;
-
+export default LeaderProfile;
