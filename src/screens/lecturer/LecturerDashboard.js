@@ -297,6 +297,97 @@ const LecturerDashboard = ({ user, onLogout }) => {
           />
             </View>
 
+            {/* Quick Actions */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Quick Actions</Text>
+          <View style={styles.actionsGrid}>
+            <TouchableOpacity 
+              style={styles.actionCard}
+              onPress={() => {
+                if (navigation) {
+                  navigation.navigate('Groups');
+                }
+              }}
+              activeOpacity={0.7}
+            >
+              <Icon name="group" size={32} color="#667eea" />
+              <Text style={styles.actionText}>Groups</Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={styles.actionCard}
+              onPress={() => {
+                if (navigation) {
+                  navigation.navigate('KitRental');
+                }
+              }}
+              activeOpacity={0.7}
+            >
+              <Icon name="build" size={32} color="#667eea" />
+              <Text style={styles.actionText}>Kit Rental</Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={styles.actionCard}
+              onPress={() => {
+                if (navigation) {
+                  navigation.navigate('ComponentRental');
+                }
+              }}
+              activeOpacity={0.7}
+            >
+              <Icon name="settings" size={32} color="#667eea" />
+              <Text style={styles.actionText}>Component Rental</Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={styles.actionCard}
+              onPress={() => {
+                if (navigation) {
+                  navigation.navigate('Wallet');
+                }
+              }}
+              activeOpacity={0.7}
+            >
+              <Icon name="account-balance-wallet" size={32} color="#667eea" />
+              <Text style={styles.actionText}>Wallet</Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={styles.actionCard}
+              onPress={() => {
+                if (navigation) {
+                  navigation.navigate('Rentals');
+                }
+              }}
+              activeOpacity={0.7}
+            >
+              <Icon name="history" size={32} color="#667eea" />
+              <Text style={styles.actionText}>Borrow Status</Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={styles.actionCard}
+              onPress={() => {
+                if (navigation) {
+                  navigation.navigate('FinesRefunds');
+                }
+              }}
+              activeOpacity={0.7}
+            >
+              <Icon name="attach-money" size={32} color="#667eea" />
+              <Text style={styles.actionText}>Fines & Refunds</Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={styles.actionCard}
+              onPress={() => {
+                if (navigation) {
+                  navigation.navigate('Profile');
+                }
+              }}
+              activeOpacity={0.7}
+            >
+              <Icon name="person" size={32} color="#667eea" />
+              <Text style={styles.actionText}>Profile</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
             {/* My Groups Section */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>My Groups</Text>
@@ -516,6 +607,31 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#2c3e50',
     marginBottom: 16,
+  },
+  actionsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+  },
+  actionCard: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    width: '48%',
+    padding: 20,
+    alignItems: 'center',
+    marginBottom: 12,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  actionText: {
+    fontSize: 14,
+    color: '#667eea',
+    marginTop: 8,
+    fontWeight: '600',
+    textAlign: 'center',
   },
   groupCard: {
     backgroundColor: '#fff',
