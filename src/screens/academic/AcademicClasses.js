@@ -274,20 +274,22 @@ const AcademicClasses = ({ user, onLogout }) => {
               <View style={styles.formGroup}>
                 <Text style={styles.formLabel}>Class Code *</Text>
                 <TextInput
-                  style={styles.formInput}
+                  style={[styles.formInput, editing && styles.formInputDisabled]}
                   placeholder="Enter class code"
                   value={classCode}
                   onChangeText={setClassCode}
+                  editable={!editing}
                 />
               </View>
               
               <View style={styles.formGroup}>
                 <Text style={styles.formLabel}>Semester *</Text>
                 <TextInput
-                  style={styles.formInput}
+                  style={[styles.formInput, editing && styles.formInputDisabled]}
                   placeholder="Enter semester"
                   value={semester}
                   onChangeText={setSemester}
+                  editable={!editing}
                 />
               </View>
               
@@ -564,6 +566,11 @@ const styles = StyleSheet.create({
     fontSize: 16,
     borderWidth: 1,
     borderColor: '#e0e0e0',
+  },
+  formInputDisabled: {
+    backgroundColor: '#f0f0f0',
+    color: '#999',
+    opacity: 0.6,
   },
   selectContainer: {
     maxHeight: 200,

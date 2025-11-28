@@ -284,57 +284,73 @@ const AcademicStudentEnrollment = ({ user, onLogout }) => {
               </TouchableOpacity>
             </View>
             
-            <ScrollView style={styles.modalBody}>
+            <ScrollView 
+              style={styles.modalBody}
+              nestedScrollEnabled={true}
+              keyboardShouldPersistTaps="handled"
+            >
               <View style={styles.formGroup}>
                 <Text style={styles.formLabel}>IoT Subject *</Text>
-                <ScrollView style={styles.selectContainer}>
-                  {classes.map((cls) => (
-                    <TouchableOpacity
-                      key={cls.id}
-                      style={[
-                        styles.selectOption,
-                        selectedClassId === cls.id && styles.selectOptionSelected
-                      ]}
-                      onPress={() => setSelectedClassId(cls.id)}
-                    >
-                      <Text style={[
-                        styles.selectOptionText,
-                        selectedClassId === cls.id && styles.selectOptionTextSelected
-                      ]}>
-                        {cls.classCode} - {cls.semester}
-                      </Text>
-                      {selectedClassId === cls.id && (
-                        <Icon name="check-circle" size={20} color="#667eea" />
-                      )}
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
+                <View style={styles.selectContainer}>
+                  <FlatList
+                    data={classes}
+                    keyExtractor={(item) => item.id?.toString() || Math.random().toString()}
+                    renderItem={({ item: cls }) => (
+                      <TouchableOpacity
+                        style={[
+                          styles.selectOption,
+                          selectedClassId === cls.id && styles.selectOptionSelected
+                        ]}
+                        onPress={() => setSelectedClassId(cls.id)}
+                      >
+                        <Text style={[
+                          styles.selectOptionText,
+                          selectedClassId === cls.id && styles.selectOptionTextSelected
+                        ]}>
+                          {cls.classCode} - {cls.semester}
+                        </Text>
+                        {selectedClassId === cls.id && (
+                          <Icon name="check-circle" size={20} color="#667eea" />
+                        )}
+                      </TouchableOpacity>
+                    )}
+                    scrollEnabled={true}
+                    nestedScrollEnabled={true}
+                    style={styles.flatListContainer}
+                  />
+                </View>
               </View>
               
               <View style={styles.formGroup}>
                 <Text style={styles.formLabel}>Lecturer *</Text>
-                <ScrollView style={styles.selectContainer}>
-                  {lecturers.map((lecturer) => (
-                    <TouchableOpacity
-                      key={lecturer.id || lecturer.email}
-                      style={[
-                        styles.selectOption,
-                        selectedLecturerId === lecturer.id && styles.selectOptionSelected
-                      ]}
-                      onPress={() => setSelectedLecturerId(lecturer.id)}
-                    >
-                      <Text style={[
-                        styles.selectOptionText,
-                        selectedLecturerId === lecturer.id && styles.selectOptionTextSelected
-                      ]}>
-                        {lecturer.fullName || lecturer.email} ({lecturer.email})
-                      </Text>
-                      {selectedLecturerId === lecturer.id && (
-                        <Icon name="check-circle" size={20} color="#667eea" />
-                      )}
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
+                <View style={styles.selectContainer}>
+                  <FlatList
+                    data={lecturers}
+                    keyExtractor={(item) => item.id?.toString() || item.email || Math.random().toString()}
+                    renderItem={({ item: lecturer }) => (
+                      <TouchableOpacity
+                        style={[
+                          styles.selectOption,
+                          selectedLecturerId === lecturer.id && styles.selectOptionSelected
+                        ]}
+                        onPress={() => setSelectedLecturerId(lecturer.id)}
+                      >
+                        <Text style={[
+                          styles.selectOptionText,
+                          selectedLecturerId === lecturer.id && styles.selectOptionTextSelected
+                        ]}>
+                          {lecturer.fullName || lecturer.email} ({lecturer.email})
+                        </Text>
+                        {selectedLecturerId === lecturer.id && (
+                          <Icon name="check-circle" size={20} color="#667eea" />
+                        )}
+                      </TouchableOpacity>
+                    )}
+                    scrollEnabled={true}
+                    nestedScrollEnabled={true}
+                    style={styles.flatListContainer}
+                  />
+                </View>
               </View>
             </ScrollView>
             
@@ -381,7 +397,11 @@ const AcademicStudentEnrollment = ({ user, onLogout }) => {
               </TouchableOpacity>
             </View>
             
-            <ScrollView style={styles.modalBody}>
+            <ScrollView 
+              style={styles.modalBody}
+              nestedScrollEnabled={true}
+              keyboardShouldPersistTaps="handled"
+            >
               <View style={styles.formGroup}>
                 <Text style={styles.formLabel}>IoT Subject *</Text>
                 <Text style={styles.formValue}>{getClassName(selectedClassId)}</Text>
@@ -389,28 +409,34 @@ const AcademicStudentEnrollment = ({ user, onLogout }) => {
               
               <View style={styles.formGroup}>
                 <Text style={styles.formLabel}>Student *</Text>
-                <ScrollView style={styles.selectContainer}>
-                  {students.map((student) => (
-                    <TouchableOpacity
-                      key={student.id}
-                      style={[
-                        styles.selectOption,
-                        selectedStudentId === student.id && styles.selectOptionSelected
-                      ]}
-                      onPress={() => setSelectedStudentId(student.id)}
-                    >
-                      <Text style={[
-                        styles.selectOptionText,
-                        selectedStudentId === student.id && styles.selectOptionTextSelected
-                      ]}>
-                        {student.fullName || student.email} ({student.email})
-                      </Text>
-                      {selectedStudentId === student.id && (
-                        <Icon name="check-circle" size={20} color="#667eea" />
-                      )}
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
+                <View style={styles.selectContainer}>
+                  <FlatList
+                    data={students}
+                    keyExtractor={(item) => item.id?.toString() || Math.random().toString()}
+                    renderItem={({ item: student }) => (
+                      <TouchableOpacity
+                        style={[
+                          styles.selectOption,
+                          selectedStudentId === student.id && styles.selectOptionSelected
+                        ]}
+                        onPress={() => setSelectedStudentId(student.id)}
+                      >
+                        <Text style={[
+                          styles.selectOptionText,
+                          selectedStudentId === student.id && styles.selectOptionTextSelected
+                        ]}>
+                          {student.fullName || student.email} ({student.email})
+                        </Text>
+                        {selectedStudentId === student.id && (
+                          <Icon name="check-circle" size={20} color="#667eea" />
+                        )}
+                      </TouchableOpacity>
+                    )}
+                    scrollEnabled={true}
+                    nestedScrollEnabled={true}
+                    style={styles.flatListContainer}
+                  />
+                </View>
               </View>
             </ScrollView>
             
@@ -639,7 +665,7 @@ const styles = StyleSheet.create({
   },
   modalBody: {
     padding: 20,
-    maxHeight: 400,
+    maxHeight: 500,
   },
   formGroup: {
     marginBottom: 20,
@@ -663,6 +689,10 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     borderColor: '#e0e0e0',
+    overflow: 'hidden',
+  },
+  flatListContainer: {
+    maxHeight: 180,
   },
   selectOption: {
     flexDirection: 'row',
@@ -755,4 +785,3 @@ const styles = StyleSheet.create({
 });
 
 export default AcademicStudentEnrollment;
-
