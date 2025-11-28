@@ -29,7 +29,16 @@ const AdminLayout = ({
       setNotificationLoading(true);
       const response = await notificationAPI.getRoleNotifications();
       const data = response?.data ?? response;
-      setNotifications(Array.isArray(data) ? data : []);
+      const notificationsArray = Array.isArray(data) ? data : [];
+      
+      // Sort notifications by createdAt descending (newest first)
+      const sortedNotifications = notificationsArray.sort((a, b) => {
+        const dateA = a.createdAt ? new Date(a.createdAt) : new Date(0);
+        const dateB = b.createdAt ? new Date(b.createdAt) : new Date(0);
+        return dateB - dateA; // Descending order (newest first)
+      });
+      
+      setNotifications(sortedNotifications);
     } catch (error) {
       console.error('Error loading notifications:', error);
       setNotifications([]);
@@ -39,12 +48,41 @@ const AdminLayout = ({
   };
 
   const handleMenuPress = () => {
-    if (navigation && navigation.openDrawer) {
-      navigation.openDrawer();
+    // Try to open drawer from current navigation or parent navigation
+    if (navigation) {
+      // Check if current navigation has openDrawer (drawer navigator)
+      if (navigation.openDrawer) {
+        navigation.openDrawer();
+        return;
+      }
+      
+      // Try to find drawer navigator in parent hierarchy
+      if (navigation.getParent) {
+        let parent = navigation.getParent();
+        let depth = 0;
+        const maxDepth = 5; // Prevent infinite loop
+        
+        while (parent && depth < maxDepth) {
+          if (parent.openDrawer) {
+            parent.openDrawer();
+            return;
+          }
+          parent = parent.getParent ? parent.getParent() : null;
+          depth++;
+        }
+      }
+      
+      // If drawer not found in hierarchy, navigate to AdminMain (drawer screen)
+      // This allows accessing drawer menu from Stack screens like AdminScanQR
+      try {
+        navigation.navigate('AdminMain');
+      } catch (error) {
+        console.error('Error navigating to AdminMain for drawer access:', error);
+      }
     }
   };
 
-  const handleNotificationPress = () => {
+  const handleNotificationIconPress = () => {
     setNotificationModalVisible(true);
     loadNotifications();
   };
@@ -64,34 +102,58 @@ const AdminLayout = ({
     return date.isValid() ? date.format('DD/MM/YYYY HH:mm') : 'N/A';
   };
 
+  const handleNotificationClick = async (notification) => {
+    // Only mark as read if not already read
+    if (!notification.isRead && notification.id) {
+      try {
+        await notificationAPI.markAsRead(notification.id);
+        // Update notification state to mark as read
+        setNotifications(prev => 
+          prev.map(item => 
+            item.id === notification.id 
+              ? { ...item, isRead: true }
+              : item
+          )
+        );
+      } catch (error) {
+        console.error('Error marking notification as read:', error);
+      }
+    }
+  };
+
   const renderNotificationItem = ({ item }) => {
     const typeInfo = notificationTypeStyles[item.type] || { color: '#1890ff', label: item.type || 'Thông báo' };
     const notificationDate = formatDateTime(item.createdAt);
 
     return (
-      <Card 
-        style={[
-          styles.notificationCard,
-          !item.isRead && styles.unreadNotification
-        ]}
-        mode="outlined"
+      <TouchableOpacity
+        onPress={() => handleNotificationClick(item)}
+        activeOpacity={0.7}
       >
-        <Card.Content>
-          <View style={styles.notificationHeader}>
-            <View style={[styles.notificationTypeBadge, { backgroundColor: `${typeInfo.color}15` }]}>
-              <Text style={[styles.notificationTypeText, { color: typeInfo.color }]}>
-                {typeInfo.label}
-              </Text>
+        <Card 
+          style={[
+            styles.notificationCard,
+            !item.isRead && styles.unreadNotification
+          ]}
+          mode="outlined"
+        >
+          <Card.Content>
+            <View style={styles.notificationHeader}>
+              <View style={[styles.notificationTypeBadge, { backgroundColor: `${typeInfo.color}15` }]}>
+                <Text style={[styles.notificationTypeText, { color: typeInfo.color }]}>
+                  {typeInfo.label}
+                </Text>
+              </View>
+              {!item.isRead && (
+                <View style={styles.unreadDot} />
+              )}
             </View>
-            {!item.isRead && (
-              <View style={styles.unreadDot} />
-            )}
-          </View>
-          <Text style={styles.notificationTitle}>{item.title || item.subType || 'Thông báo'}</Text>
-          <Paragraph style={styles.notificationMessage}>{item.message || ''}</Paragraph>
-          <Text style={styles.notificationDate}>{notificationDate}</Text>
-        </Card.Content>
-      </Card>
+            <Text style={styles.notificationTitle}>{item.title || item.subType || 'Thông báo'}</Text>
+            <Paragraph style={styles.notificationMessage}>{item.message || ''}</Paragraph>
+            <Text style={styles.notificationDate}>{notificationDate}</Text>
+          </Card.Content>
+        </Card>
+      </TouchableOpacity>
     );
   };
 
@@ -121,7 +183,7 @@ const AdminLayout = ({
         />
         <TouchableOpacity
           style={styles.notificationButton}
-          onPress={handleNotificationPress}
+          onPress={handleNotificationIconPress}
         >
           <Icon name="notifications" size={24} color={theme.colors.onPrimary} />
           {unreadNotificationsCount > 0 && (
@@ -308,4 +370,3 @@ const styles = StyleSheet.create({
 });
 
 export default AdminLayout;
-
