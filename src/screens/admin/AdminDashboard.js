@@ -214,19 +214,43 @@ const AdminDashboard = ({ user, onLogout }) => {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Quick Actions</Text>
           <View style={styles.actionsGrid}>
-            <TouchableOpacity style={styles.actionCard}>
+            <TouchableOpacity 
+              style={styles.actionCard}
+              onPress={() => navigation.navigate('Kits')}
+              activeOpacity={0.7}
+            >
               <Icon name="add-circle-outline" size={32} color="#667eea" />
               <Text style={styles.actionText}>Add Kit</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.actionCard}>
+            <TouchableOpacity 
+              style={styles.actionCard}
+              onPress={() => navigation.navigate('Users')}
+              activeOpacity={0.7}
+            >
               <Icon name="person-add" size={32} color="#667eea" />
               <Text style={styles.actionText}>Add User</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.actionCard}>
+            <TouchableOpacity 
+              style={styles.actionCard}
+              onPress={() => navigation.navigate('ScanQR')}
+              activeOpacity={0.7}
+            >
+              <Icon name="qr-code-scanner" size={32} color="#667eea" />
+              <Text style={styles.actionText}>Scan QR</Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={styles.actionCard}
+              onPress={() => navigation.navigate('Approvals')}
+              activeOpacity={0.7}
+            >
               <Icon name="check-circle" size={32} color="#667eea" />
               <Text style={styles.actionText}>Approvals</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.actionCard}>
+            <TouchableOpacity 
+              style={styles.actionCard}
+              onPress={() => navigation.navigate('LogHistory')}
+              activeOpacity={0.7}
+            >
               <Icon name="history" size={32} color="#667eea" />
               <Text style={styles.actionText}>History</Text>
             </TouchableOpacity>

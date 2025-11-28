@@ -28,8 +28,13 @@ const AdminUsers = ({ onLogout }) => {
     phone: '',
     role: 'student',
     studentCode: '',
+    lecturerCode: '',
     password: '',
   });
+  const [searchText, setSearchText] = useState('');
+  const [roleFilter, setRoleFilter] = useState('all');
+  const [roleFilterModalVisible, setRoleFilterModalVisible] = useState(false);
+  const [selectedRole, setSelectedRole] = useState(null);
 
   useEffect(() => {
     loadUsers();
@@ -48,8 +53,9 @@ const AdminUsers = ({ onLogout }) => {
           email: profile.email,
           phone: profile.phone,
           studentCode: profile.studentCode,
+          lecturerCode: profile.lecturerCode,
           role: profile.role?.toLowerCase() || 'member',
-          status: 'Active',
+          status: profile.isActive ? 'Active' : 'Inactive',
           createdAt: profile.createdAt,
         }));
         setUsers(mappedUsers);
@@ -68,27 +74,66 @@ const AdminUsers = ({ onLogout }) => {
 
   const handleAddUser = () => {
     setEditingUser(null);
+    setSelectedRole(null);
     setFormData({
       name: '',
       email: '',
       phone: '',
       role: 'student',
       studentCode: '',
+      lecturerCode: '',
       password: '',
     });
     setModalVisible(true);
   };
 
+  // Filter users based on search text and role
+  const filteredUsers = users.filter(user => {
+    // Filter by search text (name, email, phone, studentCode, lecturerCode)
+    if (searchText && searchText.trim() !== '') {
+      const searchLower = searchText.toLowerCase();
+      const name = (user.name || '').toLowerCase();
+      const email = (user.email || '').toLowerCase();
+      const phone = (user.phone || '').toLowerCase();
+      const studentCode = (user.studentCode || '').toLowerCase();
+      const lecturerCode = (user.lecturerCode || '').toLowerCase();
+      
+      if (!name.includes(searchLower) && 
+          !email.includes(searchLower) && 
+          !phone.includes(searchLower) && 
+          !studentCode.includes(searchLower) &&
+          !lecturerCode.includes(searchLower)) {
+        return false;
+      }
+    }
+    
+    // Filter by role
+    if (roleFilter !== 'all') {
+      const userRole = (user.role || '').toLowerCase();
+      if (userRole !== roleFilter.toLowerCase()) {
+        return false;
+      }
+    }
+    
+    return true;
+  });
+
+  // Get unique roles from users for filter dropdown
+  const availableRoles = [...new Set(users.map(user => user.role).filter(Boolean))].sort();
+
   const handleEditUser = (user) => {
     setEditingUser(user);
+    const role = (user.role || '').toLowerCase();
     setFormData({
       name: user.name || user.fullName || '',
       email: user.email || '',
       phone: user.phone || '',
       role: user.role || 'student',
-      studentCode: user.studentCode || '',
+      studentCode: role === 'student' ? (user.studentCode || '') : '',
+      lecturerCode: role === 'lecturer' ? (user.lecturerCode || '') : '',
       password: '',
     });
+    setSelectedRole(user.role || 'student');
     setModalVisible(true);
   };
 
@@ -110,7 +155,8 @@ const AdminUsers = ({ onLogout }) => {
         const updateData = {
           username: formData.email,
           password: formData.password || undefined,
-          studentCode: formData.studentCode || null,
+          studentCode: formData.role?.toLowerCase() === 'student' ? (formData.studentCode || null) : null,
+          lecturerCode: formData.role?.toLowerCase() === 'lecturer' ? (formData.lecturerCode || null) : null,
           roles: formData.role.toUpperCase(),
           phoneNumber: formData.phone || null,
           fullName: formData.name || null,
@@ -123,7 +169,8 @@ const AdminUsers = ({ onLogout }) => {
         const userData = {
           username: formData.email,
           password: formData.password,
-          studentCode: formData.studentCode || null,
+          studentCode: formData.role?.toLowerCase() === 'student' ? (formData.studentCode || null) : null,
+          lecturerCode: formData.role?.toLowerCase() === 'lecturer' ? (formData.lecturerCode || null) : null,
           roles: formData.role.toUpperCase(),
           phoneNumber: formData.phone || null,
           fullName: formData.name || null,
@@ -188,6 +235,16 @@ const AdminUsers = ({ onLogout }) => {
     }
   };
 
+  const getUserCode = (user) => {
+    const role = (user.role || '').toLowerCase();
+    if (role === 'student') {
+      return user.studentCode || '-';
+    } else if (role === 'lecturer') {
+      return user.lecturerCode || '-';
+    }
+    return '-';
+  };
+
   const renderUserItem = ({ item }) => (
     <View style={styles.userCard}>
       <View style={styles.userHeader}>
@@ -195,10 +252,23 @@ const AdminUsers = ({ onLogout }) => {
           <Text style={styles.userName}>{item.name}</Text>
           <Text style={styles.userEmail}>{item.email}</Text>
         </View>
-        <View style={[styles.roleBadge, { backgroundColor: `${getRoleColor(item.role)}15` }]}>
-          <Text style={[styles.roleText, { color: getRoleColor(item.role) }]}>
-            {item.role?.toUpperCase() || 'MEMBER'}
-          </Text>
+        <View style={styles.badgesContainer}>
+          <View style={[styles.roleBadge, { backgroundColor: `${getRoleColor(item.role)}15` }]}>
+            <Text style={[styles.roleText, { color: getRoleColor(item.role) }]}>
+              {item.role?.toUpperCase() || 'MEMBER'}
+            </Text>
+          </View>
+          <View style={[
+            styles.statusBadge,
+            { backgroundColor: item.status === 'Active' ? '#52c41a15' : '#ff4d4f15' }
+          ]}>
+            <Text style={[
+              styles.statusText,
+              { color: item.status === 'Active' ? '#52c41a' : '#ff4d4f' }
+            ]}>
+              {item.status || 'Active'}
+            </Text>
+          </View>
         </View>
       </View>
 
@@ -209,18 +279,14 @@ const AdminUsers = ({ onLogout }) => {
             <Text style={styles.detailText}>{item.phone}</Text>
           </View>
         )}
-        {item.studentCode && (
+        {getUserCode(item) !== '-' && (
           <View style={styles.detailRow}>
             <Icon name="badge" size={16} color="#666" />
-            <Text style={styles.detailText}>{item.studentCode}</Text>
+            <Text style={styles.detailText}>
+              {item.role?.toLowerCase() === 'student' ? 'Student Code' : 'Lecturer Code'}: {getUserCode(item)}
+            </Text>
           </View>
         )}
-        <View style={styles.detailRow}>
-          <Icon name="check-circle" size={16} color="#52c41a" />
-          <Text style={[styles.detailText, { color: '#52c41a' }]}>
-            {item.status || 'Active'}
-          </Text>
-        </View>
       </View>
 
       <View style={styles.userActions}>
@@ -274,9 +340,36 @@ const AdminUsers = ({ onLogout }) => {
       }}
       onRightAction={handleAddUser}
     >
+      {/* Search and Filter Section */}
+      <View style={styles.searchFilterContainer}>
+        <View style={styles.searchContainer}>
+          <Icon name="search" size={20} color="#666" style={styles.searchIcon} />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search by name, email, phone, or user code..."
+            value={searchText}
+            onChangeText={setSearchText}
+            placeholderTextColor="#999"
+          />
+          {searchText.length > 0 && (
+            <TouchableOpacity onPress={() => setSearchText('')} style={styles.clearButton}>
+              <Icon name="close" size={18} color="#666" />
+            </TouchableOpacity>
+          )}
+        </View>
+        <TouchableOpacity
+          style={styles.filterButton}
+          onPress={() => setRoleFilterModalVisible(true)}
+        >
+          <Text style={styles.filterButtonText}>
+            {roleFilter === 'all' ? 'All Roles' : roleFilter.charAt(0).toUpperCase() + roleFilter.slice(1)}
+          </Text>
+          <Icon name="arrow-drop-down" size={20} color="#666" />
+        </TouchableOpacity>
+      </View>
 
       <FlatList
-        data={users}
+        data={filteredUsers}
         renderItem={renderUserItem}
         keyExtractor={(item) => item.id?.toString() || Math.random().toString()}
         refreshControl={
@@ -286,11 +379,26 @@ const AdminUsers = ({ onLogout }) => {
         ListEmptyComponent={
           <View style={styles.emptyState}>
             <Icon name="people" size={64} color="#ccc" />
-            <Text style={styles.emptyText}>No users available</Text>
-            <TouchableOpacity style={styles.emptyButton} onPress={handleAddUser}>
-              <Text style={styles.emptyButtonText}>Add First User</Text>
-            </TouchableOpacity>
+            <Text style={styles.emptyText}>
+              {searchText || roleFilter !== 'all' 
+                ? 'No users match your filters' 
+                : 'No users available'}
+            </Text>
+            {(!searchText && roleFilter === 'all') && (
+              <TouchableOpacity style={styles.emptyButton} onPress={handleAddUser}>
+                <Text style={styles.emptyButtonText}>Add First User</Text>
+              </TouchableOpacity>
+            )}
           </View>
+        }
+        ListFooterComponent={
+          filteredUsers.length > 0 ? (
+            <View style={styles.footerText}>
+              <Text style={styles.footerTextContent}>
+                Showing {filteredUsers.length} of {users.length} user(s)
+              </Text>
+            </View>
+          ) : null
         }
       />
 
@@ -350,14 +458,22 @@ const AdminUsers = ({ onLogout }) => {
               <View style={styles.formGroup}>
                 <Text style={styles.label}>Role *</Text>
                 <View style={styles.roleGrid}>
-                  {['student', 'lecturer', 'admin', 'academic', 'leader', 'member'].map((role) => (
+                  {['student', 'lecturer', 'academic'].map((role) => (
                     <TouchableOpacity
                       key={role}
                       style={[
                         styles.roleButton,
                         formData.role === role && styles.roleButtonActive
                       ]}
-                      onPress={() => setFormData({ ...formData, role })}
+                      onPress={() => {
+                        setFormData({ 
+                          ...formData, 
+                          role,
+                          studentCode: role === 'student' ? formData.studentCode : '',
+                          lecturerCode: role === 'lecturer' ? formData.lecturerCode : '',
+                        });
+                        setSelectedRole(role);
+                      }}
                     >
                       <Text style={[
                         styles.roleButtonText,
@@ -372,12 +488,24 @@ const AdminUsers = ({ onLogout }) => {
 
               {formData.role === 'student' && (
                 <View style={styles.formGroup}>
-                  <Text style={styles.label}>Student Code *</Text>
+                  <Text style={styles.label}>User Code (Student Code) *</Text>
                   <TextInput
                     style={styles.input}
                     value={formData.studentCode}
                     onChangeText={(text) => setFormData({ ...formData, studentCode: text })}
                     placeholder="Enter student code"
+                  />
+                </View>
+              )}
+
+              {formData.role === 'lecturer' && (
+                <View style={styles.formGroup}>
+                  <Text style={styles.label}>User Code (Lecturer Code) *</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={formData.lecturerCode}
+                    onChangeText={(text) => setFormData({ ...formData, lecturerCode: text })}
+                    placeholder="Enter lecturer code"
                   />
                 </View>
               )}
@@ -429,11 +557,136 @@ const AdminUsers = ({ onLogout }) => {
           </View>
         </View>
       </Modal>
+
+      {/* Role Filter Modal */}
+      <Modal
+        visible={roleFilterModalVisible}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setRoleFilterModalVisible(false)}
+      >
+        <TouchableOpacity
+          style={styles.filterModalOverlay}
+          activeOpacity={1}
+          onPress={() => setRoleFilterModalVisible(false)}
+        >
+          <View style={styles.filterModalContent} onStartShouldSetResponder={() => true}>
+            <Text style={styles.filterModalTitle}>Filter by Role</Text>
+            {['all', ...availableRoles].map((role) => (
+              <TouchableOpacity
+                key={role}
+                style={[
+                  styles.filterOption,
+                  roleFilter === role && styles.filterOptionSelected
+                ]}
+                onPress={() => {
+                  setRoleFilter(role);
+                  setRoleFilterModalVisible(false);
+                }}
+              >
+                <Text style={[
+                  styles.filterOptionText,
+                  roleFilter === role && styles.filterOptionTextSelected
+                ]}>
+                  {role === 'all' ? 'All Roles' : role.charAt(0).toUpperCase() + role.slice(1)}
+                </Text>
+                {roleFilter === role && (
+                  <Icon name="check" size={20} color="#667eea" />
+                )}
+              </TouchableOpacity>
+            ))}
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </AdminLayout>
   );
 };
 
 const styles = StyleSheet.create({
+  searchFilterContainer: {
+    padding: 16,
+    paddingBottom: 8,
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f5f5f5',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+  },
+  searchIcon: {
+    marginRight: 8,
+  },
+  searchInput: {
+    flex: 1,
+    height: 40,
+    fontSize: 14,
+    color: '#2c3e50',
+  },
+  clearButton: {
+    padding: 4,
+  },
+  filterButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#f5f5f5',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+  },
+  filterButtonText: {
+    fontSize: 14,
+    color: '#2c3e50',
+    fontWeight: '500',
+  },
+  filterModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  filterModalContent: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 20,
+    maxHeight: '50%',
+  },
+  filterModalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#2c3e50',
+    marginBottom: 16,
+  },
+  filterOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 14,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    marginBottom: 8,
+    backgroundColor: '#f5f5f5',
+  },
+  filterOptionSelected: {
+    backgroundColor: '#667eea15',
+  },
+  filterOptionText: {
+    fontSize: 16,
+    color: '#2c3e50',
+  },
+  filterOptionTextSelected: {
+    color: '#667eea',
+    fontWeight: '600',
+  },
   listContent: {
     padding: 16,
   },
@@ -467,12 +720,26 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#666',
   },
+  badgesContainer: {
+    flexDirection: 'row',
+    gap: 8,
+    alignItems: 'center',
+  },
   roleBadge: {
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 12,
   },
   roleText: {
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  statusBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  statusText: {
     fontSize: 11,
     fontWeight: '600',
   },
@@ -534,6 +801,14 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
+  },
+  footerText: {
+    padding: 16,
+    alignItems: 'center',
+  },
+  footerTextContent: {
+    fontSize: 12,
+    color: '#999',
   },
   modalOverlay: {
     flex: 1,

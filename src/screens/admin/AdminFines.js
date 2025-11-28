@@ -13,7 +13,7 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import { MaterialIcons as Icon } from '@expo/vector-icons';
 import AdminLayout from '../../components/AdminLayout';
-import { penaltiesAPI } from '../../services/api';
+import { penaltiesAPI, penaltyDetailAPI, penaltyPoliciesAPI } from '../../services/api';
 import dayjs from 'dayjs';
 
 const AdminFines = ({ onLogout }) => {
@@ -22,6 +22,8 @@ const AdminFines = ({ onLogout }) => {
   const [loading, setLoading] = useState(false);
   const [selectedFine, setSelectedFine] = useState(null);
   const [detailModalVisible, setDetailModalVisible] = useState(false);
+  const [penaltyDetails, setPenaltyDetails] = useState([]);
+  const [loadingDetails, setLoadingDetails] = useState(false);
 
   useEffect(() => {
     loadFines();
@@ -30,30 +32,63 @@ const AdminFines = ({ onLogout }) => {
   const loadFines = async () => {
     setLoading(true);
     try {
+      // Load unresolved fines - matching AdminPortal.js behavior
+      // Note: Backend only has endpoint for unresolved fines (getAllByResolved-F)
       const response = await penaltiesAPI.getUnresolved();
       console.log('Unresolved penalties response:', response);
       const data = Array.isArray(response) 
         ? response 
         : (response?.data || []);
       
-      // Map penalties to fine format
-      const mappedFines = data.map(p => ({
-        id: p.id,
-        kitId: p.borrowRequestId || 'N/A',
-        kitName: 'N/A',
-        studentEmail: p.accountEmail || 'N/A',
-        studentName: p.accountEmail || 'N/A',
-        leaderEmail: p.accountEmail || 'N/A',
-        leaderName: p.accountEmail || 'N/A',
-        fineAmount: (p.totalAmount !== undefined && p.totalAmount !== null) ? Number(p.totalAmount) : 0,
-        createdAt: p.takeEffectDate || new Date().toISOString(),
-        dueDate: new Date().toISOString(),
-        status: p.resolved ? 'paid' : 'pending',
-        damageAssessment: {},
-        penalty: p,
-      }));
+      // Map penalties to fine format - matching AdminPortal.js structure
+      const mappedFines = data.map(p => {
+        // Extract account information
+        const account = p.account || {};
+        const borrowRequest = p.request || p.borrowRequest || {};
+        const kit = borrowRequest?.kit || {};
+        
+        // Get student/account email and name
+        const accountEmail = account.email || p.accountEmail || 'N/A';
+        const accountName = account.fullName || account.name || accountEmail;
+        
+        // Get borrow request information
+        const borrowRequestId = borrowRequest.id || p.borrowRequestId || 'N/A';
+        const kitName = kit.kitName || kit.name || 'N/A';
+        
+        // For group leader, check if borrow request has requestedBy info
+        const requestedBy = borrowRequest.requestedBy || {};
+        const leaderEmail = requestedBy.email || accountEmail;
+        const leaderName = requestedBy.fullName || requestedBy.name || leaderEmail;
+        
+        return {
+          id: p.id,
+          kitId: borrowRequestId,
+          kitName: kitName,
+          studentEmail: accountEmail,
+          studentName: accountName,
+          leaderEmail: leaderEmail,
+          leaderName: leaderName,
+          fineAmount: (p.totalAmount !== undefined && p.totalAmount !== null) 
+            ? Number(p.totalAmount) 
+            : (p.total_ammount !== undefined && p.total_ammount !== null)
+            ? Number(p.total_ammount)
+            : 0,
+          createdAt: p.takeEffectDate || p.take_effect_date || p.createdAt || new Date().toISOString(),
+          dueDate: p.dueDate || p.createdAt || new Date().toISOString(),
+          status: p.resolved ? 'paid' : 'pending',
+          damageAssessment: p.damageAssessment || {},
+          penalty: p,
+        };
+      });
       
-      setFines(mappedFines);
+      // Sort by createdAt descending (newest first)
+      const sortedFines = mappedFines.sort((a, b) => {
+        const dateA = a.createdAt ? new Date(a.createdAt) : new Date(0);
+        const dateB = b.createdAt ? new Date(b.createdAt) : new Date(0);
+        return dateB - dateA; // Descending order (newest first)
+      });
+      
+      setFines(sortedFines);
     } catch (error) {
       console.error('Error loading fines:', error);
       Alert.alert('Error', 'Failed to load fines');
@@ -62,9 +97,60 @@ const AdminFines = ({ onLogout }) => {
     }
   };
 
-  const handleViewDetails = (fine) => {
+  const handleViewDetails = async (fine) => {
     setSelectedFine(fine);
+    setPenaltyDetails([]); // Clear previous details
     setDetailModalVisible(true);
+    await loadPenaltyDetails(fine.id);
+  };
+
+  const loadPenaltyDetails = async (penaltyId) => {
+    if (!penaltyId) {
+      setPenaltyDetails([]);
+      return;
+    }
+
+    setLoadingDetails(true);
+    setPenaltyDetails([]); // Clear while loading
+    try {
+      const response = await penaltyDetailAPI.findByPenaltyId(penaltyId);
+      
+      let detailsData = [];
+      if (Array.isArray(response)) {
+        detailsData = response;
+      } else if (response && response.data && Array.isArray(response.data)) {
+        detailsData = response.data;
+      } else if (response && response.id) {
+        detailsData = [response];
+      }
+      
+      // Fetch penalty policy info for each detail
+      if (detailsData.length > 0) {
+        const detailsWithPolicies = await Promise.all(
+          detailsData.map(async (detail) => {
+            if (detail.policiesId) {
+              try {
+                const policyResponse = await penaltyPoliciesAPI.getById(detail.policiesId);
+                const policyData = policyResponse?.data || policyResponse;
+                return { ...detail, policy: policyData };
+              } catch (error) {
+                console.error(`Error loading policy for detail ${detail.id}:`, error);
+                return { ...detail, policy: null };
+              }
+            }
+            return { ...detail, policy: null };
+          })
+        );
+        setPenaltyDetails(detailsWithPolicies);
+      } else {
+        setPenaltyDetails([]);
+      }
+    } catch (error) {
+      console.error('Error loading penalty details:', error);
+      setPenaltyDetails([]);
+    } finally {
+      setLoadingDetails(false);
+    }
   };
 
   const getStatusColor = (status) => {
@@ -77,6 +163,7 @@ const AdminFines = ({ onLogout }) => {
         return '#ff4d4f';
     }
   };
+
 
   const renderFineItem = ({ item }) => (
     <TouchableOpacity
@@ -187,13 +274,19 @@ const AdminFines = ({ onLogout }) => {
         visible={detailModalVisible}
         animationType="slide"
         transparent={true}
-        onRequestClose={() => setDetailModalVisible(false)}
+        onRequestClose={() => {
+          setDetailModalVisible(false);
+          setPenaltyDetails([]);
+        }}
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Fine Details</Text>
-              <TouchableOpacity onPress={() => setDetailModalVisible(false)}>
+              <TouchableOpacity onPress={() => {
+                setDetailModalVisible(false);
+                setPenaltyDetails([]);
+              }}>
                 <Icon name="close" size={24} color="#666" />
               </TouchableOpacity>
             </View>
@@ -227,29 +320,38 @@ const AdminFines = ({ onLogout }) => {
                   />
                 </View>
 
-                <View style={styles.detailSection}>
-                  <Text style={styles.sectionTitle}>Student Information</Text>
-                  <DetailRow 
-                    label="Name" 
-                    value={selectedFine.studentName || 'N/A'} 
-                  />
-                  <DetailRow 
-                    label="Email" 
-                    value={selectedFine.studentEmail || 'N/A'} 
-                  />
-                </View>
-
-                <View style={styles.detailSection}>
-                  <Text style={styles.sectionTitle}>Group Leader Information</Text>
-                  <DetailRow 
-                    label="Name" 
-                    value={selectedFine.leaderName || 'N/A'} 
-                  />
-                  <DetailRow 
-                    label="Email" 
-                    value={selectedFine.leaderEmail || 'N/A'} 
-                  />
-                </View>
+                {loadingDetails ? (
+                  <View style={styles.detailSection}>
+                    <Text style={styles.loadingText}>Loading policies...</Text>
+                  </View>
+                ) : penaltyDetails && penaltyDetails.length > 0 ? (
+                  <View style={styles.detailSection}>
+                    <Text style={styles.sectionTitle}>Policies</Text>
+                    {penaltyDetails.map((detail, index) => (
+                      detail.policy ? (
+                        <View key={detail.id || index} style={styles.policyItem}>
+                          <Text style={styles.policyName}>
+                            {detail.policy.policyName || detail.policy.name || 'Policy'}
+                          </Text>
+                          {detail.policy.description && (
+                            <Text style={styles.policyDescription}>
+                              {detail.policy.description}
+                            </Text>
+                          )}
+                          {detail.policy.amount && (
+                            <Text style={styles.policyAmount}>
+                              {Number(detail.policy.amount).toLocaleString('vi-VN')} VND
+                            </Text>
+                          )}
+                        </View>
+                      ) : null
+                    ))}
+                  </View>
+                ) : (
+                  <View style={styles.detailSection}>
+                    <Text style={styles.noPoliciesText}>No policies found</Text>
+                  </View>
+                )}
 
                 {selectedFine.damageAssessment && Object.keys(selectedFine.damageAssessment).length > 0 && (
                   <View style={styles.detailSection}>
@@ -272,7 +374,10 @@ const AdminFines = ({ onLogout }) => {
             <View style={styles.modalFooter}>
               <TouchableOpacity
                 style={[styles.modalButton, styles.closeButton]}
-                onPress={() => setDetailModalVisible(false)}
+                onPress={() => {
+                  setDetailModalVisible(false);
+                  setPenaltyDetails([]);
+                }}
               >
                 <Text style={styles.closeButtonText}>Close</Text>
               </TouchableOpacity>
@@ -485,6 +590,38 @@ const styles = StyleSheet.create({
     color: '#666',
     fontSize: 16,
     fontWeight: '600',
+  },
+  policyItem: {
+    padding: 12,
+    backgroundColor: '#f5f5f5',
+    borderRadius: 8,
+    marginBottom: 8,
+  },
+  policyName: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#2c3e50',
+    marginBottom: 4,
+  },
+  policyDescription: {
+    fontSize: 12,
+    color: '#666',
+    marginBottom: 4,
+  },
+  policyAmount: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#cf1322',
+  },
+  loadingText: {
+    fontSize: 14,
+    color: '#666',
+    fontStyle: 'italic',
+  },
+  noPoliciesText: {
+    fontSize: 14,
+    color: '#999',
+    fontStyle: 'italic',
   },
 });
 

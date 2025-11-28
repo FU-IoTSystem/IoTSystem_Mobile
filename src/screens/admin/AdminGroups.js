@@ -32,6 +32,17 @@ const AdminGroups = ({ onLogout }) => {
   const [isFirstMember, setIsFirstMember] = useState(false);
   const [classes, setClasses] = useState([]);
   const [lecturers, setLecturers] = useState([]);
+  const [searchText, setSearchText] = useState('');
+  const [classFilter, setClassFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [classFilterModalVisible, setClassFilterModalVisible] = useState(false);
+  const [statusFilterModalVisible, setStatusFilterModalVisible] = useState(false);
+  const [createGroupModalVisible, setCreateGroupModalVisible] = useState(false);
+  const [createGroupFormData, setCreateGroupFormData] = useState({
+    name: '',
+    classId: '',
+    lecturer: '',
+  });
 
   useEffect(() => {
     loadGroups();
@@ -121,6 +132,43 @@ const AdminGroups = ({ onLogout }) => {
     const classInfo = classes.find(c => c.id === classId);
     return classInfo ? `${classInfo.classCode} - ${classInfo.semester}` : 'N/A';
   };
+
+  // Filter groups based on search and filters
+  const filteredGroups = groups.filter(group => {
+    // Filter by search text (group name, leader, lecturer)
+    if (searchText && searchText.trim() !== '') {
+      const searchLower = searchText.toLowerCase();
+      const groupName = (group.groupName || '').toLowerCase();
+      const leader = (group.leader || '').toLowerCase();
+      const lecturer = (group.lecturerName || group.lecturer || '').toLowerCase();
+      
+      if (!groupName.includes(searchLower) && 
+          !leader.includes(searchLower) && 
+          !lecturer.includes(searchLower)) {
+        return false;
+      }
+    }
+    
+    // Filter by class
+    if (classFilter !== 'all') {
+      if (group.classId !== classFilter) {
+        return false;
+      }
+    }
+    
+    // Filter by status
+    if (statusFilter !== 'all') {
+      const groupStatus = group.status ? 'active' : 'inactive';
+      if (groupStatus !== statusFilter) {
+        return false;
+      }
+    }
+    
+    return true;
+  });
+
+  // Get unique classes for filter
+  const availableClasses = [...new Set(groups.map(g => g.classId).filter(Boolean))];
 
   const handleAddStudentToGroup = async (groupRecord) => {
     setSelectedGroupRecord(groupRecord);
@@ -232,6 +280,40 @@ const AdminGroups = ({ onLogout }) => {
     );
   };
 
+  const handleCreateGroup = async () => {
+    if (!createGroupFormData.name.trim() || !createGroupFormData.classId || !createGroupFormData.lecturer) {
+      Alert.alert('Error', 'Please fill in all required fields');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const lecturer = lecturers.find(l => l.id === createGroupFormData.lecturer);
+      const groupData = {
+        groupName: createGroupFormData.name,
+        classId: createGroupFormData.classId,
+        accountId: lecturer?.id || null,
+        status: true,
+        roles: null
+      };
+      
+      await studentGroupAPI.create(groupData);
+      await loadGroups();
+      Alert.alert('Success', 'Group created successfully');
+      setCreateGroupModalVisible(false);
+      setCreateGroupFormData({
+        name: '',
+        classId: '',
+        lecturer: '',
+      });
+    } catch (error) {
+      console.error('Error creating group:', error);
+      Alert.alert('Error', error.response?.data?.message || error.message || 'Failed to create group');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleLogout = async () => {
     Alert.alert(
       'Logout',
@@ -332,12 +414,57 @@ const AdminGroups = ({ onLogout }) => {
           >
             <Icon name="logout" size={20} color="#fff" />
           </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.addButton}
+            onPress={() => setCreateGroupModalVisible(true)}
+          >
+            <Icon name="add" size={24} color="#fff" />
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {/* Search and Filter Section */}
+      <View style={styles.searchFilterContainer}>
+        <View style={styles.searchContainer}>
+          <Icon name="search" size={20} color="#666" style={styles.searchIcon} />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search by group name, leader, or lecturer..."
+            value={searchText}
+            onChangeText={setSearchText}
+            placeholderTextColor="#999"
+          />
+          {searchText.length > 0 && (
+            <TouchableOpacity onPress={() => setSearchText('')} style={styles.clearButton}>
+              <Icon name="close" size={18} color="#666" />
+            </TouchableOpacity>
+          )}
+        </View>
+        <View style={styles.filterRow}>
+          <TouchableOpacity
+            style={styles.filterButton}
+            onPress={() => setClassFilterModalVisible(true)}
+          >
+            <Text style={styles.filterButtonText}>
+              {classFilter === 'all' ? 'All Classes' : getClassName(classFilter)}
+            </Text>
+            <Icon name="arrow-drop-down" size={20} color="#666" />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.filterButton}
+            onPress={() => setStatusFilterModalVisible(true)}
+          >
+            <Text style={styles.filterButtonText}>
+              {statusFilter === 'all' ? 'All Status' : statusFilter === 'active' ? 'Active' : 'Inactive'}
+            </Text>
+            <Icon name="arrow-drop-down" size={20} color="#666" />
+          </TouchableOpacity>
         </View>
       </View>
 
       {/* Groups List */}
       <FlatList
-        data={groups}
+        data={filteredGroups}
         renderItem={renderGroupItem}
         keyExtractor={(item) => item.id?.toString() || Math.random().toString()}
         refreshControl={
@@ -347,8 +474,29 @@ const AdminGroups = ({ onLogout }) => {
         ListEmptyComponent={
           <View style={styles.emptyState}>
             <Icon name="group" size={48} color="#ccc" />
-            <Text style={styles.emptyText}>No groups found</Text>
+            <Text style={styles.emptyText}>
+              {searchText || classFilter !== 'all' || statusFilter !== 'all' 
+                ? 'No groups match your filters' 
+                : 'No groups found'}
+            </Text>
+            {(!searchText && classFilter === 'all' && statusFilter === 'all') && (
+              <TouchableOpacity 
+                style={styles.emptyButton} 
+                onPress={() => setCreateGroupModalVisible(true)}
+              >
+                <Text style={styles.emptyButtonText}>Create First Group</Text>
+              </TouchableOpacity>
+            )}
           </View>
+        }
+        ListFooterComponent={
+          filteredGroups.length > 0 ? (
+            <View style={styles.footerText}>
+              <Text style={styles.footerTextContent}>
+                Showing {filteredGroups.length} of {groups.length} group(s)
+              </Text>
+            </View>
+          ) : null
         }
       />
 
@@ -491,6 +639,213 @@ const AdminGroups = ({ onLogout }) => {
           </View>
         </View>
       </Modal>
+
+      {/* Create Group Modal */}
+      <Modal
+        visible={createGroupModalVisible}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setCreateGroupModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Create New Group</Text>
+              <TouchableOpacity onPress={() => setCreateGroupModalVisible(false)}>
+                <Icon name="close" size={24} color="#666" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={styles.modalBody}>
+              <View style={styles.formGroup}>
+                <Text style={styles.label}>Group Name *</Text>
+                <TextInput
+                  style={styles.input}
+                  value={createGroupFormData.name}
+                  onChangeText={(text) => setCreateGroupFormData({ ...createGroupFormData, name: text })}
+                  placeholder="Enter group name"
+                />
+              </View>
+
+              <View style={styles.formGroup}>
+                <Text style={styles.label}>IoT Subject *</Text>
+                <TouchableOpacity
+                  style={styles.selectButton}
+                  onPress={() => {
+                    // Show class selection modal
+                    Alert.alert(
+                      'Select IoT Subject',
+                      'Choose a class',
+                      [
+                        ...classes.map(cls => ({
+                          text: `${cls.classCode} - ${cls.semester}`,
+                          onPress: () => setCreateGroupFormData({ ...createGroupFormData, classId: cls.id })
+                        })),
+                        { text: 'Cancel', style: 'cancel' }
+                      ]
+                    );
+                  }}
+                >
+                  <Text style={[
+                    styles.selectButtonText,
+                    !createGroupFormData.classId && styles.selectButtonPlaceholder
+                  ]}>
+                    {createGroupFormData.classId 
+                      ? getClassName(createGroupFormData.classId)
+                      : 'Select IoT subject'}
+                  </Text>
+                  <Icon name="arrow-drop-down" size={20} color="#666" />
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.formGroup}>
+                <Text style={styles.label}>Lecturer *</Text>
+                <TouchableOpacity
+                  style={styles.selectButton}
+                  onPress={() => {
+                    // Show lecturer selection modal
+                    Alert.alert(
+                      'Select Lecturer',
+                      'Choose a lecturer',
+                      [
+                        ...lecturers.map(lec => ({
+                          text: `${lec.fullName || lec.name} (${lec.email})`,
+                          onPress: () => setCreateGroupFormData({ ...createGroupFormData, lecturer: lec.id })
+                        })),
+                        { text: 'Cancel', style: 'cancel' }
+                      ]
+                    );
+                  }}
+                >
+                  <Text style={[
+                    styles.selectButtonText,
+                    !createGroupFormData.lecturer && styles.selectButtonPlaceholder
+                  ]}>
+                    {createGroupFormData.lecturer 
+                      ? lecturers.find(l => l.id === createGroupFormData.lecturer)?.fullName || lecturers.find(l => l.id === createGroupFormData.lecturer)?.name || 'Selected'
+                      : 'Select lecturer'}
+                  </Text>
+                  <Icon name="arrow-drop-down" size={20} color="#666" />
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.infoBox}>
+                <Icon name="info" size={20} color="#1890ff" />
+                <Text style={styles.infoText}>
+                  When you create a group, you can add students manually. The first student added will become the group leader.
+                </Text>
+              </View>
+            </ScrollView>
+
+            <View style={styles.modalFooter}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.cancelButton]}
+                onPress={() => {
+                  setCreateGroupModalVisible(false);
+                  setCreateGroupFormData({
+                    name: '',
+                    classId: '',
+                    lecturer: '',
+                  });
+                }}
+              >
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.saveButton]}
+                onPress={handleCreateGroup}
+                disabled={loading}
+              >
+                <Text style={styles.saveButtonText}>
+                  {loading ? 'Creating...' : 'Create Group'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Class Filter Modal */}
+      <Modal
+        visible={classFilterModalVisible}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setClassFilterModalVisible(false)}
+      >
+        <TouchableOpacity
+          style={styles.filterModalOverlay}
+          activeOpacity={1}
+          onPress={() => setClassFilterModalVisible(false)}
+        >
+          <View style={styles.filterModalContent} onStartShouldSetResponder={() => true}>
+            <Text style={styles.filterModalTitle}>Filter by Class</Text>
+            {['all', ...availableClasses].map((classId) => (
+              <TouchableOpacity
+                key={classId}
+                style={[
+                  styles.filterOption,
+                  classFilter === classId && styles.filterOptionSelected
+                ]}
+                onPress={() => {
+                  setClassFilter(classId);
+                  setClassFilterModalVisible(false);
+                }}
+              >
+                <Text style={[
+                  styles.filterOptionText,
+                  classFilter === classId && styles.filterOptionTextSelected
+                ]}>
+                  {classId === 'all' ? 'All Classes' : getClassName(classId)}
+                </Text>
+                {classFilter === classId && (
+                  <Icon name="check" size={20} color="#667eea" />
+                )}
+              </TouchableOpacity>
+            ))}
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* Status Filter Modal */}
+      <Modal
+        visible={statusFilterModalVisible}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setStatusFilterModalVisible(false)}
+      >
+        <TouchableOpacity
+          style={styles.filterModalOverlay}
+          activeOpacity={1}
+          onPress={() => setStatusFilterModalVisible(false)}
+        >
+          <View style={styles.filterModalContent} onStartShouldSetResponder={() => true}>
+            <Text style={styles.filterModalTitle}>Filter by Status</Text>
+            {['all', 'active', 'inactive'].map((status) => (
+              <TouchableOpacity
+                key={status}
+                style={[
+                  styles.filterOption,
+                  statusFilter === status && styles.filterOptionSelected
+                ]}
+                onPress={() => {
+                  setStatusFilter(status);
+                  setStatusFilterModalVisible(false);
+                }}
+              >
+                <Text style={[
+                  styles.filterOptionText,
+                  statusFilter === status && styles.filterOptionTextSelected
+                ]}>
+                  {status === 'all' ? 'All Status' : status.charAt(0).toUpperCase() + status.slice(1)}
+                </Text>
+                {statusFilter === status && (
+                  <Icon name="check" size={20} color="#667eea" />
+                )}
+              </TouchableOpacity>
+            ))}
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </View>
   );
 };
@@ -537,6 +892,103 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  addButton: {
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  searchFilterContainer: {
+    padding: 16,
+    paddingBottom: 8,
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f5f5f5',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+  },
+  searchIcon: {
+    marginRight: 8,
+  },
+  searchInput: {
+    flex: 1,
+    height: 40,
+    fontSize: 14,
+    color: '#2c3e50',
+  },
+  clearButton: {
+    padding: 4,
+  },
+  filterRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  filterButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#f5f5f5',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+  },
+  filterButtonText: {
+    fontSize: 14,
+    color: '#2c3e50',
+    fontWeight: '500',
+  },
+  filterModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  filterModalContent: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 20,
+    maxHeight: '50%',
+  },
+  filterModalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#2c3e50',
+    marginBottom: 16,
+  },
+  filterOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 14,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    marginBottom: 8,
+    backgroundColor: '#f5f5f5',
+  },
+  filterOptionSelected: {
+    backgroundColor: '#667eea15',
+  },
+  filterOptionText: {
+    fontSize: 16,
+    color: '#2c3e50',
+  },
+  filterOptionTextSelected: {
+    color: '#667eea',
+    fontWeight: '600',
   },
   listContent: {
     padding: 16,
@@ -636,6 +1088,92 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#999',
     marginTop: 12,
+    marginBottom: 20,
+  },
+  emptyButton: {
+    backgroundColor: '#667eea',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  emptyButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  footerText: {
+    padding: 16,
+    alignItems: 'center',
+  },
+  footerTextContent: {
+    fontSize: 12,
+    color: '#999',
+  },
+  formGroup: {
+    marginBottom: 16,
+  },
+  label: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#2c3e50',
+    marginBottom: 8,
+  },
+  input: {
+    backgroundColor: '#f5f5f5',
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 16,
+    color: '#2c3e50',
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+  },
+  selectButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#f5f5f5',
+    borderRadius: 8,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+  },
+  selectButtonText: {
+    fontSize: 16,
+    color: '#2c3e50',
+  },
+  selectButtonPlaceholder: {
+    color: '#999',
+  },
+  infoBox: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: '#e6f7ff',
+    padding: 12,
+    borderRadius: 8,
+    marginTop: 8,
+    gap: 8,
+  },
+  infoText: {
+    flex: 1,
+    fontSize: 13,
+    color: '#1890ff',
+    lineHeight: 18,
+  },
+  cancelButton: {
+    backgroundColor: '#f5f5f5',
+  },
+  cancelButtonText: {
+    color: '#666',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  saveButton: {
+    backgroundColor: '#667eea',
+  },
+  saveButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
   },
   modalOverlay: {
     flex: 1,
@@ -759,5 +1297,3 @@ const styles = StyleSheet.create({
 });
 
 export default AdminGroups;
-
-

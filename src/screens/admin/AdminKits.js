@@ -10,6 +10,7 @@ import {
   Modal,
   Alert,
   FlatList,
+  Image,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { MaterialIcons as Icon } from '@expo/vector-icons';
@@ -21,10 +22,18 @@ const AdminKits = ({ onLogout }) => {
   const [loading, setLoading] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
   const [componentModalVisible, setComponentModalVisible] = useState(false);
+  const [kitDetailsModalVisible, setKitDetailsModalVisible] = useState(false);
   const [selectedKit, setSelectedKit] = useState(null);
   const [editingKit, setEditingKit] = useState(null);
   const [components, setComponents] = useState([]);
   const [editingComponent, setEditingComponent] = useState(null);
+  const [searchText, setSearchText] = useState('');
+  const [filterStatus, setFilterStatus] = useState('all');
+  const [filterType, setFilterType] = useState('all');
+  const [componentPage, setComponentPage] = useState(1);
+  const componentPageSize = 6;
+  const [statusFilterModalVisible, setStatusFilterModalVisible] = useState(false);
+  const [typeFilterModalVisible, setTypeFilterModalVisible] = useState(false);
   const [formData, setFormData] = useState({
     kitName: '',
     type: 'STUDENT_KIT',
@@ -63,6 +72,30 @@ const AdminKits = ({ onLogout }) => {
     } finally {
       setLoading(false);
     }
+  };
+
+  // Filter kits based on search and filters
+  const filteredKits = kits.filter(kit => {
+    const matchesSearch = !searchText || 
+      kit.kitName?.toLowerCase().includes(searchText.toLowerCase()) ||
+      kit.name?.toLowerCase().includes(searchText.toLowerCase()) ||
+      kit.id?.toString().includes(searchText);
+    const matchesStatus = filterStatus === 'all' || kit.status === filterStatus;
+    const matchesType = filterType === 'all' || kit.type === filterType;
+    return matchesSearch && matchesStatus && matchesType;
+  });
+
+  const showKitDetails = async (kit) => {
+    setSelectedKit(kit);
+    setComponentPage(1);
+    const kitComponents = await loadComponents(kit.id);
+    setComponents(kitComponents);
+    setKitDetailsModalVisible(true);
+  };
+
+  const formatDateTime = (dateTimeString) => {
+    if (!dateTimeString) return 'N/A';
+    return new Date(dateTimeString).toLocaleString('vi-VN');
   };
 
   const loadComponents = async (kitId) => {
@@ -261,70 +294,100 @@ const AdminKits = ({ onLogout }) => {
   };
 
   const renderKitItem = ({ item }) => (
-    <View style={styles.kitCard}>
-      <View style={styles.kitHeader}>
-        <View style={styles.kitInfo}>
-          <Text style={styles.kitName}>{item.kitName || item.name || 'N/A'}</Text>
-          <View style={styles.kitBadges}>
-            <View style={[
-              styles.badge,
-              { backgroundColor: item.type === 'LECTURER_KIT' ? '#ff4d4f15' : '#1890ff15' }
-            ]}>
-              <Text style={[
-                styles.badgeText,
-                { color: item.type === 'LECTURER_KIT' ? '#ff4d4f' : '#1890ff' }
-              ]}>
-                {item.type || 'STUDENT_KIT'}
-              </Text>
-            </View>
-            <View style={[
-              styles.badge,
-              { backgroundColor: item.status === 'AVAILABLE' ? '#52c41a15' : '#faad1415' }
-            ]}>
-              <Text style={[
-                styles.badgeText,
-                { color: item.status === 'AVAILABLE' ? '#52c41a' : '#faad14' }
-              ]}>
-                {item.status || 'AVAILABLE'}
-              </Text>
-            </View>
+    <TouchableOpacity 
+      style={styles.kitCard}
+      onPress={() => showKitDetails(item)}
+      activeOpacity={0.8}
+    >
+      {/* Kit Image */}
+      <View style={styles.kitImageContainer}>
+        {item.imageUrl && item.imageUrl !== 'null' && item.imageUrl !== 'undefined' ? (
+          <Image 
+            source={{ uri: item.imageUrl }} 
+            style={styles.kitImage}
+            resizeMode="cover"
+          />
+        ) : (
+          <View style={styles.kitImagePlaceholder}>
+            <Icon name="build" size={48} color="#fff" />
+          </View>
+        )}
+        <View style={styles.kitImageBadge}>
+          <View style={[
+            styles.badge,
+            { backgroundColor: item.status === 'AVAILABLE' ? '#52c41a' : '#faad14' }
+          ]}>
+            <Text style={[styles.badgeText, { color: '#fff' }]}>
+              {item.status || 'AVAILABLE'}
+            </Text>
           </View>
         </View>
       </View>
-      
-      <View style={styles.kitDetails}>
-        <View style={styles.detailRow}>
-          <Icon name="inventory-2" size={16} color="#666" />
-          <Text style={styles.detailText}>
-            Total: {item.quantityTotal || 0} | Available: {item.quantityAvailable || 0}
-          </Text>
-        </View>
-        <View style={styles.detailRow}>
-          <Icon name="category" size={16} color="#666" />
-          <Text style={styles.detailText}>
-            Components: {item.components?.length || 0}
-          </Text>
-        </View>
-      </View>
 
-      <View style={styles.kitActions}>
-        <TouchableOpacity
-          style={[styles.actionButton, { backgroundColor: '#1890ff15' }]}
-          onPress={() => handleEditKit(item)}
-        >
-          <Icon name="edit" size={18} color="#1890ff" />
-          <Text style={[styles.actionButtonText, { color: '#1890ff' }]}>Edit</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.actionButton, { backgroundColor: '#722ed115' }]}
-          onPress={() => handleManageComponents(item)}
-        >
-          <Icon name="settings" size={18} color="#722ed1" />
-          <Text style={[styles.actionButtonText, { color: '#722ed1' }]}>Components</Text>
-        </TouchableOpacity>
+      <View style={styles.kitCardContent}>
+        <View style={styles.kitHeader}>
+          <Text style={styles.kitName} numberOfLines={2}>
+            {item.kitName || item.name || 'N/A'}
+          </Text>
+          <View style={[
+            styles.badge,
+            { backgroundColor: item.type === 'LECTURER_KIT' ? '#ff4d4f15' : '#1890ff15' }
+          ]}>
+            <Text style={[
+              styles.badgeText,
+              { color: item.type === 'LECTURER_KIT' ? '#ff4d4f' : '#1890ff' }
+            ]}>
+              {item.type === 'LECTURER_KIT' ? 'Lecturer' : 'Student'}
+            </Text>
+          </View>
+        </View>
+        
+        <View style={styles.kitDetails}>
+          <View style={styles.detailRow}>
+            <Icon name="inventory-2" size={14} color="#666" />
+            <Text style={styles.detailText}>
+              Total: {item.quantityTotal || 0}
+            </Text>
+          </View>
+          <View style={styles.detailRow}>
+            <Icon name="check-circle" size={14} color="#52c41a" />
+            <Text style={[styles.detailText, { color: '#52c41a' }]}>
+              Available: {item.quantityAvailable || 0}
+            </Text>
+          </View>
+          <View style={styles.detailRow}>
+            <Icon name="extension" size={14} color="#722ed1" />
+            <Text style={styles.detailText}>
+              Components: {item.components?.length || 0}
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.kitActions}>
+          <TouchableOpacity
+            style={[styles.actionButton, { backgroundColor: '#1890ff15', flex: 1 }]}
+            onPress={(e) => {
+              e.stopPropagation();
+              handleEditKit(item);
+            }}
+          >
+            <Icon name="edit" size={16} color="#1890ff" />
+            <Text style={[styles.actionButtonText, { color: '#1890ff' }]}>Edit</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.actionButton, { backgroundColor: '#722ed115', flex: 1 }]}
+            onPress={(e) => {
+              e.stopPropagation();
+              handleManageComponents(item);
+            }}
+          >
+            <Icon name="settings" size={16} color="#722ed1" />
+            <Text style={[styles.actionButtonText, { color: '#722ed1' }]}>Manage</Text>
+          </TouchableOpacity>
+        </View>
       </View>
-  </View>
-);
+    </TouchableOpacity>
+  );
 
   const handleLogout = async () => {
     Alert.alert(
@@ -378,10 +441,51 @@ const AdminKits = ({ onLogout }) => {
         </View>
       </View>
 
+      {/* Search and Filter Section */}
+      <View style={styles.searchFilterContainer}>
+        <View style={styles.searchContainer}>
+          <Icon name="search" size={20} color="#666" style={styles.searchIcon} />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search by name or ID..."
+            value={searchText}
+            onChangeText={setSearchText}
+            placeholderTextColor="#999"
+          />
+          {searchText.length > 0 && (
+            <TouchableOpacity onPress={() => setSearchText('')} style={styles.clearButton}>
+              <Icon name="close" size={18} color="#666" />
+            </TouchableOpacity>
+          )}
+        </View>
+        <View style={styles.filterRow}>
+          <TouchableOpacity
+            style={styles.filterButton}
+            onPress={() => setStatusFilterModalVisible(true)}
+          >
+            <Text style={styles.filterButtonText}>
+              {filterStatus === 'all' ? 'All Status' : filterStatus}
+            </Text>
+            <Icon name="arrow-drop-down" size={20} color="#666" />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.filterButton}
+            onPress={() => setTypeFilterModalVisible(true)}
+          >
+            <Text style={styles.filterButtonText}>
+              {filterType === 'all' ? 'All Types' : filterType === 'STUDENT_KIT' ? 'Student Kit' : 'Lecturer Kit'}
+            </Text>
+            <Icon name="arrow-drop-down" size={20} color="#666" />
+          </TouchableOpacity>
+        </View>
+      </View>
+
       <FlatList
-        data={kits}
+        data={filteredKits}
         renderItem={renderKitItem}
         keyExtractor={(item) => item.id?.toString() || Math.random().toString()}
+        numColumns={2}
+        columnWrapperStyle={styles.row}
         refreshControl={
           <RefreshControl refreshing={loading} onRefresh={loadKits} />
         }
@@ -389,11 +493,26 @@ const AdminKits = ({ onLogout }) => {
         ListEmptyComponent={
           <View style={styles.emptyState}>
             <Icon name="inventory-2" size={64} color="#ccc" />
-            <Text style={styles.emptyText}>No kits available</Text>
-            <TouchableOpacity style={styles.emptyButton} onPress={handleAddKit}>
-              <Text style={styles.emptyButtonText}>Add First Kit</Text>
-            </TouchableOpacity>
+            <Text style={styles.emptyText}>
+              {searchText || filterStatus !== 'all' || filterType !== 'all' 
+                ? 'No kits match your filters' 
+                : 'No kits available'}
+            </Text>
+            {(!searchText && filterStatus === 'all' && filterType === 'all') && (
+              <TouchableOpacity style={styles.emptyButton} onPress={handleAddKit}>
+                <Text style={styles.emptyButtonText}>Add First Kit</Text>
+              </TouchableOpacity>
+            )}
           </View>
+        }
+        ListFooterComponent={
+          filteredKits.length > 0 ? (
+            <View style={styles.footerText}>
+              <Text style={styles.footerTextContent}>
+                Showing {filteredKits.length} of {kits.length} kit(s)
+              </Text>
+            </View>
+          ) : null
         }
       />
 
@@ -693,6 +812,329 @@ const AdminKits = ({ onLogout }) => {
           </View>
         </View>
       </Modal>
+
+      {/* Kit Details Modal */}
+      <Modal
+        visible={kitDetailsModalVisible}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => {
+          setKitDetailsModalVisible(false);
+          setSelectedKit(null);
+          setComponentPage(1);
+        }}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <View style={styles.modalTitleContainer}>
+                <Icon name="info" size={24} color="#1890ff" />
+                <Text style={styles.modalTitle}>Kit Details</Text>
+              </View>
+              <TouchableOpacity onPress={() => {
+                setKitDetailsModalVisible(false);
+                setSelectedKit(null);
+                setComponentPage(1);
+              }}>
+                <Icon name="close" size={24} color="#666" />
+              </TouchableOpacity>
+            </View>
+
+            {selectedKit && (
+              <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false}>
+                {/* Kit Image */}
+                {selectedKit.imageUrl && selectedKit.imageUrl !== 'null' && selectedKit.imageUrl !== 'undefined' ? (
+                  <View style={styles.detailsImageContainer}>
+                    <Image 
+                      source={{ uri: selectedKit.imageUrl }} 
+                      style={styles.detailsImage}
+                      resizeMode="cover"
+                    />
+                  </View>
+                ) : null}
+
+                {/* Kit Information */}
+                <View style={styles.detailsSection}>
+                  <View style={styles.detailsRow}>
+                    <Text style={styles.detailsLabel}>Kit ID:</Text>
+                    <Text style={styles.detailsValue}>#{selectedKit.id}</Text>
+                  </View>
+                  <View style={styles.detailsRow}>
+                    <Text style={styles.detailsLabel}>Kit Name:</Text>
+                    <Text style={[styles.detailsValue, styles.detailsValueBold]}>
+                      {selectedKit.kitName || selectedKit.name || 'N/A'}
+                    </Text>
+                  </View>
+                  <View style={styles.detailsRow}>
+                    <Text style={styles.detailsLabel}>Type:</Text>
+                    <View style={[
+                      styles.badge,
+                      { backgroundColor: selectedKit.type === 'LECTURER_KIT' ? '#ff4d4f15' : '#1890ff15' }
+                    ]}>
+                      <Text style={[
+                        styles.badgeText,
+                        { color: selectedKit.type === 'LECTURER_KIT' ? '#ff4d4f' : '#1890ff' }
+                      ]}>
+                        {selectedKit.type || 'STUDENT_KIT'}
+                      </Text>
+                    </View>
+                  </View>
+                  <View style={styles.detailsRow}>
+                    <Text style={styles.detailsLabel}>Status:</Text>
+                    <View style={[
+                      styles.badge,
+                      { backgroundColor: selectedKit.status === 'AVAILABLE' ? '#52c41a15' : '#faad1415' }
+                    ]}>
+                      <Text style={[
+                        styles.badgeText,
+                        { color: selectedKit.status === 'AVAILABLE' ? '#52c41a' : '#faad14' }
+                      ]}>
+                        {selectedKit.status || 'AVAILABLE'}
+                      </Text>
+                    </View>
+                  </View>
+                  <View style={styles.detailsRow}>
+                    <Text style={styles.detailsLabel}>Total Quantity:</Text>
+                    <Text style={[styles.detailsValue, { color: '#1890ff' }]}>
+                      {selectedKit.quantityTotal || 0}
+                    </Text>
+                  </View>
+                  <View style={styles.detailsRow}>
+                    <Text style={styles.detailsLabel}>Available Quantity:</Text>
+                    <Text style={[styles.detailsValue, { color: '#52c41a' }]}>
+                      {selectedKit.quantityAvailable || 0}
+                    </Text>
+                  </View>
+                  <View style={styles.detailsRow}>
+                    <Text style={styles.detailsLabel}>In Use Quantity:</Text>
+                    <Text style={[styles.detailsValue, { color: '#faad14' }]}>
+                      {(selectedKit.quantityTotal || 0) - (selectedKit.quantityAvailable || 0)}
+                    </Text>
+                  </View>
+                  <View style={styles.detailsRow}>
+                    <Text style={styles.detailsLabel}>Total Components:</Text>
+                    <Text style={styles.detailsValue}>
+                      {components.length || selectedKit.components?.length || 0} components
+                    </Text>
+                  </View>
+                  {selectedKit.description && (
+                    <View style={styles.detailsRow}>
+                      <Text style={styles.detailsLabel}>Description:</Text>
+                      <Text style={styles.detailsValue}>
+                        {selectedKit.description}
+                      </Text>
+                    </View>
+                  )}
+                  {selectedKit.createdAt && (
+                    <View style={styles.detailsRow}>
+                      <Text style={styles.detailsLabel}>Created At:</Text>
+                      <Text style={[styles.detailsValue, styles.detailsValueSmall]}>
+                        {formatDateTime(selectedKit.createdAt)}
+                      </Text>
+                    </View>
+                  )}
+                  {selectedKit.updatedAt && (
+                    <View style={styles.detailsRow}>
+                      <Text style={styles.detailsLabel}>Updated At:</Text>
+                      <Text style={[styles.detailsValue, styles.detailsValueSmall]}>
+                        {formatDateTime(selectedKit.updatedAt)}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+
+                {/* Components Section */}
+                <View style={styles.componentsSection}>
+                  <View style={styles.sectionHeader}>
+                    <Icon name="extension" size={20} color="#1890ff" />
+                    <Text style={styles.sectionTitle}>
+                      Components ({components.length || 0})
+                    </Text>
+                  </View>
+                  
+                  {components.length > 0 ? (
+                    <>
+                      {(() => {
+                        const startIndex = (componentPage - 1) * componentPageSize;
+                        const endIndex = startIndex + componentPageSize;
+                        const currentComponents = components.slice(startIndex, endIndex);
+                        const totalPages = Math.ceil(components.length / componentPageSize);
+                        
+                        return (
+                          <>
+                            <View style={styles.componentsGrid}>
+                              {currentComponents.map((component, index) => (
+                                <View key={component.id || index} style={styles.componentCard}>
+                                  {component.imageUrl && component.imageUrl !== 'null' ? (
+                                    <Image 
+                                      source={{ uri: component.imageUrl }} 
+                                      style={styles.componentImage}
+                                      resizeMode="cover"
+                                    />
+                                  ) : (
+                                    <View style={styles.componentImagePlaceholder}>
+                                      <Icon name="extension" size={32} color="#fff" />
+                                    </View>
+                                  )}
+                                  <View style={styles.componentCardContent}>
+                                    <Text style={styles.componentName} numberOfLines={1}>
+                                      {component.componentName || component.name || 'N/A'}
+                                    </Text>
+                                    <View style={styles.componentBadge}>
+                                      <Text style={styles.componentBadgeText}>
+                                        {component.componentType || 'N/A'}
+                                      </Text>
+                                    </View>
+                                    <View style={styles.componentDetails}>
+                                      <Text style={styles.componentDetailText}>
+                                        Total: {component.quantityTotal || 0}
+                                      </Text>
+                                      <Text style={[styles.componentDetailText, { color: '#52c41a' }]}>
+                                        Available: {component.quantityAvailable || 0}
+                                      </Text>
+                                    </View>
+                                    {component.pricePerCom > 0 && (
+                                      <Text style={styles.componentPrice}>
+                                        {component.pricePerCom.toLocaleString('vi-VN')} VND
+                                      </Text>
+                                    )}
+                                  </View>
+                                </View>
+                              ))}
+                            </View>
+                            
+                            {totalPages > 1 && (
+                              <View style={styles.paginationContainer}>
+                                <TouchableOpacity
+                                  style={[styles.paginationButton, componentPage === 1 && styles.paginationButtonDisabled]}
+                                  onPress={() => setComponentPage(Math.max(1, componentPage - 1))}
+                                  disabled={componentPage === 1}
+                                >
+                                  <Icon name="chevron-left" size={20} color={componentPage === 1 ? "#ccc" : "#667eea"} />
+                                </TouchableOpacity>
+                                <Text style={styles.paginationText}>
+                                  Page {componentPage} of {totalPages}
+                                </Text>
+                                <TouchableOpacity
+                                  style={[styles.paginationButton, componentPage === totalPages && styles.paginationButtonDisabled]}
+                                  onPress={() => setComponentPage(Math.min(totalPages, componentPage + 1))}
+                                  disabled={componentPage === totalPages}
+                                >
+                                  <Icon name="chevron-right" size={20} color={componentPage === totalPages ? "#ccc" : "#667eea"} />
+                                </TouchableOpacity>
+                              </View>
+                            )}
+                          </>
+                        );
+                      })()}
+                    </>
+                  ) : (
+                    <View style={styles.emptyComponents}>
+                      <Icon name="extension" size={48} color="#ccc" />
+                      <Text style={styles.emptyComponentsText}>No components available</Text>
+                    </View>
+                  )}
+                </View>
+              </ScrollView>
+            )}
+
+            <View style={styles.modalFooter}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.closeButton]}
+                onPress={() => {
+                  setKitDetailsModalVisible(false);
+                  setSelectedKit(null);
+                  setComponentPage(1);
+                }}
+              >
+                <Text style={styles.closeButtonText}>Close</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Status Filter Modal */}
+      <Modal
+        visible={statusFilterModalVisible}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setStatusFilterModalVisible(false)}
+      >
+        <TouchableOpacity
+          style={styles.filterModalOverlay}
+          activeOpacity={1}
+          onPress={() => setStatusFilterModalVisible(false)}
+        >
+          <View style={styles.filterModalContent} onStartShouldSetResponder={() => true}>
+            <Text style={styles.filterModalTitle}>Filter by Status</Text>
+            {['all', 'AVAILABLE', 'IN_USE', 'MAINTENANCE'].map((status) => (
+              <TouchableOpacity
+                key={status}
+                style={[
+                  styles.filterOption,
+                  filterStatus === status && styles.filterOptionSelected
+                ]}
+                onPress={() => {
+                  setFilterStatus(status);
+                  setStatusFilterModalVisible(false);
+                }}
+              >
+                <Text style={[
+                  styles.filterOptionText,
+                  filterStatus === status && styles.filterOptionTextSelected
+                ]}>
+                  {status === 'all' ? 'All Status' : status}
+                </Text>
+                {filterStatus === status && (
+                  <Icon name="check" size={20} color="#667eea" />
+                )}
+              </TouchableOpacity>
+            ))}
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* Type Filter Modal */}
+      <Modal
+        visible={typeFilterModalVisible}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setTypeFilterModalVisible(false)}
+      >
+        <TouchableOpacity
+          style={styles.filterModalOverlay}
+          activeOpacity={1}
+          onPress={() => setTypeFilterModalVisible(false)}
+        >
+          <View style={styles.filterModalContent} onStartShouldSetResponder={() => true}>
+            <Text style={styles.filterModalTitle}>Filter by Type</Text>
+            {['all', 'STUDENT_KIT', 'LECTURER_KIT'].map((type) => (
+              <TouchableOpacity
+                key={type}
+                style={[
+                  styles.filterOption,
+                  filterType === type && styles.filterOptionSelected
+                ]}
+                onPress={() => {
+                  setFilterType(type);
+                  setTypeFilterModalVisible(false);
+                }}
+              >
+                <Text style={[
+                  styles.filterOptionText,
+                  filterType === type && styles.filterOptionTextSelected
+                ]}>
+                  {type === 'all' ? 'All Types' : type === 'STUDENT_KIT' ? 'Student Kit' : 'Lecturer Kit'}
+                </Text>
+                {filterType === type && (
+                  <Icon name="check" size={20} color="#667eea" />
+                )}
+              </TouchableOpacity>
+            ))}
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </View>
   );
 };
@@ -748,19 +1190,135 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  searchFilterContainer: {
+    padding: 16,
+    paddingBottom: 8,
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f5f5f5',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+  },
+  searchIcon: {
+    marginRight: 8,
+  },
+  searchInput: {
+    flex: 1,
+    height: 40,
+    fontSize: 14,
+    color: '#2c3e50',
+  },
+  clearButton: {
+    padding: 4,
+  },
+  filterRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  filterButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#f5f5f5',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+  },
+  filterButtonText: {
+    fontSize: 14,
+    color: '#2c3e50',
+    fontWeight: '500',
+  },
+  filterModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  filterModalContent: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 20,
+    maxHeight: '50%',
+  },
+  filterModalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#2c3e50',
+    marginBottom: 16,
+  },
+  filterOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 14,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    marginBottom: 8,
+    backgroundColor: '#f5f5f5',
+  },
+  filterOptionSelected: {
+    backgroundColor: '#667eea15',
+  },
+  filterOptionText: {
+    fontSize: 16,
+    color: '#2c3e50',
+  },
+  filterOptionTextSelected: {
+    color: '#667eea',
+    fontWeight: '600',
+  },
   listContent: {
     padding: 16,
+  },
+  row: {
+    justifyContent: 'space-between',
   },
   kitCard: {
     backgroundColor: '#fff',
     borderRadius: 12,
-    padding: 16,
     marginBottom: 12,
+    width: '48%',
     elevation: 2,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
+    overflow: 'hidden',
+  },
+  kitImageContainer: {
+    height: 150,
+    position: 'relative',
+  },
+  kitImage: {
+    width: '100%',
+    height: '100%',
+  },
+  kitImagePlaceholder: {
+    width: '100%',
+    height: '100%',
+    backgroundColor: '#667eea',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  kitImageBadge: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+  },
+  kitCardContent: {
+    padding: 12,
   },
   kitHeader: {
     marginBottom: 12,
@@ -810,17 +1368,24 @@ const styles = StyleSheet.create({
     borderTopColor: '#f0f0f0',
   },
   actionButton: {
-    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 10,
-    borderRadius: 8,
-    gap: 6,
+    padding: 8,
+    borderRadius: 6,
+    gap: 4,
   },
   actionButtonText: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '600',
+  },
+  footerText: {
+    padding: 16,
+    alignItems: 'center',
+  },
+  footerTextContent: {
+    fontSize: 12,
+    color: '#999',
   },
   emptyState: {
     alignItems: 'center',
@@ -1041,6 +1606,171 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     marginTop: 12,
     gap: 12,
+  },
+  // Kit Details Modal Styles
+  detailsImageContainer: {
+    width: '100%',
+    height: 200,
+    marginBottom: 16,
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  detailsImage: {
+    width: '100%',
+    height: '100%',
+  },
+  detailsSection: {
+    marginBottom: 24,
+  },
+  detailsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  detailsLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#666',
+    flex: 1,
+  },
+  detailsValue: {
+    fontSize: 14,
+    color: '#2c3e50',
+    flex: 2,
+    textAlign: 'right',
+  },
+  detailsValueBold: {
+    fontWeight: 'bold',
+    fontSize: 16,
+  },
+  detailsValueSmall: {
+    fontSize: 12,
+    color: '#999',
+  },
+  componentsSection: {
+    marginTop: 8,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 16,
+    paddingBottom: 12,
+    borderBottomWidth: 2,
+    borderBottomColor: '#1890ff',
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#2c3e50',
+  },
+  componentsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+    marginBottom: 16,
+  },
+  componentCard: {
+    width: '48%',
+    backgroundColor: '#fff',
+    borderRadius: 8,
+    overflow: 'hidden',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    borderWidth: 1,
+    borderColor: '#f0f0f0',
+  },
+  componentImage: {
+    width: '100%',
+    height: 120,
+  },
+  componentImagePlaceholder: {
+    width: '100%',
+    height: 120,
+    backgroundColor: '#667eea',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  componentCardContent: {
+    padding: 8,
+  },
+  componentName: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#2c3e50',
+    marginBottom: 4,
+  },
+  componentBadge: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#722ed115',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 4,
+    marginBottom: 6,
+  },
+  componentBadgeText: {
+    fontSize: 10,
+    color: '#722ed1',
+    fontWeight: '600',
+  },
+  componentDetails: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 4,
+  },
+  componentDetailText: {
+    fontSize: 11,
+    color: '#666',
+  },
+  componentPrice: {
+    fontSize: 12,
+    color: '#1890ff',
+    fontWeight: '600',
+    marginTop: 4,
+  },
+  emptyComponents: {
+    alignItems: 'center',
+    padding: 32,
+  },
+  emptyComponentsText: {
+    fontSize: 14,
+    color: '#999',
+    marginTop: 12,
+  },
+  paginationContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 16,
+    marginTop: 16,
+    paddingVertical: 12,
+  },
+  paginationButton: {
+    padding: 8,
+    borderRadius: 8,
+    backgroundColor: '#f5f5f5',
+  },
+  paginationButtonDisabled: {
+    opacity: 0.5,
+  },
+  paginationText: {
+    fontSize: 14,
+    color: '#666',
+    fontWeight: '600',
+  },
+  closeButton: {
+    backgroundColor: '#667eea',
+  },
+  closeButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });
 
