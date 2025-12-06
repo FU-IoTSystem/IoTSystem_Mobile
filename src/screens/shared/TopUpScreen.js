@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { MaterialIcons as Icon } from '@expo/vector-icons';
 import { useNavigation, useRoute } from '@react-navigation/native';
-import { paymentAPI } from '../../services/api';
+import { paymentAPI, API_BASE_URL } from '../../services/api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const TopUpScreen = ({ user }) => {
@@ -191,11 +191,10 @@ const TopUpScreen = ({ user }) => {
       const amountUSD = (amount / exchangeRate).toFixed(2);
       
       // Get return URL based on user role
-      // For mobile, we'll use a deep link scheme
+      // For mobile, we'll use backend endpoint that redirects to deep link
       // PayPal will append paymentId and PayerID to the return URL
-      const deepLinkScheme = 'iotkitrental';
-      const returnUrl = `${deepLinkScheme}://topup`;
-      const cancelUrl = `${deepLinkScheme}://topup?cancel=true`;
+      const returnUrl = `${API_BASE_URL}/api/payment/paypal/return-mobile`;
+      const cancelUrl = `${API_BASE_URL}/api/payment/paypal/return-mobile?cancel=true`;
       
       // Create PayPal payment
       const response = await paymentAPI.createPayPalPayment(
