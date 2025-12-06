@@ -413,8 +413,8 @@ const LeaderRentals = ({ user }) => {
                 </View>
                 <View style={styles.detailItem}>
                   <Text style={styles.detailLabel}>Price:</Text>
-                  <Text style={[styles.detailValue, styles.amountValue]}>
-                    {depositAmount.toLocaleString()} VND
+                  <Text style={[styles.detailValue, { color: '#ff4d4f', fontSize: 16 }]}>
+                    -{depositAmount.toLocaleString()} VND
                   </Text>
                 </View>
               </View>
@@ -449,8 +449,8 @@ const LeaderRentals = ({ user }) => {
                 <Text style={styles.summaryTitle}>Summary</Text>
                 <View style={styles.summaryRow}>
                   <Text style={styles.summaryLabel}>Deposit Amount:</Text>
-                  <Text style={[styles.summaryValue, { color: hasEnoughBalance ? '#52c41a' : '#ff4d4f' }]}>
-                    {depositAmount.toLocaleString()} VND
+                  <Text style={[styles.summaryValue, { color: '#ff4d4f' }]}>
+                    -{depositAmount.toLocaleString()} VND
                   </Text>
                 </View>
                 <View style={styles.summaryRow}>

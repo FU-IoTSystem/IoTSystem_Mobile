@@ -659,8 +659,8 @@ const LeaderComponentRental = ({ user, navigation }) => {
                 </View>
                 <View style={styles.detailItem}>
                   <Text style={styles.detailLabel}>Price per Unit:</Text>
-                  <Text style={[styles.detailValue, styles.amountValue]}>
-                    {selectedComponent.pricePerCom?.toLocaleString() || '0'} VND
+                  <Text style={[styles.detailValue, { color: '#ff4d4f', fontSize: 16 }]}>
+                    -{selectedComponent.pricePerCom?.toLocaleString() || '0'} VND
                   </Text>
                 </View>
               </View>
@@ -701,8 +701,8 @@ const LeaderComponentRental = ({ user, navigation }) => {
                 <Text style={styles.summaryTitle}>Summary</Text>
                 <View style={styles.summaryRow}>
                   <Text style={styles.summaryLabel}>Total Deposit:</Text>
-                  <Text style={[styles.totalValue, { color: hasEnoughBalance ? '#52c41a' : '#ff4d4f' }]}>
-                    {depositAmount.toLocaleString()} VND
+                  <Text style={[styles.totalValue, { color: '#ff4d4f' }]}>
+                    -{depositAmount.toLocaleString()} VND
                   </Text>
                 </View>
                 <View style={styles.summaryRow}>

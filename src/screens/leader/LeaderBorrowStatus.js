@@ -14,7 +14,12 @@ import {
 } from 'react-native';
 import { MaterialIcons as Icon } from '@expo/vector-icons';
 import LeaderLayout from '../../components/LeaderLayout';
-import { borrowingRequestAPI } from '../../services/api';
+import { 
+  borrowingRequestAPI, 
+  penaltiesAPI, 
+  penaltyDetailAPI, 
+  penaltyPoliciesAPI 
+} from '../../services/api';
 import dayjs from 'dayjs';
 
 const LeaderBorrowStatus = ({ user, navigation }) => {
@@ -23,6 +28,9 @@ const LeaderBorrowStatus = ({ user, navigation }) => {
   const [refreshing, setRefreshing] = useState(false);
   const [selectedRental, setSelectedRental] = useState(null);
   const [showDetail, setShowDetail] = useState(false);
+  const [penaltyInfo, setPenaltyInfo] = useState(null);
+  const [penaltyDetails, setPenaltyDetails] = useState([]);
+  const [loadingPenalty, setLoadingPenalty] = useState(false);
 
   const loadBorrowRequests = async () => {
     if (!user || !user.id) {
@@ -35,8 +43,17 @@ const LeaderBorrowStatus = ({ user, navigation }) => {
       console.log('Loading borrow requests for leader:', user.id);
       const borrowRequests = await borrowingRequestAPI.getByUser(user.id);
       console.log('Borrow requests raw data:', borrowRequests);
+
+      const requestsArray = Array.isArray(borrowRequests) ? borrowRequests : [];
+
+      // Sort by createdAt desc (newest first)
+      const sortedRequests = requestsArray.slice().sort((a, b) => {
+        const dateA = a?.createdAt ? new Date(a.createdAt) : new Date(0);
+        const dateB = b?.createdAt ? new Date(b.createdAt) : new Date(0);
+        return dateB - dateA;
+      });
       
-      const mappedBorrowStatus = (Array.isArray(borrowRequests) ? borrowRequests : []).map((request) => {
+      const mappedBorrowStatus = sortedRequests.map((request) => {
         const borrowDate = request.approvedDate || request.borrowDate || request.startDate || request.createdAt;
         const dueDate = request.expectReturnDate || request.dueDate;
         const returnDate = request.actualReturnDate || request.returnDate || null;
@@ -57,6 +74,7 @@ const LeaderBorrowStatus = ({ user, navigation }) => {
           kitName: request.kitName || request.kit?.kitName || 'Unknown Kit',
           requestType: request.requestType || request.type || 'BORROW_KIT',
           rentalId: request.requestCode || request.rentalId || request.id || request.code || 'N/A',
+          reason: request.reason || '',
           borrowDate,
           dueDate,
           returnDate,
@@ -91,9 +109,94 @@ const LeaderBorrowStatus = ({ user, navigation }) => {
     }
   }, [user]);
 
-  const handleViewDetail = (rental) => {
+  const handleViewDetail = async (rental) => {
     setSelectedRental(rental);
     setShowDetail(true);
+    setPenaltyInfo(null);
+    setPenaltyDetails([]);
+
+    // Only load penalty details when request is returned/completed
+    const rentalStatus = (rental.status || '').toUpperCase();
+    if (rentalStatus !== 'RETURNED' && rentalStatus !== 'COMPLETED') {
+      return;
+    }
+
+    try {
+      setLoadingPenalty(true);
+
+      // Load all penalties for current account
+      const penaltiesResponse = await penaltiesAPI.getPenByAccount();
+      let penaltiesData = [];
+      if (Array.isArray(penaltiesResponse)) {
+        penaltiesData = penaltiesResponse;
+      } else if (penaltiesResponse && penaltiesResponse.data && Array.isArray(penaltiesResponse.data)) {
+        penaltiesData = penaltiesResponse.data;
+      }
+
+      const rentalRawId = rental.raw?.id || rental.id;
+
+      // Find penalty related to this borrow request
+      const relatedPenalty = penaltiesData.find((p) =>
+        (p.borrowRequestId && p.borrowRequestId === rentalRawId) ||
+        (p.request && p.request.id === rentalRawId) ||
+        (p.requestId && p.requestId === rentalRawId)
+      );
+
+      if (!relatedPenalty) {
+        setPenaltyInfo(null);
+        setPenaltyDetails([]);
+        return;
+      }
+
+      setPenaltyInfo(relatedPenalty);
+
+      // Load penalty details
+      try {
+        const detailsResponse = await penaltyDetailAPI.findByPenaltyId(relatedPenalty.id);
+        let detailsData = [];
+        if (Array.isArray(detailsResponse)) {
+          detailsData = detailsResponse;
+        } else if (detailsResponse && detailsResponse.data && Array.isArray(detailsResponse.data)) {
+          detailsData = detailsResponse.data;
+        } else if (detailsResponse && detailsResponse.id) {
+          detailsData = [detailsResponse];
+        }
+
+        if (detailsData.length === 0) {
+          setPenaltyDetails([]);
+          return;
+        }
+
+        // Enrich each detail with policy information
+        const detailsWithPolicies = await Promise.all(
+          detailsData.map(async (detail) => {
+            if (!detail.policiesId) {
+              return { ...detail, policy: null };
+            }
+
+            try {
+              const policyResponse = await penaltyPoliciesAPI.getById(detail.policiesId);
+              const policyData = policyResponse?.data || policyResponse;
+              return { ...detail, policy: policyData };
+            } catch (error) {
+              console.error(`Error loading policy for detail ${detail.id}:`, error);
+              return { ...detail, policy: null };
+            }
+          })
+        );
+
+        setPenaltyDetails(detailsWithPolicies);
+      } catch (error) {
+        console.error('Error loading penalty details for rental:', error);
+        setPenaltyDetails([]);
+      }
+    } catch (error) {
+      console.error('Error loading penalty info for rental:', error);
+      setPenaltyInfo(null);
+      setPenaltyDetails([]);
+    } finally {
+      setLoadingPenalty(false);
+    }
   };
 
   const getStatusColor = (status) => {
@@ -201,6 +304,14 @@ const LeaderBorrowStatus = ({ user, navigation }) => {
                   <Text style={styles.detailValue}>{selectedRental.kitName}</Text>
                 </View>
                 <View style={styles.detailItem}>
+                  <Text style={styles.detailLabel}>Status:</Text>
+                  <View style={[styles.badge, { backgroundColor: `${getStatusColor(selectedRental.status)}15` }]}>
+                    <Text style={[styles.badgeText, { color: getStatusColor(selectedRental.status) }]}>
+                      {selectedRental.status}
+                    </Text>
+                  </View>
+                </View>
+                <View style={styles.detailItem}>
                   <Text style={styles.detailLabel}>Request Type:</Text>
                   <View style={[styles.badge, { backgroundColor: '#1890ff15' }]}>
                     <Text style={[styles.badgeText, { color: '#1890ff' }]}>
@@ -212,6 +323,14 @@ const LeaderBorrowStatus = ({ user, navigation }) => {
                   <Text style={styles.detailLabel}>Rental ID:</Text>
                   <Text style={styles.detailValue}>{selectedRental.rentalId}</Text>
                 </View>
+                {selectedRental.reason ? (
+                  <View style={styles.detailItem}>
+                    <Text style={styles.detailLabel}>Reason:</Text>
+                    <Text style={[styles.detailValue, styles.reasonValue]} numberOfLines={2}>
+                      {selectedRental.reason}
+                    </Text>
+                  </View>
+                ) : null}
               </View>
 
               {/* Dates */}
@@ -249,7 +368,7 @@ const LeaderBorrowStatus = ({ user, navigation }) => {
                 <View style={styles.detailItem}>
                   <Text style={styles.detailLabel}>Total Cost:</Text>
                   <Text style={[styles.detailValue, styles.costValue]}>
-                    {selectedRental.totalCost?.toLocaleString() || '0'} VND
+                    -{selectedRental.totalCost?.toLocaleString() || '0'} VND
                   </Text>
                 </View>
                 <View style={styles.detailItem}>
@@ -259,6 +378,77 @@ const LeaderBorrowStatus = ({ user, navigation }) => {
                   </Text>
                 </View>
               </View>
+
+              {/* Penalty & Policies (only for returned/completed rentals) */}
+              {(selectedRental.status === 'RETURNED' || selectedRental.status === 'COMPLETED') && (
+                <View style={styles.detailSection}>
+                  <Text style={styles.sectionTitle}>Penalty & Policies</Text>
+                  {loadingPenalty ? (
+                    <View style={styles.penaltyLoadingContainer}>
+                      <ActivityIndicator size="small" color="#667eea" />
+                      <Text style={styles.penaltyLoadingText}>Loading penalty details...</Text>
+                    </View>
+                  ) : penaltyInfo ? (
+                    <>
+                      <View style={styles.detailItem}>
+                        <Text style={styles.detailLabel}>Penalty Status:</Text>
+                        <Text style={[styles.detailValue, { color: penaltyInfo.resolved ? '#52c41a' : '#faad14' }]}>
+                          {penaltyInfo.resolved ? 'Resolved' : 'Unresolved'}
+                        </Text>
+                      </View>
+                      <View style={styles.detailItem}>
+                        <Text style={styles.detailLabel}>Penalty Amount:</Text>
+                        <Text style={[styles.detailValue, styles.costValue]}>
+                          -{penaltyInfo.totalAmount ? penaltyInfo.totalAmount.toLocaleString() : 0} VND
+                        </Text>
+                      </View>
+                      {penaltyInfo.note ? (
+                        <View style={styles.detailItem}>
+                          <Text style={styles.detailLabel}>Note:</Text>
+                          <Text style={[styles.detailValue, styles.reasonValue]} numberOfLines={2}>
+                            {penaltyInfo.note}
+                          </Text>
+                        </View>
+                      ) : null}
+                      {penaltyInfo.takeEffectDate && (
+                        <View style={styles.detailItem}>
+                          <Text style={styles.detailLabel}>Effective Date:</Text>
+                          <Text style={styles.detailValue}>
+                            {dayjs(penaltyInfo.takeEffectDate).format('DD/MM/YYYY HH:mm')}
+                          </Text>
+                        </View>
+                      )}
+
+                      {penaltyDetails && penaltyDetails.length > 0 && (
+                        <View style={{ marginTop: 8 }}>
+                          <Text style={styles.penaltyDetailsTitle}>Penalty Details:</Text>
+                          {penaltyDetails.map((detail, index) => (
+                            <View key={detail.id || index} style={styles.penaltyDetailRow}>
+                              <View style={{ flex: 1 }}>
+                                <Text style={styles.penaltyDetailMain}>
+                                  {detail.description || detail.policy?.policyName || 'N/A'}
+                                </Text>
+                                {detail.policy && (
+                                  <Text style={styles.penaltyDetailPolicy}>
+                                    Policy: {detail.policy.policyName || 'Unnamed'} ({detail.policy.type || 'other'})
+                                  </Text>
+                                )}
+                              </View>
+                              <Text style={styles.penaltyDetailAmount}>
+                                -{detail.amount ? detail.amount.toLocaleString() : 0} VND
+                              </Text>
+                            </View>
+                          ))}
+                        </View>
+                      )}
+                    </>
+                  ) : (
+                    <Text style={styles.penaltyEmptyText}>
+                      No penalty found for this rental
+                    </Text>
+                  )}
+                </View>
+              )}
 
               {/* QR Code */}
               {selectedRental.qrCode && (
@@ -535,8 +725,12 @@ const styles = StyleSheet.create({
     flex: 1,
     textAlign: 'right',
   },
+  reasonValue: {
+    textAlign: 'right',
+    flexWrap: 'wrap',
+  },
   costValue: {
-    color: '#1890ff',
+    color: '#ff4d4f',
     fontSize: 18,
   },
   badge: {
@@ -577,6 +771,47 @@ const styles = StyleSheet.create({
     fontFamily: 'monospace',
     color: '#667eea',
     flexWrap: 'wrap',
+  },
+  penaltyLoadingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+  },
+  penaltyLoadingText: {
+    marginLeft: 8,
+    fontSize: 13,
+    color: '#666',
+  },
+  penaltyDetailsTitle: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#2c3e50',
+    marginBottom: 8,
+  },
+  penaltyDetailRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 6,
+  },
+  penaltyDetailMain: {
+    fontSize: 13,
+    color: '#555',
+  },
+  penaltyDetailPolicy: {
+    fontSize: 12,
+    color: '#999',
+    marginTop: 2,
+  },
+  penaltyDetailAmount: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#ff4d4f',
+    marginLeft: 8,
+  },
+  penaltyEmptyText: {
+    fontSize: 13,
+    color: '#999',
   },
   closeButton: {
     backgroundColor: '#667eea',

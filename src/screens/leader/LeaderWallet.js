@@ -78,17 +78,17 @@ const LeaderWallet = ({ user, navigation }) => {
     switch (upperType) {
       case 'TOP_UP':
       case 'TOPUP':
-        return { icon: 'add-circle', color: '#52c41a', label: 'Nạp tiền' };
+        return { icon: 'add-circle', color: '#52c41a', label: 'Nạp tiền', amountColor: '#52c41a' };
       case 'RENTAL_FEE':
-        return { icon: 'shopping-cart', color: '#1890ff', label: 'Thuê kit' };
+        return { icon: 'shopping-cart', color: '#ff4d4f', label: 'Thuê kit', amountColor: '#ff4d4f' };
       case 'PENALTY_PAYMENT':
       case 'PENALTY':
       case 'FINE':
-        return { icon: 'warning', color: '#ff4d4f', label: 'Phí phạt' };
+        return { icon: 'warning', color: '#ff4d4f', label: 'Phí phạt', amountColor: '#ff4d4f' };
       case 'REFUND':
-        return { icon: 'undo', color: '#722ed1', label: 'Hoàn tiền' };
+        return { icon: 'undo', color: '#52c41a', label: 'Hoàn tiền', amountColor: '#52c41a' };
       default:
-        return { icon: 'info', color: '#666', label: type || 'Khác' };
+        return { icon: 'info', color: '#666', label: type || 'Khác', amountColor: '#666' };
     }
   };
 
@@ -113,10 +113,10 @@ const LeaderWallet = ({ user, navigation }) => {
             <Text
               style={[
                 styles.amountText,
-                { color: item.amount > 0 ? '#52c41a' : '#ff4d4f' },
+                { color: typeInfo.amountColor },
               ]}
             >
-              {item.amount > 0 ? '+' : ''}
+              {typeInfo.amountColor === '#ff4d4f' ? '-' : (item.amount > 0 ? '+' : '-')}
               {Math.abs(item.amount).toLocaleString('vi-VN')} VND
             </Text>
             <View style={[
