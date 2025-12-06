@@ -68,8 +68,8 @@ const LecturerFinesRefunds = ({ user, navigation }) => {
           </View>
           <View style={styles.detailRow}>
             <Paragraph style={styles.detailLabel}>Amount:</Paragraph>
-            <Title style={[styles.detailValue, styles.amountValue]}>
-              {item.fineAmount?.toLocaleString() || '0'} VND
+            <Title style={[styles.detailValue, { color: '#ff4d4f', fontSize: 18 }]}>
+              -{item.fineAmount?.toLocaleString() || '0'} VND
             </Title>
           </View>
           {item.dueDate && (
@@ -114,7 +114,7 @@ const LecturerFinesRefunds = ({ user, navigation }) => {
           </View>
           <View style={styles.detailRow}>
             <Paragraph style={styles.detailLabel}>Refund Amount:</Paragraph>
-            <Title style={[styles.detailValue, styles.amountValue]}>
+            <Title style={[styles.detailValue, { color: '#52c41a', fontSize: 18 }]}>
               {item.refundAmount?.toLocaleString() || '0'} VND
             </Title>
           </View>
@@ -298,10 +298,6 @@ const styles = StyleSheet.create({
     flex: 1,
     textAlign: 'right',
   },
-  amountValue: {
-    color: '#1890ff',
-    fontSize: 18,
-  },
   chip: {
     backgroundColor: '#667eea',
   },
@@ -318,4 +314,3 @@ const styles = StyleSheet.create({
 });
 
 export default LecturerFinesRefunds;
-

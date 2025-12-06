@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   View,
+  Text,
   StyleSheet,
   FlatList,
   RefreshControl,
@@ -8,33 +9,19 @@ import {
   ScrollView,
   TextInput,
   TouchableOpacity,
-  Text,
   Modal,
   Image,
-  ActivityIndicator as RNActivityIndicator,
+  ActivityIndicator,
   Keyboard,
 } from 'react-native';
-import {
-  Card,
-  Title,
-  Paragraph,
-  Chip,
-  Avatar,
-  Button,
-  Dialog,
-  Portal,
-  ActivityIndicator,
-} from 'react-native-paper';
+import { MaterialIcons as Icon } from '@expo/vector-icons';
 import LecturerLayout from '../../components/LecturerLayout';
 import { kitAPI, borrowingRequestAPI, walletAPI, notificationAPI } from '../../services/api';
-import dayjs from 'dayjs';
 
-const LecturerKitRental = ({ user, navigation }) => {
+const LecturerKitRental = ({ user }) => {
   const [loading, setLoading] = useState(false);
   const [kits, setKits] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
-  const [selectedKit, setSelectedKit] = useState(null);
-  const [showKitDetail, setShowKitDetail] = useState(false);
   const [showRentModal, setShowRentModal] = useState(false);
   const [rentingKit, setRentingKit] = useState(null);
   const [expectReturnDate, setExpectReturnDate] = useState('');
@@ -44,8 +31,13 @@ const LecturerKitRental = ({ user, navigation }) => {
   const [qrCodeData, setQrCodeData] = useState(null);
   const [showQRModal, setShowQRModal] = useState(false);
   const [submittedRequest, setSubmittedRequest] = useState(null);
+  const [searchText, setSearchText] = useState('');
+  const [filterStatus, setFilterStatus] = useState('all');
+  const [filterType, setFilterType] = useState('all');
+  const [statusFilterModalVisible, setStatusFilterModalVisible] = useState(false);
+  const [typeFilterModalVisible, setTypeFilterModalVisible] = useState(false);
 
-  // Helper function to safely dismiss keyboard
+  // Helper to safely dismiss keyboard
   const dismissKeyboard = () => {
     try {
       if (Keyboard && Keyboard.dismiss && typeof Keyboard.dismiss === 'function') {
@@ -59,19 +51,20 @@ const LecturerKitRental = ({ user, navigation }) => {
   const loadKits = async () => {
     setLoading(true);
     try {
+      // Lecturer vẫn dùng toàn bộ kit – giữ behavior cũ nhưng map theo view mới
       const kitsResponse = await kitAPI.getAllKits();
       const kitsData = kitsResponse?.data || kitsResponse || [];
       const mappedKits = kitsData.map(kit => ({
         id: kit.id,
         name: kit.kitName,
+        kitName: kit.kitName,
         type: kit.type,
         status: kit.status,
         description: kit.description,
-        imageUrl: kit.imageUrl,
         quantityTotal: kit.quantityTotal,
         quantityAvailable: kit.quantityAvailable,
         amount: kit.amount || 0,
-        components: kit.components || []
+        imageUrl: kit.imageUrl,
       }));
       setKits(mappedKits);
     } catch (error) {
@@ -81,12 +74,6 @@ const LecturerKitRental = ({ user, navigation }) => {
       setLoading(false);
     }
   };
-
-  const onRefresh = React.useCallback(async () => {
-    setRefreshing(true);
-    await loadKits();
-    setRefreshing(false);
-  }, []);
 
   const loadWallet = async () => {
     try {
@@ -99,15 +86,16 @@ const LecturerKitRental = ({ user, navigation }) => {
     }
   };
 
+  const onRefresh = React.useCallback(async () => {
+    setRefreshing(true);
+    await Promise.all([loadKits(), loadWallet()]);
+    setRefreshing(false);
+  }, []);
+
   useEffect(() => {
     loadKits();
     loadWallet();
   }, []);
-
-  const handleViewKitDetail = (kit) => {
-    setSelectedKit(kit);
-    setShowKitDetail(true);
-  };
 
   const handleRent = (kit) => {
     setRentingKit(kit);
@@ -128,14 +116,12 @@ const LecturerKitRental = ({ user, navigation }) => {
     let returnDate;
     try {
       if (expectReturnDate.includes('/')) {
-        // DD/MM/YYYY format
         const [day, month, year] = expectReturnDate.split('/');
         returnDate = new Date(`${year}-${month}-${day}`);
       } else {
-        // YYYY-MM-DD format
         returnDate = new Date(expectReturnDate);
       }
-      
+
       if (isNaN(returnDate.getTime()) || returnDate <= new Date()) {
         Alert.alert('Error', 'Please enter a valid future date');
         return;
@@ -150,7 +136,6 @@ const LecturerKitRental = ({ user, navigation }) => {
       return;
     }
 
-    // Check wallet balance
     const depositAmount = rentingKit.amount || 0;
     if (wallet.balance < depositAmount) {
       Alert.alert(
@@ -169,11 +154,8 @@ const LecturerKitRental = ({ user, navigation }) => {
         accountID: user?.id || user?.accountID || user?.userId,
         reason: reason.trim(),
         expectReturnDate: returnDate.toISOString(),
-        requestType: 'BORROW_KIT'
+        requestType: 'BORROW_KIT',
       };
-
-      console.log('Kit rental request data:', requestData);
-      console.log('User object:', user);
 
       if (!requestData.accountID) {
         Alert.alert('Error', 'User ID not found. Please log in again.');
@@ -182,47 +164,43 @@ const LecturerKitRental = ({ user, navigation }) => {
       }
 
       const response = await borrowingRequestAPI.create(requestData);
-      console.log('API response:', response);
 
       if (response) {
-        // Check if response includes QR code
-        if (response.qrCode || response.data?.qrCode) {
-          const qrCode = response.qrCode || response.data?.qrCode;
-          setQrCodeData({
-            qrCode: qrCode,
-            requestId: response.id || response.data?.id,
-            kitName: rentingKit.name,
-            rentalData: requestData
-          });
-          setSubmittedRequest(response);
-          setShowQRModal(true);
-        }
-
         try {
           await notificationAPI.createNotifications([
             {
               subType: 'RENTAL_REQUEST',
               title: 'Đã gửi yêu cầu thuê kit',
-              message: `Bạn đã gửi yêu cầu thuê ${rentingKit.name}.`
+              message: `Bạn đã gửi yêu cầu thuê ${rentingKit.name}.`,
             },
             {
               subType: 'BORROW_REQUEST_CREATED',
               title: 'Yêu cầu mượn kit mới',
-              message: `${user?.fullName || user?.email || 'Giảng viên'} đã gửi yêu cầu thuê ${rentingKit.name}.`
-            }
+              message: `${user?.fullName || user?.email || 'Giảng viên'} đã gửi yêu cầu thuê ${rentingKit.name}.`,
+            },
           ]);
         } catch (notifyError) {
           console.error('Error sending notifications:', notifyError);
         }
 
+        const qrCode = response?.qrCode || response?.data?.qrCode || response?.qrCodeUrl;
+        const requestId = response?.id || response?.data?.id;
+
         setShowRentModal(false);
-        setRentingKit(null);
-        setExpectReturnDate('');
-        setReason('');
 
-        await Promise.all([loadKits(), loadWallet()]);
-
-        if (!response.qrCode && !response.data?.qrCode) {
+        if (qrCode) {
+          setQrCodeData(qrCode);
+          setSubmittedRequest({
+            id: requestId,
+            kitName: rentingKit.name,
+            expectReturnDate: returnDate.toISOString(),
+          });
+          setShowQRModal(true);
+        } else {
+          setRentingKit(null);
+          setExpectReturnDate('');
+          setReason('');
+          await Promise.all([loadKits(), loadWallet()]);
           setTimeout(() => {
             Alert.alert('Success', 'Kit rental request created successfully! Waiting for admin approval.');
           }, 100);
@@ -230,11 +208,6 @@ const LecturerKitRental = ({ user, navigation }) => {
       }
     } catch (error) {
       console.error('Error creating kit rental request:', error);
-      console.error('Error details:', {
-        message: error.message,
-        stack: error.stack,
-        name: error.name
-      });
       const errorMessage = error.message || error.toString() || 'Unknown error';
       Alert.alert('Error', 'Failed to create kit rental request: ' + errorMessage);
     } finally {
@@ -257,185 +230,270 @@ const LecturerKitRental = ({ user, navigation }) => {
     }
   };
 
+  // Filter kits tương tự leader
+  const filteredKits = kits.filter(kit => {
+    if (kit.quantityAvailable <= 0) return false;
+
+    if (searchText && searchText.trim() !== '') {
+      const searchLower = searchText.toLowerCase();
+      const kitName = (kit.name || kit.kitName || '').toLowerCase();
+      const kitId = (kit.id || '').toString().toLowerCase();
+      if (!kitName.includes(searchLower) && !kitId.includes(searchLower)) {
+        return false;
+      }
+    }
+
+    if (filterStatus !== 'all' && kit.status !== filterStatus) {
+      return false;
+    }
+
+    if (filterType !== 'all' && kit.type !== filterType) {
+      return false;
+    }
+
+    return true;
+  });
+
   const renderKitItem = ({ item }) => (
-    <Card style={styles.kitCard} mode="elevated">
-      <Card.Content>
-        <View style={styles.kitHeader}>
-          <Avatar.Icon size={40} icon="toolbox" style={{ backgroundColor: '#667eea' }} />
-          <View style={styles.kitInfo}>
-            <Title style={styles.kitName}>{item.name}</Title>
-            <Chip style={styles.chip}>{item.type || 'N/A'}</Chip>
+    <TouchableOpacity
+      style={styles.kitCard}
+      onPress={() => handleRent(item)}
+      disabled={item.quantityAvailable === 0}
+      activeOpacity={0.8}
+    >
+      <View style={styles.kitImageContainer}>
+        {item.imageUrl && item.imageUrl !== 'null' && item.imageUrl !== 'undefined' ? (
+          <Image
+            source={{ uri: item.imageUrl }}
+            style={styles.kitImage}
+            resizeMode="cover"
+          />
+        ) : (
+          <View style={styles.kitImagePlaceholder}>
+            <Icon name="build" size={48} color="#fff" />
           </View>
-          <Chip 
-            style={{ backgroundColor: getStatusColor(item.status) }}
-            textStyle={{ color: 'white' }}
+        )}
+        <View style={styles.kitImageBadge}>
+          <View
+            style={[
+              styles.badge,
+              { backgroundColor: item.status === 'AVAILABLE' ? '#52c41a' : '#faad14' },
+            ]}
           >
-            {item.status}
-          </Chip>
+            <Text style={[styles.badgeText, { color: '#fff' }]}>
+              {item.status || 'AVAILABLE'}
+            </Text>
+          </View>
+        </View>
+      </View>
+
+      <View style={styles.kitCardContent}>
+        <View style={styles.kitHeader}>
+          <Text style={styles.kitName} numberOfLines={2}>
+            {item.name || item.kitName || 'N/A'}
+          </Text>
+          <View
+            style={[
+              styles.badge,
+              { backgroundColor: item.type === 'LECTURER_KIT' ? '#ff4d4f15' : '#1890ff15' },
+            ]}
+          >
+            <Text
+              style={[
+                styles.badgeText,
+                { color: item.type === 'LECTURER_KIT' ? '#ff4d4f' : '#1890ff' },
+              ]}
+            >
+              {item.type === 'LECTURER_KIT' ? 'Lecturer' : 'Student'}
+            </Text>
+          </View>
         </View>
 
         <View style={styles.kitDetails}>
           <View style={styles.detailRow}>
-            <Avatar.Icon size={24} icon="check-circle" style={{ backgroundColor: '#52c41a' }} />
-            <Paragraph style={styles.detailText}>
-              Available: {item.quantityAvailable}/{item.quantityTotal}
-            </Paragraph>
+            <Icon name="inventory-2" size={14} color="#666" />
+            <Text style={styles.detailText}>
+              Total: {item.quantityTotal || 0}
+            </Text>
           </View>
           <View style={styles.detailRow}>
-            <Avatar.Icon size={24} icon="cash" style={{ backgroundColor: '#fa8c16' }} />
-            <Paragraph style={styles.detailText}>
-              Amount: {item.amount?.toLocaleString() || '0'} VND
-            </Paragraph>
+            <Icon name="check-circle" size={14} color="#52c41a" />
+            <Text style={[styles.detailText, { color: '#52c41a' }]}>
+              Available: {item.quantityAvailable || 0}
+            </Text>
           </View>
-          {item.description && (
-            <Paragraph style={styles.description} numberOfLines={2}>
-              {item.description}
-            </Paragraph>
-          )}
+          <View style={styles.detailRow}>
+            <Icon name="attach-money" size={14} color="#faad14" />
+            <Text style={styles.detailText}>
+              {item.amount?.toLocaleString() || '0'} VND
+            </Text>
+          </View>
         </View>
 
-        <View style={styles.kitFooter}>
-          <Button
-            mode="text"
-            icon="information"
-            onPress={() => handleViewKitDetail(item)}
-          >
-            Details
-          </Button>
-          <Button
-            mode="contained"
-            icon="shopping"
-            onPress={() => handleRent(item)}
-            disabled={item.quantityAvailable === 0}
-            buttonColor="#667eea"
-          >
-            Rent
-          </Button>
-        </View>
-      </Card.Content>
-    </Card>
+        <TouchableOpacity
+          style={[
+            styles.rentButton,
+            { opacity: item.quantityAvailable === 0 ? 0.5 : 1 },
+          ]}
+          onPress={(e) => {
+            e.stopPropagation();
+            handleRent(item);
+          }}
+          disabled={item.quantityAvailable === 0}
+        >
+          <Icon name="shopping-cart" size={18} color="#fff" />
+          <Text style={styles.rentButtonText}>
+            {item.quantityAvailable === 0 ? 'Sold Out' : 'Rent Kit'}
+          </Text>
+        </TouchableOpacity>
+      </View>
+    </TouchableOpacity>
   );
 
-  const renderKitDetailModal = () => {
-    if (!showKitDetail || !selectedKit) return null;
+  const renderRentModal = () => {
+    if (!showRentModal || !rentingKit) return null;
+
+    const depositAmount = rentingKit.amount || 0;
+    const hasEnoughBalance = wallet.balance >= depositAmount;
 
     return (
-      <Portal>
-        <Dialog
-          visible={showKitDetail}
-          onDismiss={() => {
-            setShowKitDetail(false);
-            setSelectedKit(null);
-          }}
-          style={styles.dialog}
-        >
-          <Dialog.Title>Kit Details</Dialog.Title>
-          <Dialog.ScrollArea>
-            <ScrollView style={styles.dialogContent}>
-              <Card style={styles.detailSection} mode="outlined">
-                <Card.Title title="Kit Information" />
-                <Card.Content>
-                  <View style={styles.detailItem}>
-                    <Paragraph style={styles.detailLabel}>Name:</Paragraph>
-                    <Title style={styles.detailValue}>{selectedKit.name}</Title>
-                  </View>
-                  <View style={styles.detailItem}>
-                    <Paragraph style={styles.detailLabel}>Type:</Paragraph>
-                    <Chip style={styles.chip}>{selectedKit.type || 'N/A'}</Chip>
-                  </View>
-                  <View style={styles.detailItem}>
-                    <Paragraph style={styles.detailLabel}>Status:</Paragraph>
-                    <Chip 
-                      style={{ backgroundColor: getStatusColor(selectedKit.status) }}
-                      textStyle={{ color: 'white' }}
-                    >
-                      {selectedKit.status}
-                    </Chip>
-                  </View>
-                  <View style={styles.detailItem}>
-                    <Paragraph style={styles.detailLabel}>Available:</Paragraph>
-                    <Paragraph style={styles.detailValue}>
-                      {selectedKit.quantityAvailable}/{selectedKit.quantityTotal}
-                    </Paragraph>
-                  </View>
-                  <View style={styles.detailItem}>
-                    <Paragraph style={styles.detailLabel}>Amount:</Paragraph>
-                    <Title style={[styles.detailValue, styles.amountValue]}>
-                      {selectedKit.amount?.toLocaleString() || '0'} VND
-                    </Title>
-                  </View>
-                  <View style={styles.detailItem}>
-                    <Paragraph style={styles.detailLabel}>Description:</Paragraph>
-                    <Paragraph style={styles.detailValue}>{selectedKit.description || 'No description'}</Paragraph>
-                  </View>
-                </Card.Content>
-              </Card>
+      <Modal
+        visible={showRentModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => {
+          dismissKeyboard();
+          setShowRentModal(false);
+          setRentingKit(null);
+        }}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Rent Kit</Text>
+              <TouchableOpacity
+                style={styles.closeButton}
+                onPress={() => {
+                  dismissKeyboard();
+                  setShowRentModal(false);
+                  setRentingKit(null);
+                }}
+              >
+                <Text style={styles.closeButtonText}>✕</Text>
+              </TouchableOpacity>
+            </View>
 
-              {selectedKit.components && selectedKit.components.length > 0 && (
-                <Card style={styles.detailSection} mode="outlined">
-                  <Card.Title title="Kit Components" />
-                  <Card.Content>
-                    {selectedKit.components.map((component, index) => (
-                      <Card key={index} style={styles.componentCard} mode="outlined">
-                        <Card.Content>
-                          <Title style={styles.componentName}>{component.componentName || 'Component'}</Title>
-                          <Chip style={styles.chip}>{component.componentType || 'N/A'}</Chip>
-                          <Paragraph style={styles.componentPrice}>
-                            Price: {component.pricePerCom?.toLocaleString() || '0'} VND
-                          </Paragraph>
-                        </Card.Content>
-                      </Card>
-                    ))}
-                  </Card.Content>
-                </Card>
-              )}
+            <ScrollView style={styles.modalBody}>
+              <View style={styles.detailSection}>
+                <Text style={styles.detailSectionTitle}>Kit Information</Text>
+                <View style={styles.detailItem}>
+                  <Text style={styles.detailLabel}>Name:</Text>
+                  <Text style={styles.detailValue}>{rentingKit.name}</Text>
+                </View>
+                <View style={styles.detailItem}>
+                  <Text style={styles.detailLabel}>Type:</Text>
+                  <Text style={styles.detailValue}>{rentingKit.type || 'N/A'}</Text>
+                </View>
+                <View style={styles.detailItem}>
+                  <Text style={styles.detailLabel}>Price:</Text>
+                  <Text style={[styles.detailValue, { color: '#ff4d4f', fontSize: 16 }]}>
+                    -{depositAmount.toLocaleString()} VND
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.inputSection}>
+                <Text style={styles.inputLabel}>Expected Return Date *</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="DD/MM/YYYY or YYYY-MM-DD"
+                  value={expectReturnDate}
+                  onChangeText={setExpectReturnDate}
+                  keyboardType="default"
+                />
+                <Text style={styles.hintText}>
+                  Format: DD/MM/YYYY (e.g., 25/12/2024) or YYYY-MM-DD (e.g., 2024-12-25)
+                </Text>
+              </View>
+
+              <View style={styles.inputSection}>
+                <Text style={styles.inputLabel}>Reason *</Text>
+                <TextInput
+                  style={[styles.input, styles.textArea]}
+                  multiline
+                  numberOfLines={4}
+                  placeholder="Please provide reason for renting this kit..."
+                  value={reason}
+                  onChangeText={setReason}
+                />
+              </View>
+
+              <View style={styles.summarySection}>
+                <Text style={styles.summaryTitle}>Summary</Text>
+                <View style={styles.summaryRow}>
+                  <Text style={styles.summaryLabel}>Deposit Amount:</Text>
+                  <Text
+                    style={[
+                      styles.summaryValue,
+                      { color: '#ff4d4f' },
+                    ]}
+                  >
+                    -{depositAmount.toLocaleString()} VND
+                  </Text>
+                </View>
+                <View style={styles.summaryRow}>
+                  <Text style={styles.summaryLabel}>Your Balance:</Text>
+                  <Text
+                    style={[
+                      styles.summaryValue,
+                      { color: hasEnoughBalance ? '#52c41a' : '#ff4d4f' },
+                    ]}
+                  >
+                    {wallet.balance.toLocaleString()} VND
+                  </Text>
+                </View>
+                {!hasEnoughBalance && (
+                  <Text style={styles.errorText}>
+                    Insufficient balance. Please top up your wallet.
+                  </Text>
+                )}
+              </View>
+
+              <TouchableOpacity
+                style={[
+                  styles.confirmButton,
+                  {
+                    opacity:
+                      hasEnoughBalance &&
+                      reason.trim() !== '' &&
+                      expectReturnDate.trim() !== '' &&
+                      !submitting
+                        ? 1
+                        : 0.5,
+                  },
+                ]}
+                onPress={handleConfirmRent}
+                disabled={
+                  !hasEnoughBalance ||
+                  reason.trim() === '' ||
+                  expectReturnDate.trim() === '' ||
+                  submitting
+                }
+              >
+                {submitting ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Text style={styles.confirmButtonText}>Confirm Rent</Text>
+                )}
+              </TouchableOpacity>
             </ScrollView>
-          </Dialog.ScrollArea>
-          <Dialog.Actions>
-            <Button onPress={() => {
-              setShowKitDetail(false);
-              setSelectedKit(null);
-            }}>
-              Close
-            </Button>
-          </Dialog.Actions>
-        </Dialog>
-      </Portal>
+          </View>
+        </View>
+      </Modal>
     );
   };
 
-  const availableKits = kits.filter(kit => kit.quantityAvailable > 0);
-
-  return (
-    <LecturerLayout title="Kit Rental">
-      {loading && !refreshing ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#667eea" />
-        </View>
-      ) : (
-        <FlatList
-        data={availableKits}
-        renderItem={renderKitItem}
-        keyExtractor={(item) => item.id?.toString() || Math.random().toString()}
-        contentContainerStyle={styles.listContainer}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-        }
-        ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <Avatar.Icon size={64} icon="toolbox" style={{ backgroundColor: '#ccc' }} />
-            <Paragraph style={styles.emptyText}>No kits available</Paragraph>
-          </View>
-        }
-        />
-      )}
-      {renderKitDetailModal()}
-      {renderRentModal()}
-      {renderQRCodeModal()}
-    </LecturerLayout>
-  );
-
-  function renderQRCodeModal() {
+  const renderQRCodeModal = () => {
     if (!showQRModal || !qrCodeData) return null;
 
     return (
@@ -447,346 +505,485 @@ const LecturerKitRental = ({ user, navigation }) => {
           setShowQRModal(false);
           setQrCodeData(null);
           setSubmittedRequest(null);
+          setRentingKit(null);
+          setExpectReturnDate('');
+          setReason('');
+          loadKits();
+          loadWallet();
         }}
       >
-        <View style={rentModalStyles.modalOverlay}>
-          <View style={rentModalStyles.modalContent}>
-            <View style={rentModalStyles.modalHeader}>
-              <Text style={rentModalStyles.modalTitle}>Rental Request QR Code</Text>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Rental Request QR Code</Text>
               <TouchableOpacity
-                style={rentModalStyles.closeButton}
+                style={styles.closeButton}
                 onPress={() => {
                   setShowQRModal(false);
                   setQrCodeData(null);
                   setSubmittedRequest(null);
+                  setRentingKit(null);
+                  setExpectReturnDate('');
+                  setReason('');
+                  loadKits();
+                  loadWallet();
                 }}
               >
-                <Text style={rentModalStyles.closeButtonText}>✕</Text>
+                <Text style={styles.closeButtonText}>✕</Text>
               </TouchableOpacity>
             </View>
 
-            <ScrollView style={rentModalStyles.modalBody}>
-              <View style={rentModalStyles.detailSection}>
-                <Text style={rentModalStyles.detailSectionTitle}>Request Information</Text>
-                <View style={rentModalStyles.detailItem}>
-                  <Text style={rentModalStyles.detailLabel}>Request ID:</Text>
-                  <Text style={rentModalStyles.detailValue}>#{qrCodeData.requestId || 'N/A'}</Text>
-                </View>
-                <View style={rentModalStyles.detailItem}>
-                  <Text style={rentModalStyles.detailLabel}>Kit Name:</Text>
-                  <Text style={rentModalStyles.detailValue}>{qrCodeData.kitName}</Text>
-                </View>
-              </View>
-
-              <View style={{ alignItems: 'center', marginVertical: 20 }}>
-                <Text style={[rentModalStyles.inputLabel, { marginBottom: 16 }]}>QR Code</Text>
-                {qrCodeData.qrCode ? (
-                  typeof qrCodeData.qrCode === 'string' && qrCodeData.qrCode.startsWith('data:image') ? (
-                    <Image 
-                      source={{ uri: qrCodeData.qrCode }} 
-                      style={{ width: 250, height: 250, borderRadius: 8 }}
+            <ScrollView style={styles.modalBody}>
+              <View style={styles.qrContainer}>
+                {qrCodeData && (
+                  typeof qrCodeData === 'string' && qrCodeData.startsWith('http') ? (
+                    <Image
+                      source={{ uri: qrCodeData }}
+                      style={styles.qrImage}
                       resizeMode="contain"
                     />
-                  ) : typeof qrCodeData.qrCode === 'string' ? (
-                    <View style={{
-                      width: 250,
-                      height: 250,
-                      backgroundColor: '#fff',
-                      borderRadius: 8,
-                      padding: 16,
-                      borderWidth: 1,
-                      borderColor: '#e0e0e0',
-                      justifyContent: 'center',
-                      alignItems: 'center',
-                    }}>
-                      <Text style={{ fontSize: 10, color: '#666', textAlign: 'center' }}>
-                        {qrCodeData.qrCode}
-                      </Text>
+                  ) : (
+                    <View style={styles.qrCodePlaceholder}>
+                      <Icon name="qr-code" size={150} color="#667eea" />
+                      <Text style={styles.qrCodeText}>{qrCodeData}</Text>
                     </View>
-                  ) : null
-                ) : (
-                  <View style={{
-                    width: 250,
-                    height: 250,
-                    backgroundColor: '#f5f5f5',
-                    borderRadius: 8,
-                    justifyContent: 'center',
-                    alignItems: 'center',
-                  }}>
-                    <Text style={{ color: '#999' }}>QR Code not available</Text>
-                  </View>
+                  )
                 )}
-                <Text style={[rentModalStyles.hintText, { marginTop: 12, textAlign: 'center' }]}>
-                  Please show this QR code to the admin when collecting the kit
-                </Text>
               </View>
 
+              {submittedRequest && (
+                <View style={styles.requestInfo}>
+                  <Text style={styles.infoTitle}>Request Information</Text>
+                  {submittedRequest.id && (
+                    <Text style={styles.infoText}>Request ID: #{submittedRequest.id}</Text>
+                  )}
+                  {submittedRequest.kitName && (
+                    <Text style={styles.infoText}>Kit: {submittedRequest.kitName}</Text>
+                  )}
+                  {submittedRequest.expectReturnDate && (
+                    <Text style={styles.infoText}>
+                      Expected Return:{' '}
+                      {new Date(submittedRequest.expectReturnDate).toLocaleDateString('vi-VN')}
+                    </Text>
+                  )}
+                </View>
+              )}
+
               <TouchableOpacity
-                style={rentModalStyles.confirmButton}
+                style={styles.confirmButton}
                 onPress={() => {
                   setShowQRModal(false);
                   setQrCodeData(null);
                   setSubmittedRequest(null);
-                  Alert.alert('Success', 'Kit rental request created successfully! Please show the QR code to admin when collecting the kit.');
+                  setRentingKit(null);
+                  setExpectReturnDate('');
+                  setReason('');
+                  loadKits();
+                  loadWallet();
+                  Alert.alert('Success', 'Kit rental request created successfully!');
                 }}
               >
-                <Text style={rentModalStyles.confirmButtonText}>Got it</Text>
+                <Text style={styles.confirmButtonText}>Done</Text>
               </TouchableOpacity>
             </ScrollView>
           </View>
         </View>
       </Modal>
     );
-  }
+  };
 
-  function renderRentModal() {
-    if (!showRentModal || !rentingKit) return null;
-
-    const depositAmount = rentingKit.amount || 0;
-    const hasEnoughBalance = wallet.balance >= depositAmount;
-
-    return (
-      <Modal
-      visible={showRentModal}
-      animationType="slide"
-      transparent={true}
-      onRequestClose={() => {
-        dismissKeyboard();
-        setShowRentModal(false);
-        setRentingKit(null);
-      }}
-    >
-      <View style={rentModalStyles.modalOverlay}>
-        <View style={rentModalStyles.modalContent}>
-          <View style={rentModalStyles.modalHeader}>
-            <Text style={rentModalStyles.modalTitle}>Rent Kit</Text>
+  return (
+    <LecturerLayout title="Kit Rental">
+      <View style={styles.container}>
+        <View style={styles.searchFilterContainer}>
+          <View style={styles.searchContainer}>
+            <Icon name="search" size={20} color="#666" style={styles.searchIcon} />
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search by name or ID..."
+              value={searchText}
+              onChangeText={setSearchText}
+              placeholderTextColor="#999"
+            />
+            {searchText.length > 0 && (
+              <TouchableOpacity onPress={() => setSearchText('')} style={styles.clearButton}>
+                <Icon name="close" size={18} color="#666" />
+              </TouchableOpacity>
+            )}
+          </View>
+          <View style={styles.filterRow}>
             <TouchableOpacity
-              style={rentModalStyles.closeButton}
-              onPress={() => {
-                dismissKeyboard();
-                setShowRentModal(false);
-                setRentingKit(null);
-              }}
+              style={styles.filterButton}
+              onPress={() => setStatusFilterModalVisible(true)}
             >
-              <Text style={rentModalStyles.closeButtonText}>✕</Text>
+              <Text style={styles.filterButtonText}>
+                {filterStatus === 'all' ? 'All Status' : filterStatus}
+              </Text>
+              <Icon name="arrow-drop-down" size={20} color="#666" />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.filterButton}
+              onPress={() => setTypeFilterModalVisible(true)}
+            >
+              <Text style={styles.filterButtonText}>
+                {filterType === 'all'
+                  ? 'All Types'
+                  : filterType === 'STUDENT_KIT'
+                  ? 'Student Kit'
+                  : 'Lecturer Kit'}
+              </Text>
+              <Icon name="arrow-drop-down" size={20} color="#666" />
             </TouchableOpacity>
           </View>
-
-          <ScrollView style={rentModalStyles.modalBody}>
-            <View style={rentModalStyles.detailSection}>
-              <Text style={rentModalStyles.detailSectionTitle}>Kit Information</Text>
-              <View style={rentModalStyles.detailItem}>
-                <Text style={rentModalStyles.detailLabel}>Name:</Text>
-                <Text style={rentModalStyles.detailValue}>{rentingKit.name}</Text>
-              </View>
-              <View style={rentModalStyles.detailItem}>
-                <Text style={rentModalStyles.detailLabel}>Type:</Text>
-                <Text style={rentModalStyles.detailValue}>{rentingKit.type || 'N/A'}</Text>
-              </View>
-              <View style={rentModalStyles.detailItem}>
-                <Text style={rentModalStyles.detailLabel}>Price:</Text>
-                <Text style={[rentModalStyles.detailValue, rentModalStyles.amountValue]}>
-                  {depositAmount.toLocaleString()} VND
-                </Text>
-              </View>
-            </View>
-
-            <View style={rentModalStyles.inputSection}>
-              <Text style={rentModalStyles.inputLabel}>Expected Return Date *</Text>
-              <TextInput
-                style={rentModalStyles.input}
-                placeholder="DD/MM/YYYY or YYYY-MM-DD"
-                value={expectReturnDate}
-                onChangeText={setExpectReturnDate}
-                keyboardType="default"
-              />
-              <Text style={rentModalStyles.hintText}>
-                Format: DD/MM/YYYY (e.g., 25/12/2024) or YYYY-MM-DD (e.g., 2024-12-25)
-              </Text>
-            </View>
-
-            <View style={rentModalStyles.inputSection}>
-              <Text style={rentModalStyles.inputLabel}>Reason *</Text>
-              <TextInput
-                style={[rentModalStyles.input, rentModalStyles.textArea]}
-                multiline
-                numberOfLines={4}
-                placeholder="Please provide reason for renting this kit..."
-                value={reason}
-                onChangeText={setReason}
-              />
-            </View>
-
-            <View style={rentModalStyles.summarySection}>
-              <Text style={rentModalStyles.summaryTitle}>Summary</Text>
-              <View style={rentModalStyles.summaryRow}>
-                <Text style={rentModalStyles.summaryLabel}>Deposit Amount:</Text>
-                <Text style={[rentModalStyles.summaryValue, { color: hasEnoughBalance ? '#52c41a' : '#ff4d4f' }]}>
-                  {depositAmount.toLocaleString()} VND
-                </Text>
-              </View>
-              <View style={rentModalStyles.summaryRow}>
-                <Text style={rentModalStyles.summaryLabel}>Your Balance:</Text>
-                <Text style={[rentModalStyles.summaryValue, { color: hasEnoughBalance ? '#52c41a' : '#ff4d4f' }]}>
-                  {wallet.balance.toLocaleString()} VND
-                </Text>
-              </View>
-              {!hasEnoughBalance && (
-                <Text style={rentModalStyles.errorText}>
-                  Insufficient balance. Please top up your wallet.
-                </Text>
-              )}
-            </View>
-
-            <TouchableOpacity
-              style={[
-                rentModalStyles.confirmButton,
-                { opacity: hasEnoughBalance && reason.trim() !== '' && expectReturnDate.trim() !== '' && !submitting ? 1 : 0.5 }
-              ]}
-              onPress={handleConfirmRent}
-              disabled={!hasEnoughBalance || reason.trim() === '' || expectReturnDate.trim() === '' || submitting}
-            >
-              {submitting ? (
-                <RNActivityIndicator size="small" color="white" />
-              ) : (
-                <Text style={rentModalStyles.confirmButtonText}>Confirm Rent</Text>
-              )}
-            </TouchableOpacity>
-          </ScrollView>
         </View>
+
+        {loading && !refreshing ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#667eea" />
+          </View>
+        ) : (
+          <FlatList
+            data={filteredKits}
+            renderItem={renderKitItem}
+            keyExtractor={(item) => item.id?.toString() || Math.random().toString()}
+            numColumns={2}
+            columnWrapperStyle={styles.row}
+            contentContainerStyle={styles.listContent}
+            refreshControl={
+              <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+            }
+            ListEmptyComponent={
+              <View style={styles.emptyState}>
+                <Icon name="build" size={64} color="#ccc" />
+                <Text style={styles.emptyText}>
+                  {searchText || filterStatus !== 'all' || filterType !== 'all'
+                    ? 'No kits match your filters'
+                    : 'No kits available'}
+                </Text>
+              </View>
+            }
+            ListFooterComponent={
+              filteredKits.length > 0 ? (
+                <View style={styles.footerText}>
+                  <Text style={styles.footerTextContent}>
+                    Showing {filteredKits.length} of{' '}
+                    {kits.filter(k => k.quantityAvailable > 0).length} available kit(s)
+                  </Text>
+                </View>
+              ) : null
+            }
+          />
+        )}
       </View>
-    </Modal>
-    );
-  };
+
+      {/* Status Filter Modal */}
+      <Modal
+        visible={statusFilterModalVisible}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setStatusFilterModalVisible(false)}
+      >
+        <TouchableOpacity
+          style={styles.filterModalOverlay}
+          activeOpacity={1}
+          onPress={() => setStatusFilterModalVisible(false)}
+        >
+          <View style={styles.filterModalContent} onStartShouldSetResponder={() => true}>
+            <Text style={styles.filterModalTitle}>Filter by Status</Text>
+            {['all', 'AVAILABLE', 'BORROWED', 'MAINTENANCE'].map((status) => (
+              <TouchableOpacity
+                key={status}
+                style={[
+                  styles.filterOption,
+                  filterStatus === status && styles.filterOptionSelected,
+                ]}
+                onPress={() => {
+                  setFilterStatus(status);
+                  setStatusFilterModalVisible(false);
+                }}
+              >
+                <Text
+                  style={[
+                    styles.filterOptionText,
+                    filterStatus === status && styles.filterOptionTextSelected,
+                  ]}
+                >
+                  {status === 'all' ? 'All Status' : status}
+                </Text>
+                {filterStatus === status && (
+                  <Icon name="check" size={20} color="#667eea" />
+                )}
+              </TouchableOpacity>
+            ))}
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* Type Filter Modal */}
+      <Modal
+        visible={typeFilterModalVisible}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setTypeFilterModalVisible(false)}
+      >
+        <TouchableOpacity
+          style={styles.filterModalOverlay}
+          activeOpacity={1}
+          onPress={() => setTypeFilterModalVisible(false)}
+        >
+          <View style={styles.filterModalContent} onStartShouldSetResponder={() => true}>
+            <Text style={styles.filterModalTitle}>Filter by Type</Text>
+            {['all', 'STUDENT_KIT', 'LECTURER_KIT'].map((type) => (
+              <TouchableOpacity
+                key={type}
+                style={[
+                  styles.filterOption,
+                  filterType === type && styles.filterOptionSelected,
+                ]}
+                onPress={() => {
+                  setFilterType(type);
+                  setTypeFilterModalVisible(false);
+                }}
+              >
+                <Text
+                  style={[
+                    styles.filterOptionText,
+                    filterType === type && styles.filterOptionTextSelected,
+                  ]}
+                >
+                  {type === 'all'
+                    ? 'All Types'
+                    : type === 'STUDENT_KIT'
+                    ? 'Student Kit'
+                    : 'Lecturer Kit'}
+                </Text>
+                {filterType === type && (
+                  <Icon name="check" size={20} color="#667eea" />
+                )}
+              </TouchableOpacity>
+            ))}
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {renderRentModal()}
+      {renderQRCodeModal()}
+    </LecturerLayout>
+  );
 };
 
 const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#f5f5f5',
+  },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: '#f5f5f5',
   },
-  listContainer: {
+  searchFilterContainer: {
     padding: 16,
+    paddingBottom: 8,
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
   },
-  kitCard: {
-    marginBottom: 16,
-  },
-  kitHeader: {
+  searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
+    backgroundColor: '#f5f5f5',
+    borderRadius: 8,
+    paddingHorizontal: 12,
     marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
   },
-  kitInfo: {
+  searchIcon: {
+    marginRight: 8,
+  },
+  searchInput: {
     flex: 1,
-    marginLeft: 12,
+    height: 40,
+    fontSize: 14,
+    color: '#2c3e50',
+  },
+  clearButton: {
+    padding: 4,
+  },
+  filterRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  filterButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#f5f5f5',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+  },
+  filterButtonText: {
+    fontSize: 14,
+    color: '#2c3e50',
+    fontWeight: '500',
+  },
+  filterModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  filterModalContent: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 20,
+    maxHeight: '50%',
+  },
+  filterModalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#2c3e50',
+    marginBottom: 16,
+  },
+  filterOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 14,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    marginBottom: 8,
+    backgroundColor: '#f5f5f5',
+  },
+  filterOptionSelected: {
+    backgroundColor: '#667eea15',
+  },
+  filterOptionText: {
+    fontSize: 16,
+    color: '#2c3e50',
+  },
+  filterOptionTextSelected: {
+    color: '#667eea',
+    fontWeight: '600',
+  },
+  listContent: {
+    padding: 16,
+  },
+  row: {
+    justifyContent: 'space-between',
+  },
+  kitCard: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    marginBottom: 12,
+    width: '48%',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    overflow: 'hidden',
+  },
+  kitImageContainer: {
+    height: 150,
+    position: 'relative',
+  },
+  kitImage: {
+    width: '100%',
+    height: '100%',
+  },
+  kitImagePlaceholder: {
+    width: '100%',
+    height: '100%',
+    backgroundColor: '#667eea',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  kitImageBadge: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+  },
+  badge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  badgeText: {
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  kitCardContent: {
+    padding: 12,
+  },
+  kitHeader: {
+    marginBottom: 12,
   },
   kitName: {
     fontSize: 18,
+    fontWeight: 'bold',
+    color: '#2c3e50',
     marginBottom: 8,
-  },
-  chip: {
-    backgroundColor: '#667eea',
-    marginTop: 4,
   },
   kitDetails: {
     marginBottom: 12,
-    paddingLeft: 52,
   },
   detailRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 8,
-    gap: 8,
+    marginBottom: 6,
   },
   detailText: {
     fontSize: 14,
     color: '#666',
     marginLeft: 8,
   },
-  description: {
-    fontSize: 14,
-    color: '#666',
-    marginTop: 8,
-  },
-  kitFooter: {
+  rentButton: {
+    backgroundColor: '#667eea',
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    borderTopWidth: 1,
-    borderTopColor: '#eee',
-    paddingTop: 12,
-    marginTop: 12,
-  },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: 64,
+    justifyContent: 'center',
+    paddingVertical: 10,
+    borderRadius: 8,
+    marginTop: 8,
+    gap: 6,
+  },
+  rentButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  emptyState: {
+    alignItems: 'center',
+    padding: 40,
+    marginTop: 40,
   },
   emptyText: {
     fontSize: 16,
     color: '#999',
-    marginTop: 16,
+    marginTop: 12,
   },
-  dialog: {
-    maxHeight: '90%',
-  },
-  dialogContent: {
-    paddingHorizontal: 16,
-  },
-  detailSection: {
-    marginBottom: 16,
-  },
-  detailItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  footerText: {
+    padding: 16,
     alignItems: 'center',
-    marginBottom: 12,
   },
-  detailLabel: {
-    fontSize: 14,
-    color: '#666',
-    flex: 1,
-  },
-  detailValue: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#333',
-    flex: 1,
-    textAlign: 'right',
-  },
-  amountValue: {
-    color: '#1890ff',
-    fontSize: 18,
-  },
-  componentCard: {
-    marginBottom: 12,
-  },
-  componentName: {
-    fontSize: 14,
-    marginBottom: 8,
-  },
-  componentType: {
+  footerTextContent: {
     fontSize: 12,
-    color: '#666',
-    marginTop: 4,
+    color: '#999',
   },
-  componentPrice: {
-    fontSize: 12,
-    color: '#1890ff',
-    marginTop: 4,
-    fontWeight: '600',
-  },
-});
-
-const rentModalStyles = StyleSheet.create({
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'flex-end',
   },
   modalContent: {
-    backgroundColor: 'white',
+    backgroundColor: '#fff',
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     maxHeight: '90%',
@@ -795,14 +992,14 @@ const rentModalStyles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 20,
+    padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#eee',
+    borderBottomColor: '#f0f0f0',
   },
   modalTitle: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#333',
+    color: '#2c3e50',
   },
   closeButton: {
     padding: 4,
@@ -810,6 +1007,7 @@ const rentModalStyles = StyleSheet.create({
   closeButtonText: {
     fontSize: 24,
     color: '#666',
+    fontWeight: 'bold',
   },
   modalBody: {
     padding: 20,
@@ -818,13 +1016,10 @@ const rentModalStyles = StyleSheet.create({
     marginBottom: 24,
   },
   detailSectionTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#333',
-    marginBottom: 12,
-    borderBottomWidth: 2,
-    borderBottomColor: '#667eea',
-    paddingBottom: 4,
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#2c3e50',
+    marginBottom: 16,
   },
   detailItem: {
     flexDirection: 'row',
@@ -840,7 +1035,7 @@ const rentModalStyles = StyleSheet.create({
   detailValue: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#333',
+    color: '#2c3e50',
     flex: 1,
     textAlign: 'right',
   },
@@ -854,7 +1049,7 @@ const rentModalStyles = StyleSheet.create({
   inputLabel: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#333',
+    color: '#2c3e50',
     marginBottom: 8,
   },
   input: {
@@ -883,9 +1078,9 @@ const rentModalStyles = StyleSheet.create({
     marginBottom: 20,
   },
   summaryTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#333',
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#2c3e50',
     marginBottom: 12,
   },
   summaryRow: {
@@ -900,7 +1095,7 @@ const rentModalStyles = StyleSheet.create({
   summaryValue: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#333',
+    color: '#2c3e50',
   },
   errorText: {
     fontSize: 12,
@@ -918,7 +1113,46 @@ const rentModalStyles = StyleSheet.create({
     fontWeight: '600',
     color: 'white',
   },
+  qrContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 20,
+    backgroundColor: '#f9f9f9',
+    borderRadius: 12,
+    marginBottom: 20,
+  },
+  qrImage: {
+    width: 250,
+    height: 250,
+  },
+  qrCodePlaceholder: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 20,
+  },
+  qrCodeText: {
+    marginTop: 16,
+    fontSize: 12,
+    color: '#666',
+    textAlign: 'center',
+  },
+  requestInfo: {
+    backgroundColor: '#f0f0f0',
+    borderRadius: 8,
+    padding: 16,
+    marginBottom: 20,
+  },
+  infoTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#2c3e50',
+    marginBottom: 12,
+  },
+  infoText: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 8,
+  },
 });
 
 export default LecturerKitRental;
-

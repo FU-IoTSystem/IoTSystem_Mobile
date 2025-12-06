@@ -11,17 +11,14 @@ import {
   TextInput,
   Modal,
   ActivityIndicator,
-  Platform,
   Keyboard,
   Image,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
 import { MaterialIcons as Icon } from '@expo/vector-icons';
+import LecturerLayout from '../../components/LecturerLayout';
 import { kitAPI, borrowingRequestAPI, notificationAPI, walletAPI } from '../../services/api';
-import dayjs from 'dayjs';
 
-const LecturerComponentRental = ({ user, onLogout }) => {
-  const navigation = useNavigation();
+const LecturerComponentRental = ({ user }) => {
   const [loading, setLoading] = useState(false);
   const [kits, setKits] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
@@ -36,8 +33,12 @@ const LecturerComponentRental = ({ user, onLogout }) => {
   const [qrCodeData, setQrCodeData] = useState(null);
   const [showQRModal, setShowQRModal] = useState(false);
   const [submittedRequest, setSubmittedRequest] = useState(null);
+  const [searchText, setSearchText] = useState('');
+  const [filterStatus, setFilterStatus] = useState('all');
+  const [filterType, setFilterType] = useState('all');
+  const [statusFilterModalVisible, setStatusFilterModalVisible] = useState(false);
+  const [typeFilterModalVisible, setTypeFilterModalVisible] = useState(false);
 
-  // Helper function to safely dismiss keyboard
   const dismissKeyboard = () => {
     try {
       if (Keyboard && Keyboard.dismiss && typeof Keyboard.dismiss === 'function') {
@@ -51,18 +52,21 @@ const LecturerComponentRental = ({ user, onLogout }) => {
   const loadKits = async () => {
     setLoading(true);
     try {
+      // Lecturer dùng all kits giống trước đây
       const kitsResponse = await kitAPI.getAllKits();
       const kitsData = kitsResponse?.data || kitsResponse || [];
       const mappedKits = kitsData.map(kit => ({
         id: kit.id,
         name: kit.kitName,
+        kitName: kit.kitName,
         type: kit.type,
         status: kit.status,
         description: kit.description,
         quantityTotal: kit.quantityTotal,
         quantityAvailable: kit.quantityAvailable,
         amount: kit.amount || 0,
-        components: kit.components || []
+        imageUrl: kit.imageUrl,
+        components: kit.components || [],
       }));
       setKits(mappedKits);
     } catch (error) {
@@ -124,18 +128,15 @@ const LecturerComponentRental = ({ user, onLogout }) => {
       return;
     }
 
-    // Validate date format (YYYY-MM-DD or DD/MM/YYYY)
     let returnDate;
     try {
       if (expectReturnDate.includes('/')) {
-        // DD/MM/YYYY format
         const [day, month, year] = expectReturnDate.split('/');
         returnDate = new Date(`${year}-${month}-${day}`);
       } else {
-        // YYYY-MM-DD format
         returnDate = new Date(expectReturnDate);
       }
-      
+
       if (isNaN(returnDate.getTime()) || returnDate <= new Date()) {
         Alert.alert('Error', 'Please enter a valid future date');
         return;
@@ -150,7 +151,6 @@ const LecturerComponentRental = ({ user, onLogout }) => {
       return;
     }
 
-    // Check wallet balance
     const depositAmount = (selectedComponent.pricePerCom || 0) * componentQuantity;
     if (wallet.balance < depositAmount) {
       Alert.alert(
@@ -160,9 +160,7 @@ const LecturerComponentRental = ({ user, onLogout }) => {
       return;
     }
 
-    // Dismiss keyboard
     dismissKeyboard();
-    
     setLoading(true);
     try {
       const requestData = {
@@ -171,37 +169,34 @@ const LecturerComponentRental = ({ user, onLogout }) => {
         quantity: componentQuantity,
         reason: reason,
         depositAmount: depositAmount,
-        expectReturnDate: returnDate.toISOString()
+        expectReturnDate: returnDate.toISOString(),
       };
-      
-      console.log('Component request data:', requestData);
-      
+
       const response = await borrowingRequestAPI.createComponentRequest(requestData);
-      
+
       if (response) {
         try {
           await notificationAPI.createNotifications([
             {
               subType: 'RENTAL_REQUEST',
               title: 'Đã gửi yêu cầu thuê linh kiện',
-              message: `Bạn đã gửi yêu cầu thuê ${selectedComponent.componentName} x${componentQuantity}.`
+              message: `Bạn đã gửi yêu cầu thuê ${selectedComponent.componentName} x${componentQuantity}.`,
             },
             {
               subType: 'BORROW_REQUEST_CREATED',
               title: 'Yêu cầu mượn linh kiện mới',
-              message: `${user?.fullName || user?.email || 'Giảng viên'} đã gửi yêu cầu thuê ${selectedComponent.componentName} x${componentQuantity}.`
-            }
+              message: `${user?.fullName || user?.email || 'Giảng viên'} đã gửi yêu cầu thuê ${selectedComponent.componentName} x${componentQuantity}.`,
+            },
           ]);
         } catch (notifyError) {
           console.error('Error sending notifications:', notifyError);
         }
-        
-        // Check if QR code is in response
+
         const qrCode = response?.qrCode || response?.data?.qrCode || response?.qrCodeUrl;
         const requestId = response?.id || response?.data?.id;
 
         setShowRentModal(false);
-        
+
         if (qrCode) {
           setQrCodeData(qrCode);
           setSubmittedRequest({
@@ -231,23 +226,118 @@ const LecturerComponentRental = ({ user, onLogout }) => {
     }
   };
 
+  // Filter kits giống LeaderComponentRental
+  const filteredKits = kits.filter(kit => {
+    if (kit.quantityAvailable <= 0) return false;
+    if (!kit.components || !kit.components.some(c => (c.quantityAvailable || 0) > 0)) {
+      return false;
+    }
+
+    if (searchText && searchText.trim() !== '') {
+      const searchLower = searchText.toLowerCase();
+      const kitName = (kit.name || kit.kitName || '').toLowerCase();
+      const kitId = (kit.id || '').toString().toLowerCase();
+      if (!kitName.includes(searchLower) && !kitId.includes(searchLower)) {
+        return false;
+      }
+    }
+
+    if (filterStatus !== 'all' && kit.status !== filterStatus) {
+      return false;
+    }
+
+    if (filterType !== 'all' && kit.type !== filterType) {
+      return false;
+    }
+
+    return true;
+  });
+
   const renderKitItem = ({ item }) => (
     <TouchableOpacity
       style={styles.kitCard}
       onPress={() => handleViewKitDetail(item)}
+      activeOpacity={0.8}
     >
-      <View style={styles.kitHeader}>
-        <Icon name="build" size={32} color="#667eea" />
-        <View style={styles.kitInfo}>
-          <Text style={styles.kitName}>{item.name}</Text>
-          <Text style={styles.kitType}>{item.type || 'N/A'}</Text>
+      <View style={styles.kitImageContainer}>
+        {item.imageUrl && item.imageUrl !== 'null' && item.imageUrl !== 'undefined' ? (
+          <Image
+            source={{ uri: item.imageUrl }}
+            style={styles.kitImage}
+            resizeMode="cover"
+          />
+        ) : (
+          <View style={styles.kitImagePlaceholder}>
+            <Icon name="build" size={48} color="#fff" />
+          </View>
+        )}
+        <View style={styles.kitImageBadge}>
+          <View
+            style={[
+              styles.badge,
+              { backgroundColor: item.status === 'AVAILABLE' ? '#52c41a' : '#faad14' },
+            ]}
+          >
+            <Text style={[styles.badgeText, { color: '#fff' }]}>
+              {item.status || 'AVAILABLE'}
+            </Text>
+          </View>
         </View>
       </View>
-      <View style={styles.kitFooter}>
-        <Text style={styles.kitComponents}>
-          {item.components?.length || 0} components available
-        </Text>
-        <Icon name="chevron-right" size={24} color="#667eea" />
+
+      <View style={styles.kitCardContent}>
+        <View style={styles.kitHeader}>
+          <Text style={styles.kitName} numberOfLines={2}>
+            {item.name || item.kitName || 'N/A'}
+          </Text>
+          <View
+            style={[
+              styles.badge,
+              { backgroundColor: item.type === 'LECTURER_KIT' ? '#ff4d4f15' : '#1890ff15' },
+            ]}
+          >
+            <Text
+              style={[
+                styles.badgeText,
+                { color: item.type === 'LECTURER_KIT' ? '#ff4d4f' : '#1890ff' },
+              ]}
+            >
+              {item.type === 'LECTURER_KIT' ? 'Lecturer' : 'Student'}
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.kitDetails}>
+          <View style={styles.detailRow}>
+            <Icon name="inventory-2" size={14} color="#666" />
+            <Text style={styles.detailText}>
+              Total: {item.quantityTotal || 0}
+            </Text>
+          </View>
+          <View style={styles.detailRow}>
+            <Icon name="check-circle" size={14} color="#52c41a" />
+            <Text style={[styles.detailText, { color: '#52c41a' }]}>
+              Available: {item.quantityAvailable || 0}
+            </Text>
+          </View>
+          <View style={styles.detailRow}>
+            <Icon name="extension" size={14} color="#722ed1" />
+            <Text style={styles.detailText}>
+              Components: {item.components?.length || 0}
+            </Text>
+          </View>
+        </View>
+
+        <TouchableOpacity
+          style={styles.viewButton}
+          onPress={(e) => {
+            e.stopPropagation();
+            handleViewKitDetail(item);
+          }}
+        >
+          <Icon name="visibility" size={18} color="#52c41a" />
+          <Text style={styles.viewButtonText}>View Components</Text>
+        </TouchableOpacity>
       </View>
     </TouchableOpacity>
   );
@@ -261,10 +351,13 @@ const LecturerComponentRental = ({ user, onLogout }) => {
             <Text style={styles.componentName}>{item.componentName}</Text>
             <Text style={styles.componentType}>{item.componentType || 'N/A'}</Text>
           </View>
-          <View style={[styles.availabilityBadge, { backgroundColor: available > 0 ? '#52c41a' : '#ff4d4f' }]}>
-            <Text style={styles.availabilityText}>
-              {available} available
-            </Text>
+          <View
+            style={[
+              styles.availabilityBadge,
+              { backgroundColor: available > 0 ? '#52c41a' : '#ff4d4f' },
+            ]}
+          >
+            <Text style={styles.availabilityText}>{available} available</Text>
           </View>
         </View>
         <View style={styles.componentDetails}>
@@ -278,10 +371,7 @@ const LecturerComponentRental = ({ user, onLogout }) => {
           )}
         </View>
         <TouchableOpacity
-          style={[
-            styles.rentButton,
-            { opacity: available === 0 ? 0.5 : 1 }
-          ]}
+          style={[styles.rentButton, { opacity: available === 0 ? 0.5 : 1 }]}
           onPress={() => handleRentComponent(item)}
           disabled={available === 0}
         >
@@ -297,7 +387,8 @@ const LecturerComponentRental = ({ user, onLogout }) => {
   const renderKitDetailModal = () => {
     if (!showKitDetail || !selectedKit) return null;
 
-    const availableComponents = selectedKit.components?.filter(c => (c.quantityAvailable || 0) > 0) || [];
+    const availableComponents =
+      selectedKit.components?.filter(c => (c.quantityAvailable || 0) > 0) || [];
 
     return (
       <Modal
@@ -323,7 +414,6 @@ const LecturerComponentRental = ({ user, onLogout }) => {
                 <Icon name="close" size={24} color="#666" />
               </TouchableOpacity>
             </View>
-
             <ScrollView style={styles.modalBody}>
               <View style={styles.detailSection}>
                 <Text style={styles.detailSectionTitle}>Kit Information</Text>
@@ -394,7 +484,6 @@ const LecturerComponentRental = ({ user, onLogout }) => {
                 <Icon name="close" size={24} color="#666" />
               </TouchableOpacity>
             </View>
-
             <ScrollView style={styles.modalBody}>
               <View style={styles.detailSection}>
                 <Text style={styles.detailSectionTitle}>Component Information</Text>
@@ -404,7 +493,9 @@ const LecturerComponentRental = ({ user, onLogout }) => {
                 </View>
                 <View style={styles.detailItem}>
                   <Text style={styles.detailLabel}>Type:</Text>
-                  <Text style={styles.detailValue}>{selectedComponent.componentType || 'N/A'}</Text>
+                  <Text style={styles.detailValue}>
+                    {selectedComponent.componentType || 'N/A'}
+                  </Text>
                 </View>
                 <View style={styles.detailItem}>
                   <Text style={styles.detailLabel}>Available:</Text>
@@ -412,8 +503,8 @@ const LecturerComponentRental = ({ user, onLogout }) => {
                 </View>
                 <View style={styles.detailItem}>
                   <Text style={styles.detailLabel}>Price per Unit:</Text>
-                  <Text style={[styles.detailValue, styles.amountValue]}>
-                    {selectedComponent.pricePerCom?.toLocaleString() || '0'} VND
+                  <Text style={[styles.detailValue, { color: '#ff4d4f', fontSize: 16 }]}>
+                    -{selectedComponent.pricePerCom?.toLocaleString() || '0'} VND
                   </Text>
                 </View>
               </View>
@@ -457,7 +548,7 @@ const LecturerComponentRental = ({ user, onLogout }) => {
                   style={[styles.input, styles.textArea]}
                   multiline
                   numberOfLines={4}
-                  placeholder="Please provide reason for renting this component..."
+                  placeholder="Please provide reason..."
                   value={reason}
                   onChangeText={setReason}
                 />
@@ -466,24 +557,24 @@ const LecturerComponentRental = ({ user, onLogout }) => {
               <View style={styles.summarySection}>
                 <Text style={styles.summaryTitle}>Summary</Text>
                 <View style={styles.summaryRow}>
-                  <Text style={styles.summaryLabel}>Quantity:</Text>
-                  <Text style={styles.summaryValue}>{componentQuantity}</Text>
-                </View>
-                <View style={styles.summaryRow}>
-                  <Text style={styles.summaryLabel}>Price per Unit:</Text>
-                  <Text style={styles.summaryValue}>
-                    {selectedComponent.pricePerCom?.toLocaleString() || '0'} VND
-                  </Text>
-                </View>
-                <View style={[styles.summaryRow, styles.totalRow]}>
-                  <Text style={styles.totalLabel}>Total Deposit:</Text>
-                  <Text style={[styles.totalValue, { color: hasEnoughBalance ? '#52c41a' : '#ff4d4f' }]}>
-                    {depositAmount.toLocaleString()} VND
+                  <Text style={styles.summaryLabel}>Total Deposit:</Text>
+                  <Text
+                    style={[
+                      styles.totalValue,
+                      { color: '#ff4d4f' },
+                    ]}
+                  >
+                    -{depositAmount.toLocaleString()} VND
                   </Text>
                 </View>
                 <View style={styles.summaryRow}>
                   <Text style={styles.summaryLabel}>Your Balance:</Text>
-                  <Text style={[styles.summaryValue, { color: hasEnoughBalance ? '#52c41a' : '#ff4d4f' }]}>
+                  <Text
+                    style={[
+                      styles.summaryValue,
+                      { color: hasEnoughBalance ? '#52c41a' : '#ff4d4f' },
+                    ]}
+                  >
                     {wallet.balance.toLocaleString()} VND
                   </Text>
                 </View>
@@ -497,7 +588,7 @@ const LecturerComponentRental = ({ user, onLogout }) => {
               <TouchableOpacity
                 style={[
                   styles.confirmButton,
-                  { opacity: hasEnoughBalance && reason.trim() !== '' ? 1 : 0.5 }
+                  { opacity: hasEnoughBalance && reason.trim() !== '' ? 1 : 0.5 },
                 ]}
                 onPress={handleConfirmRent}
                 disabled={!hasEnoughBalance || reason.trim() === '' || loading}
@@ -511,87 +602,7 @@ const LecturerComponentRental = ({ user, onLogout }) => {
     );
   };
 
-  const availableKits = kits.filter(kit => 
-    kit.quantityAvailable > 0 && 
-    kit.components && 
-    kit.components.some(c => (c.quantityAvailable || 0) > 0)
-  );
-
-  const handleLogout = async () => {
-    Alert.alert(
-      'Logout',
-      'Are you sure you want to logout?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Logout',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              if (onLogout) {
-                await onLogout();
-              }
-            } catch (error) {
-              console.error('Logout failed:', error);
-              Alert.alert('Error', 'Failed to logout');
-            }
-          },
-        },
-      ]
-    );
-  };
-
-  return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <View style={styles.headerTop}>
-          <TouchableOpacity
-            style={styles.menuButton}
-            onPress={() => navigation.openDrawer()}
-          >
-            <Icon name="menu" size={28} color="#fff" />
-          </TouchableOpacity>
-          <View style={styles.headerText}>
-            <Text style={styles.headerTitle}>Kit Component Rental</Text>
-            <Text style={styles.headerSubtitle}>Welcome, {user?.name || user?.fullName || 'Lecturer'}</Text>
-          </View>
-          <TouchableOpacity
-            style={styles.logoutButton}
-            onPress={handleLogout}
-          >
-            <Icon name="logout" size={24} color="#fff" />
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      {loading && !refreshing ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#667eea" />
-        </View>
-      ) : (
-        <FlatList
-          data={availableKits}
-          renderItem={renderKitItem}
-          keyExtractor={(item) => item.id?.toString() || Math.random().toString()}
-          contentContainerStyle={styles.listContainer}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-          }
-          ListEmptyComponent={
-            <View style={styles.emptyContainer}>
-              <Icon name="build" size={64} color="#ccc" />
-              <Text style={styles.emptyText}>No kits with available components</Text>
-            </View>
-          }
-        />
-      )}
-      {renderKitDetailModal()}
-      {renderRentModal()}
-      {renderQRCodeModal()}
-    </View>
-  );
-
-  function renderQRCodeModal() {
+  const renderQRCodeModal = () => {
     if (!showQRModal || !qrCodeData) return null;
 
     return (
@@ -632,7 +643,6 @@ const LecturerComponentRental = ({ user, onLogout }) => {
                 <Text style={styles.closeButtonText}>✕</Text>
               </TouchableOpacity>
             </View>
-
             <ScrollView style={styles.modalBody}>
               <View style={styles.qrContainer}>
                 {qrCodeData && (
@@ -658,14 +668,19 @@ const LecturerComponentRental = ({ user, onLogout }) => {
                     <Text style={styles.infoText}>Request ID: #{submittedRequest.id}</Text>
                   )}
                   {submittedRequest.componentName && (
-                    <Text style={styles.infoText}>Component: {submittedRequest.componentName}</Text>
+                    <Text style={styles.infoText}>
+                      Component: {submittedRequest.componentName}
+                    </Text>
                   )}
                   {submittedRequest.quantity && (
-                    <Text style={styles.infoText}>Quantity: {submittedRequest.quantity}</Text>
+                    <Text style={styles.infoText}>
+                      Quantity: {submittedRequest.quantity}
+                    </Text>
                   )}
                   {submittedRequest.expectReturnDate && (
                     <Text style={styles.infoText}>
-                      Expected Return: {new Date(submittedRequest.expectReturnDate).toLocaleDateString('vi-VN')}
+                      Expected Return:{' '}
+                      {new Date(submittedRequest.expectReturnDate).toLocaleDateString('vi-VN')}
                     </Text>
                   )}
                 </View>
@@ -693,7 +708,193 @@ const LecturerComponentRental = ({ user, onLogout }) => {
         </View>
       </Modal>
     );
-  }
+  };
+
+  return (
+    <LecturerLayout title="Kit Component Rental">
+      <View style={styles.container}>
+        <View style={styles.searchFilterContainer}>
+          <View style={styles.searchContainer}>
+            <Icon name="search" size={20} color="#666" style={styles.searchIcon} />
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search by name or ID..."
+              value={searchText}
+              onChangeText={setSearchText}
+              placeholderTextColor="#999"
+            />
+            {searchText.length > 0 && (
+              <TouchableOpacity onPress={() => setSearchText('')} style={styles.clearButton}>
+                <Icon name="close" size={18} color="#666" />
+              </TouchableOpacity>
+            )}
+          </View>
+          <View style={styles.filterRow}>
+            <TouchableOpacity
+              style={styles.filterButton}
+              onPress={() => setStatusFilterModalVisible(true)}
+            >
+              <Text style={styles.filterButtonText}>
+                {filterStatus === 'all' ? 'All Status' : filterStatus}
+              </Text>
+              <Icon name="arrow-drop-down" size={20} color="#666" />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.filterButton}
+              onPress={() => setTypeFilterModalVisible(true)}
+            >
+              <Text style={styles.filterButtonText}>
+                {filterType === 'all'
+                  ? 'All Types'
+                  : filterType === 'STUDENT_KIT'
+                  ? 'Student Kit'
+                  : 'Lecturer Kit'}
+              </Text>
+              <Icon name="arrow-drop-down" size={20} color="#666" />
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {loading && !refreshing ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#667eea" />
+          </View>
+        ) : (
+          <FlatList
+            data={filteredKits}
+            renderItem={renderKitItem}
+            keyExtractor={(item) => item.id?.toString() || Math.random().toString()}
+            numColumns={2}
+            columnWrapperStyle={styles.row}
+            contentContainerStyle={styles.listContent}
+            refreshControl={
+              <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+            }
+            ListEmptyComponent={
+              <View style={styles.emptyState}>
+                <Icon name="build" size={64} color="#ccc" />
+                <Text style={styles.emptyText}>
+                  {searchText || filterStatus !== 'all' || filterType !== 'all'
+                    ? 'No kits match your filters'
+                    : 'No kits with available components'}
+                </Text>
+              </View>
+            }
+            ListFooterComponent={
+              filteredKits.length > 0 ? (
+                <View style={styles.footerText}>
+                  <Text style={styles.footerTextContent}>
+                    Showing {filteredKits.length} of{' '}
+                    {kits.filter(
+                      k =>
+                        k.quantityAvailable > 0 &&
+                        k.components &&
+                        k.components.some(c => (c.quantityAvailable || 0) > 0)
+                    ).length}{' '}
+                    available kit(s)
+                  </Text>
+                </View>
+              ) : null
+            }
+          />
+        )}
+      </View>
+
+      {/* Status Filter Modal */}
+      <Modal
+        visible={statusFilterModalVisible}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setStatusFilterModalVisible(false)}
+      >
+        <TouchableOpacity
+          style={styles.filterModalOverlay}
+          activeOpacity={1}
+          onPress={() => setStatusFilterModalVisible(false)}
+        >
+          <View style={styles.filterModalContent} onStartShouldSetResponder={() => true}>
+            <Text style={styles.filterModalTitle}>Filter by Status</Text>
+            {['all', 'AVAILABLE', 'BORROWED', 'MAINTENANCE'].map((status) => (
+              <TouchableOpacity
+                key={status}
+                style={[
+                  styles.filterOption,
+                  filterStatus === status && styles.filterOptionSelected,
+                ]}
+                onPress={() => {
+                  setFilterStatus(status);
+                  setStatusFilterModalVisible(false);
+                }}
+              >
+                <Text
+                  style={[
+                    styles.filterOptionText,
+                    filterStatus === status && styles.filterOptionTextSelected,
+                  ]}
+                >
+                  {status === 'all' ? 'All Status' : status}
+                </Text>
+                {filterStatus === status && (
+                  <Icon name="check" size={20} color="#667eea" />
+                )}
+              </TouchableOpacity>
+            ))}
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* Type Filter Modal */}
+      <Modal
+        visible={typeFilterModalVisible}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setTypeFilterModalVisible(false)}
+      >
+        <TouchableOpacity
+          style={styles.filterModalOverlay}
+          activeOpacity={1}
+          onPress={() => setTypeFilterModalVisible(false)}
+        >
+          <View style={styles.filterModalContent} onStartShouldSetResponder={() => true}>
+            <Text style={styles.filterModalTitle}>Filter by Type</Text>
+            {['all', 'STUDENT_KIT', 'LECTURER_KIT'].map((type) => (
+              <TouchableOpacity
+                key={type}
+                style={[
+                  styles.filterOption,
+                  filterType === type && styles.filterOptionSelected,
+                ]}
+                onPress={() => {
+                  setFilterType(type);
+                  setTypeFilterModalVisible(false);
+                }}
+              >
+                <Text
+                  style={[
+                    styles.filterOptionText,
+                    filterType === type && styles.filterOptionTextSelected,
+                  ]}
+                >
+                  {type === 'all'
+                    ? 'All Types'
+                    : type === 'STUDENT_KIT'
+                    ? 'Student Kit'
+                    : 'Lecturer Kit'}
+                </Text>
+                {filterType === type && (
+                  <Icon name="check" size={20} color="#667eea" />
+                )}
+              </TouchableOpacity>
+            ))}
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {renderKitDetailModal()}
+      {renderRentModal()}
+      {renderQRCodeModal()}
+    </LecturerLayout>
+  );
 };
 
 const styles = StyleSheet.create({
@@ -701,98 +902,186 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#f5f5f5',
   },
-  header: {
-    backgroundColor: '#667eea',
-    padding: 20,
-    paddingTop: 50,
-    paddingBottom: 20,
-    borderBottomLeftRadius: 20,
-    borderBottomRightRadius: 20,
-  },
-  headerTop: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-  },
-  menuButton: {
-    width: 40,
-    height: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  headerText: {
-    flex: 1,
-  },
-  headerTitle: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#fff',
-    marginBottom: 5,
-  },
-  headerSubtitle: {
-    fontSize: 16,
-    color: 'rgba(255, 255, 255, 0.8)',
-  },
-  logoutButton: {
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginLeft: 12,
-  },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  listContainer: {
+  searchFilterContainer: {
     padding: 16,
-    paddingTop: 0,
+    paddingBottom: 8,
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f5f5f5',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+  },
+  searchIcon: {
+    marginRight: 8,
+  },
+  searchInput: {
+    flex: 1,
+    height: 40,
+    fontSize: 14,
+    color: '#2c3e50',
+  },
+  clearButton: {
+    padding: 4,
+  },
+  filterRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  filterButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#f5f5f5',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+  },
+  filterButtonText: {
+    fontSize: 14,
+    color: '#2c3e50',
+    fontWeight: '500',
+  },
+  filterModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  filterModalContent: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 20,
+    maxHeight: '50%',
+  },
+  filterModalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#2c3e50',
+    marginBottom: 16,
+  },
+  filterOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 14,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    marginBottom: 8,
+    backgroundColor: '#f5f5f5',
+  },
+  filterOptionSelected: {
+    backgroundColor: '#667eea15',
+  },
+  filterOptionText: {
+    fontSize: 16,
+    color: '#2c3e50',
+  },
+  filterOptionTextSelected: {
+    color: '#667eea',
+    fontWeight: '600',
+  },
+  listContent: {
+    padding: 16,
+  },
+  row: {
+    justifyContent: 'space-between',
   },
   kitCard: {
     backgroundColor: 'white',
     borderRadius: 12,
-    padding: 16,
-    marginBottom: 16,
+    marginBottom: 12,
+    width: '48%',
+    elevation: 2,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
-    elevation: 3,
+    overflow: 'hidden',
+  },
+  kitImageContainer: {
+    height: 150,
+    position: 'relative',
+  },
+  kitImage: {
+    width: '100%',
+    height: '100%',
+  },
+  kitImagePlaceholder: {
+    width: '100%',
+    height: '100%',
+    backgroundColor: '#667eea',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  kitImageBadge: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+  },
+  badge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  badgeText: {
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  kitCardContent: {
+    padding: 12,
   },
   kitHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
     marginBottom: 12,
-  },
-  kitInfo: {
-    flex: 1,
-    marginLeft: 12,
   },
   kitName: {
     fontSize: 18,
-    fontWeight: '600',
-    color: '#333',
+    fontWeight: 'bold',
+    color: '#2c3e50',
+    marginBottom: 8,
   },
-  kitType: {
-    fontSize: 14,
-    color: '#666',
-    marginTop: 4,
+  kitDetails: {
+    marginBottom: 12,
   },
-  kitFooter: {
+  detailRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    borderTopWidth: 1,
-    borderTopColor: '#eee',
-    paddingTop: 12,
+    marginBottom: 6,
   },
-  kitComponents: {
+  detailText: {
     fontSize: 14,
     color: '#666',
+    marginLeft: 8,
+  },
+  viewButton: {
+    backgroundColor: '#52c41a15',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    borderRadius: 8,
+    gap: 6,
+    marginTop: 8,
+  },
+  viewButtonText: {
+    color: '#52c41a',
+    fontSize: 14,
+    fontWeight: '600',
   },
   componentCard: {
     backgroundColor: '#f9f9f9',
@@ -856,16 +1145,15 @@ const styles = StyleSheet.create({
     color: 'white',
     marginLeft: 8,
   },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: 'center',
+  emptyState: {
     alignItems: 'center',
-    paddingVertical: 64,
+    padding: 40,
+    marginTop: 40,
   },
   emptyText: {
     fontSize: 16,
     color: '#999',
-    marginTop: 16,
+    marginTop: 12,
   },
   emptyComponents: {
     alignItems: 'center',
@@ -1063,4 +1351,3 @@ const styles = StyleSheet.create({
 });
 
 export default LecturerComponentRental;
-

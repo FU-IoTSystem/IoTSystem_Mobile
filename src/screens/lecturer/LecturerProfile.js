@@ -246,8 +246,11 @@ const LecturerProfile = ({ user, navigation }) => {
         <Card style={styles.detailsSection} mode="elevated">
           <Card.Content>
             <View style={styles.detailItem}>
-              <Paragraph style={styles.detailLabel}>Account ID</Paragraph>
-              <Chip style={styles.chip}>{profile.id}</Chip>
+              <Paragraph style={styles.detailLabel}>Lecturer Code</Paragraph>
+              <View style={styles.detailValueRow}>
+                <Paragraph style={styles.detailValue}>{profile.lecturerCode || 'N/A'}</Paragraph>
+                <Chip style={styles.orangeChip} compact>Cannot be changed</Chip>
+              </View>
             </View>
 
             <Divider style={styles.divider} />
@@ -518,4 +521,3 @@ const styles = StyleSheet.create({
 });
 
 export default LecturerProfile;
-

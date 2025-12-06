@@ -252,13 +252,13 @@ const LecturerRentals = ({ user, navigation }) => {
                   <View style={styles.detailItem}>
                     <Paragraph style={styles.detailLabel}>Total Cost:</Paragraph>
                     <Title style={[styles.detailValue, styles.costValue]}>
-                      {selectedRental.totalCost?.toLocaleString() || '0'} VND
+                      -{selectedRental.totalCost?.toLocaleString() || '0'} VND
                     </Title>
                   </View>
                   <View style={styles.detailItem}>
                     <Paragraph style={styles.detailLabel}>Deposit Amount:</Paragraph>
-                    <Paragraph style={styles.detailValue}>
-                      {selectedRental.depositAmount?.toLocaleString() || '0'} VND
+                    <Paragraph style={[styles.detailValue, { color: '#ff4d4f', fontSize: 16 }]}>
+                      -{selectedRental.depositAmount?.toLocaleString() || '0'} VND
                     </Paragraph>
                   </View>
                 </Card.Content>
@@ -458,7 +458,7 @@ const styles = StyleSheet.create({
     textAlign: 'right',
   },
   costValue: {
-    color: '#1890ff',
+    color: '#ff4d4f',
     fontSize: 18,
   },
   chip: {
