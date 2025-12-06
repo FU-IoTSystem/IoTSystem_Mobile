@@ -20,62 +20,107 @@ const AdminScanQR = ({ onLogout }) => {
   const [scanned, setScanned] = useState(false);
   const [loading, setLoading] = useState(false);
   const [scannerVisible, setScannerVisible] = useState(false);
-
-  useEffect(() => {
-    if (permission?.granted) {
-      setScannerVisible(true);
-    }
-  }, [permission]);
+  const [scanMode, setScanMode] = useState(null); // 'approval' or 'return'
 
   const parseQRCodeText = (qrText) => {
-    if (!qrText || typeof qrText !== 'string') {
+    if (!qrText) {
+      console.log('parseQRCodeText: qrText is null or undefined');
+      return null;
+    }
+    
+    // Convert to string if it's not already
+    const text = typeof qrText === 'string' ? qrText : String(qrText);
+    
+    if (!text || text.trim().length === 0) {
+      console.log('parseQRCodeText: qrText is empty');
       return null;
     }
 
-    const lines = qrText.split('\n');
+    console.log('parseQRCodeText: Processing text:', text.substring(0, 200));
+
+    const lines = text.split('\n').map(line => line.trim()).filter(line => line.length > 0);
     const info = {};
 
+    // Helper function to extract value from line
+    const extractValue = (line, prefix) => {
+      // Try with space after colon first (backend format)
+      if (line.startsWith(prefix + ': ')) {
+        return line.replace(prefix + ': ', '').trim();
+      }
+      // Try without space (fallback)
+      if (line.startsWith(prefix + ':')) {
+        return line.replace(prefix + ':', '').trim();
+      }
+      return null;
+    };
+
     // Check if it's a borrowing request or component rental request
-    if (qrText.includes('=== BORROWING REQUEST INFO ===')) {
+    if (text.includes('=== BORROWING REQUEST INFO ===')) {
       info.type = 'BORROWING_REQUEST';
       lines.forEach(line => {
-        if (line.startsWith('Borrower ID: ')) {
-          info.borrowerId = line.replace('Borrower ID: ', '').trim();
-        } else if (line.startsWith('Kit ID: ')) {
-          info.kitId = line.replace('Kit ID: ', '').trim();
-        } else if (line.startsWith('Kit Name: ')) {
-          info.kitName = line.replace('Kit Name: ', '').trim();
-        } else if (line.startsWith('Request Type: ')) {
-          info.requestType = line.replace('Request Type: ', '').trim();
-        } else if (line.startsWith('Status: ')) {
-          info.status = line.replace('Status: ', '').trim();
-        }
+        const borrowerId = extractValue(line, 'Borrower ID');
+        if (borrowerId) info.borrowerId = borrowerId;
+        
+        const kitId = extractValue(line, 'Kit ID');
+        if (kitId) info.kitId = kitId;
+        
+        const kitName = extractValue(line, 'Kit Name');
+        if (kitName) info.kitName = kitName;
+        
+        const requestType = extractValue(line, 'Request Type');
+        if (requestType) info.requestType = requestType;
+        
+        const status = extractValue(line, 'Status');
+        if (status) info.status = status;
       });
-    } else if (qrText.includes('=== COMPONENT RENTAL REQUEST ===')) {
+    } else if (text.includes('=== COMPONENT RENTAL REQUEST ===')) {
       info.type = 'COMPONENT_RENTAL';
       lines.forEach(line => {
-        if (line.startsWith('Borrower ID: ')) {
-          info.borrowerId = line.replace('Borrower ID: ', '').trim();
-        } else if (line.startsWith('Component ID: ')) {
-          info.componentId = line.replace('Component ID: ', '').trim();
-        } else if (line.startsWith('Component Name: ')) {
-          info.componentName = line.replace('Component Name: ', '').trim();
-        } else if (line.startsWith('Status: ')) {
-          info.status = line.replace('Status: ', '').trim();
-        }
+        const borrowerId = extractValue(line, 'Borrower ID');
+        if (borrowerId) info.borrowerId = borrowerId;
+        
+        const componentId = extractValue(line, 'Component ID');
+        if (componentId) info.componentId = componentId;
+        
+        const componentName = extractValue(line, 'Component Name');
+        if (componentName) info.componentName = componentName;
+        
+        const status = extractValue(line, 'Status');
+        if (status) info.status = status;
       });
+    } else {
+      console.log('parseQRCodeText: QR code does not contain expected header');
+      console.log('parseQRCodeText: First 200 chars:', text.substring(0, 200));
+      return null;
     }
 
+    // Validate that we have at least borrowerId and kitId/componentId
+    if (info.type === 'BORROWING_REQUEST' && (!info.borrowerId || !info.kitId)) {
+      console.log('parseQRCodeText: Missing required fields for BORROWING_REQUEST');
+      console.log('parseQRCodeText: Info:', info);
+      return null;
+    }
+    
+    if (info.type === 'COMPONENT_RENTAL' && (!info.borrowerId || !info.componentId)) {
+      console.log('parseQRCodeText: Missing required fields for COMPONENT_RENTAL');
+      console.log('parseQRCodeText: Info:', info);
+      return null;
+    }
+
+    console.log('parseQRCodeText: Successfully parsed:', info);
     return Object.keys(info).length > 0 ? info : null;
   };
 
-  const findRequestByQRInfo = async (qrInfo) => {
+  const findRequestByQRInfo = async (qrInfo, mode) => {
     try {
-      // Get all approved requests
-      const approvedRequests = await borrowingRequestAPI.getApproved();
+      // For approval mode, get all requests (including pending)
+      // For return mode, only get approved requests
+      const requests = mode === 'approval' 
+        ? await borrowingRequestAPI.getAll()
+        : await borrowingRequestAPI.getApproved();
       
       // Find matching request
-      const matchingRequest = approvedRequests.find(request => {
+      const matchingRequest = requests.find(request => {
         // Match by borrower ID and kit ID
         const borrowerMatches = request.requestedBy?.id?.toString() === qrInfo.borrowerId ||
                                 request.requestedBy?.id === qrInfo.borrowerId;
@@ -106,13 +151,25 @@ const AdminScanQR = ({ onLogout }) => {
     setScannerVisible(false);
 
     try {
+      // Log the raw QR code data for debugging
+      console.log('Scanned QR Code Data:', data);
+      console.log('QR Code Data Type:', typeof data);
+      console.log('QR Code Data Length:', data?.length);
+      
       // Parse QR code text
       const qrInfo = parseQRCodeText(data);
       
+      console.log('Parsed QR Info:', qrInfo);
+      
       if (!qrInfo) {
+        // Show more detailed error message with actual QR content
+        const previewText = data && data.length > 100 
+          ? data.substring(0, 100) + '...' 
+          : data || 'No data';
+        
         Alert.alert(
           'Invalid QR Code',
-          'This QR code does not contain valid borrowing request information.',
+          `This QR code does not contain valid borrowing request information.\n\nQR Content Preview:\n${previewText}\n\nPlease make sure you are scanning a valid borrowing request QR code.`,
           [
             {
               text: 'OK',
@@ -127,13 +184,17 @@ const AdminScanQR = ({ onLogout }) => {
         return;
       }
 
-      // Find the request from API
-      const request = await findRequestByQRInfo(qrInfo);
+      // Find the request from API based on selected mode
+      const request = await findRequestByQRInfo(qrInfo, scanMode);
       
       if (!request) {
+        const errorMessage = scanMode === 'approval'
+          ? 'Could not find a matching borrowing request.'
+          : 'Could not find a matching approved borrowing request. Please make sure the request is approved.';
+        
         Alert.alert(
           'Request Not Found',
-          'Could not find a matching approved borrowing request. Please make sure the request is approved.',
+          errorMessage,
           [
             {
               text: 'OK',
@@ -148,15 +209,29 @@ const AdminScanQR = ({ onLogout }) => {
         return;
       }
 
-      // Navigate to Return Checking with request ID
-      // First navigate to AdminMain drawer, then to ReturnKits
-      navigation.navigate('AdminMain', {
-        screen: 'ReturnKits',
-        params: {
-          requestId: request.id,
-          autoOpen: true
-        }
-      });
+      // Navigate based on selected mode
+      if (scanMode === 'approval') {
+        // Navigate to Approvals screen with request ID to show detail
+        navigation.navigate('AdminMain', {
+          screen: 'Approvals',
+          params: {
+            requestId: request.id
+          }
+        });
+      } else if (scanMode === 'return') {
+        // Navigate to Return Checking with request ID
+        navigation.navigate('AdminMain', {
+          screen: 'ReturnKits',
+          params: {
+            requestId: request.id,
+            autoOpen: true
+          }
+        });
+      }
+      
+      // Reset states after navigation
+      setScanMode(null);
+      setScanned(false);
     } catch (error) {
       console.error('Error processing QR code:', error);
       Alert.alert(
@@ -178,7 +253,39 @@ const AdminScanQR = ({ onLogout }) => {
     }
   };
 
-  const openScanner = async () => {
+  const requestCameraPermission = async () => {
+    if (!permission) {
+      return;
+    }
+    
+    if (!permission.granted) {
+      const result = await requestPermission();
+      if (!result.granted) {
+        Alert.alert(
+          'Camera Permission Required',
+          'Please grant camera permission to scan QR codes.',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            {
+              text: 'Grant Permission',
+              onPress: async () => {
+                await requestPermission();
+              }
+            }
+          ]
+        );
+      }
+    }
+  };
+
+  const openScanner = async (mode) => {
+    if (!mode) {
+      Alert.alert('Error', 'Please select a scan mode first');
+      return;
+    }
+    
+    setScanMode(mode);
+    
     if (!permission) {
       // Permission is still being determined
       return;
@@ -217,6 +324,7 @@ const AdminScanQR = ({ onLogout }) => {
   const closeScanner = () => {
     setScannerVisible(false);
     setScanned(false);
+    setScanMode(null);
   };
 
   if (!permission) {
@@ -239,7 +347,7 @@ const AdminScanQR = ({ onLogout }) => {
           <View style={styles.centerContent}>
             <Icon name="camera-alt" size={80} color="#ccc" />
             <Text style={styles.messageText}>Camera permission is required to scan QR codes</Text>
-            <TouchableOpacity style={styles.permissionButton} onPress={openScanner}>
+            <TouchableOpacity style={styles.permissionButton} onPress={requestCameraPermission}>
               <Text style={styles.permissionButtonText}>Grant Permission</Text>
             </TouchableOpacity>
           </View>
@@ -262,12 +370,50 @@ const AdminScanQR = ({ onLogout }) => {
               <Icon name="qr-code-scanner" size={64} color="#667eea" />
               <Text style={styles.title}>Scan Borrowing Request QR Code</Text>
               <Text style={styles.description}>
-                Point your camera at the QR code on the borrowing request to quickly navigate to the return checking page.
+                Select a mode and scan the QR code to navigate to the corresponding page.
               </Text>
-              <TouchableOpacity style={styles.scanButton} onPress={openScanner}>
-                <Icon name="camera-alt" size={24} color="#fff" />
-                <Text style={styles.scanButtonText}>Start Scanning</Text>
-              </TouchableOpacity>
+              
+              <View style={styles.modeSelection}>
+                <TouchableOpacity 
+                  style={[
+                    styles.modeButton,
+                    scanMode === 'approval' && styles.modeButtonActive
+                  ]} 
+                  onPress={() => openScanner('approval')}
+                >
+                  <Icon 
+                    name="check-circle" 
+                    size={24} 
+                    color={scanMode === 'approval' ? '#fff' : '#667eea'} 
+                  />
+                  <Text style={[
+                    styles.modeButtonText,
+                    scanMode === 'approval' && styles.modeButtonTextActive
+                  ]}>
+                    Approval
+                  </Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity 
+                  style={[
+                    styles.modeButton,
+                    scanMode === 'return' && styles.modeButtonActive
+                  ]} 
+                  onPress={() => openScanner('return')}
+                >
+                  <Icon 
+                    name="assignment-returned" 
+                    size={24} 
+                    color={scanMode === 'return' ? '#fff' : '#667eea'} 
+                  />
+                  <Text style={[
+                    styles.modeButtonText,
+                    scanMode === 'return' && styles.modeButtonTextActive
+                  ]}>
+                    Return
+                  </Text>
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
         )}
@@ -454,7 +600,37 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 8,
   },
+  modeSelection: {
+    width: '100%',
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 24,
+  },
+  modeButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    backgroundColor: '#f5f5f5',
+    borderWidth: 2,
+    borderColor: '#667eea',
+    gap: 8,
+  },
+  modeButtonActive: {
+    backgroundColor: '#667eea',
+    borderColor: '#667eea',
+  },
+  modeButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#667eea',
+  },
+  modeButtonTextActive: {
+    color: '#fff',
+  },
 });
 
 export default AdminScanQR;
-

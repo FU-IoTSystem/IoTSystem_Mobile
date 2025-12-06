@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -10,22 +10,71 @@ import {
   FlatList,
   Modal,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import { MaterialIcons as Icon } from '@expo/vector-icons';
 import AdminLayout from '../../components/AdminLayout';
 import { borrowingRequestAPI, notificationAPI } from '../../services/api';
 
 const AdminApprovals = ({ onLogout }) => {
   const navigation = useNavigation();
+  const route = useRoute();
   const [rentalRequests, setRentalRequests] = useState([]);
   const [loading, setLoading] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState(null);
   const [detailModalVisible, setDetailModalVisible] = useState(false);
   const [statusFilter, setStatusFilter] = useState('all');
+  const processedRequestIdRef = useRef(null);
 
   useEffect(() => {
     loadRentalRequests();
   }, []);
+
+  // Handle navigation params to open specific request detail
+  useEffect(() => {
+    const requestId = route.params?.requestId;
+    // Only process if we have a requestId, haven't processed it yet, and requests are loaded
+    if (requestId && 
+        requestId !== processedRequestIdRef.current && 
+        rentalRequests.length > 0 && 
+        !loading) {
+      processedRequestIdRef.current = requestId;
+      
+      const request = rentalRequests.find(req => 
+        req.id?.toString() === requestId.toString() || 
+        req.id === requestId
+      );
+      
+      if (request) {
+        setSelectedRequest(request);
+        setDetailModalVisible(true);
+      } else {
+        // Request not found in current list, try to fetch it directly
+        fetchAndOpenRequest(requestId);
+      }
+    }
+  }, [route.params?.requestId, rentalRequests, loading]);
+
+  const fetchAndOpenRequest = async (requestId) => {
+    try {
+      const request = await borrowingRequestAPI.getById(requestId);
+      if (request) {
+        setSelectedRequest(request);
+        setDetailModalVisible(true);
+        // Add to list if not already there
+        setRentalRequests(prev => {
+          const exists = prev.find(req => req.id?.toString() === requestId.toString());
+          if (!exists) {
+            return [request, ...prev];
+          }
+          return prev;
+        });
+        navigation.setParams({ requestId: undefined });
+      }
+    } catch (error) {
+      console.error('Error fetching request:', error);
+      Alert.alert('Error', 'Could not find the requested borrowing request.');
+    }
+  };
 
   const loadRentalRequests = async () => {
     setLoading(true);
