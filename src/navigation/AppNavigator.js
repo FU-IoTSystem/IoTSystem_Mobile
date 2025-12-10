@@ -38,7 +38,6 @@ import LecturerKitRental from '../screens/lecturer/LecturerKitRental';
 import LecturerComponentRental from '../screens/lecturer/LecturerComponentRental';
 import LecturerWallet from '../screens/lecturer/LecturerWallet';
 import LecturerProfile from '../screens/lecturer/LecturerProfile';
-import LecturerFinesRefunds from '../screens/lecturer/LecturerFinesRefunds';
 
 // Admin Screens
 import AdminDashboard from '../screens/admin/AdminDashboard';
@@ -378,17 +377,6 @@ function LecturerDrawerInner({ user, onLogout }) {
         }}
       >
         {(props) => <LecturerRentals {...props} user={user} />}
-      </Drawer.Screen>
-      <Drawer.Screen 
-        name="FinesRefunds"
-        options={{
-          drawerLabel: 'Fines & Refunds',
-          drawerIcon: ({ color, size }) => (
-            <Icon name="attach-money" size={size} color={color} />
-          ),
-        }}
-      >
-        {(props) => <LecturerFinesRefunds {...props} user={user} />}
       </Drawer.Screen>
       <Drawer.Screen 
         name="Wallet"
