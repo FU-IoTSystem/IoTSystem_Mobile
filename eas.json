@@ -11,7 +11,7 @@
       },
       "env": {
         "EXPO_USE_COMMUNITY_AUTOLINKING": "0",
-        "KOTLIN_VERSION": "2.0.21",
+        "KOTLIN_VERSION": "2.1.21",
         "SKIP_WINDOWS_BUILD": "true"
       }
     },
@@ -25,7 +25,7 @@
       },
       "env": {
         "EXPO_USE_COMMUNITY_AUTOLINKING": "0",
-        "KOTLIN_VERSION": "2.0.21",
+        "KOTLIN_VERSION": "2.1.21",
         "SKIP_WINDOWS_BUILD": "true"
       }
     },
@@ -38,7 +38,7 @@
       },
       "env": {
         "EXPO_USE_COMMUNITY_AUTOLINKING": "0",
-        "KOTLIN_VERSION": "2.0.21",
+        "KOTLIN_VERSION": "2.1.21",
         "SKIP_WINDOWS_BUILD": "true"
       }
     }
