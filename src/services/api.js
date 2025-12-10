@@ -1,7 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // API base URL for all platforms
-const API_BASE_URL = 'https://iot-system-kit.azurewebsites.net';
+export const API_BASE_URL = 'https://iot-system-kit.azurewebsites.net';
+// export const API_BASE_URL = 'http://192.168.1.5:8080';
 
 // Helper function to get JWT token from AsyncStorage
 const getAuthToken = async () => {

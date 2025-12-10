@@ -210,7 +210,7 @@ const MemberProfile = ({ user, onLogout }) => {
     <MemberLayout 
       title="My Profile"
       rightAction={!isEditing ? {
-        icon: 'edit',
+        icon: 'pencil',
       } : null}
       onRightAction={!isEditing ? handleEdit : null}
     >
