@@ -6,16 +6,10 @@ import {
   FlatList,
   RefreshControl,
   Alert,
-} from 'react-native';
-import {
-  Card,
-  Title,
-  Paragraph,
-  Chip,
-  Avatar,
-  Button,
+  TouchableOpacity,
+  Text,
   ActivityIndicator,
-} from 'react-native-paper';
+} from 'react-native';
 import { MaterialIcons as Icon } from '@expo/vector-icons';
 import LecturerLayout from '../../components/LecturerLayout';
 import { walletAPI, walletTransactionAPI } from '../../services/api';
@@ -101,45 +95,44 @@ const LecturerWallet = ({ user, navigation }) => {
   const renderTransaction = ({ item }) => {
     const typeInfo = getTransactionTypeInfo(item.type);
     return (
-      <Card style={styles.transactionItem} mode="outlined">
-        <Card.Content>
-          <View style={styles.transactionRow}>
-            <View style={[styles.iconContainer, { backgroundColor: `${typeInfo.color}20` }]}>
-              <Icon 
-                name={typeInfo.icon} 
-                size={32} 
-                color={typeInfo.color}
-              />
-            </View>
-            <View style={styles.transactionDetails}>
-              <Title style={styles.transactionType}>{typeInfo.label}</Title>
-              <Paragraph style={styles.transactionDescription}>{item.description || 'N/A'}</Paragraph>
-              <Paragraph style={styles.transactionDate}>{item.date}</Paragraph>
-            </View>
-            <View style={styles.transactionAmount}>
-              <Title
-                style={[
-                  styles.amountText,
-                  { color: typeInfo.amountColor },
-                ]}
-              >
-                {typeInfo.amountColor === '#ff4d4f' ? '-' : (item.amount > 0 ? '+' : '-')}
-                {Math.abs(item.amount).toLocaleString('vi-VN')} VND
-              </Title>
-              <Chip
-                style={{
-                  backgroundColor: item.status === 'COMPLETED' || item.status === 'SUCCESS' ? '#52c41a' : '#fa8c16',
-                  marginTop: 4,
-                }}
-                textStyle={{ color: 'white' }}
-                compact
-              >
+      <View style={styles.transactionItem}>
+        <View style={styles.transactionRow}>
+          <View style={[styles.iconContainer, { backgroundColor: `${typeInfo.color}15` }]}>
+            <Icon 
+              name={typeInfo.icon} 
+              size={24} 
+              color={typeInfo.color}
+            />
+          </View>
+          <View style={styles.transactionDetails}>
+            <Text style={styles.transactionType}>{typeInfo.label}</Text>
+            <Text style={styles.transactionDescription}>{item.description || 'N/A'}</Text>
+            <Text style={styles.transactionDate}>{item.date}</Text>
+          </View>
+          <View style={styles.transactionAmount}>
+            <Text
+              style={[
+                styles.amountText,
+                { color: typeInfo.amountColor },
+              ]}
+            >
+              {typeInfo.amountColor === '#ff4d4f' ? '-' : (item.amount > 0 ? '+' : '-')}
+              {Math.abs(item.amount).toLocaleString('vi-VN')} VND
+            </Text>
+            <View style={[
+              styles.statusBadge,
+              { backgroundColor: item.status === 'COMPLETED' || item.status === 'SUCCESS' ? '#52c41a15' : '#faad1415' }
+            ]}>
+              <Text style={[
+                styles.statusText,
+                { color: item.status === 'COMPLETED' || item.status === 'SUCCESS' ? '#52c41a' : '#faad14' }
+              ]}>
                 {item.status === 'COMPLETED' || item.status === 'SUCCESS' ? 'Hoàn thành' : 'Chờ xử lý'}
-              </Chip>
+              </Text>
             </View>
           </View>
-        </Card.Content>
-      </Card>
+        </View>
+      </View>
     );
   };
 
@@ -151,62 +144,57 @@ const LecturerWallet = ({ user, navigation }) => {
         </View>
       ) : (
         <ScrollView
-        style={styles.content}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-        }
-      >
-        {/* Balance Card */}
-        <Card style={styles.balanceCard} mode="elevated">
-          <Card.Content style={styles.balanceContent}>
-            <Paragraph style={styles.balanceLabel}>Current Balance</Paragraph>
-            <Title style={styles.balanceAmount}>
+          style={styles.content}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          }
+        >
+          {/* Balance Card */}
+          <View style={styles.balanceCard}>
+            <Text style={styles.balanceLabel}>Current Balance</Text>
+            <Text style={styles.balanceAmount}>
               {wallet.balance.toLocaleString('vi-VN')} VND
-            </Title>
-          </Card.Content>
-        </Card>
+            </Text>
+          </View>
 
-        {/* Action Buttons */}
-        <View style={styles.actionButtons}>
-          <Button
-            mode="contained"
-            icon="plus-circle"
-            onPress={handleTopUp}
-            style={[styles.actionButton, styles.topUpButton]}
-            buttonColor="#52c41a"
-          >
-            Top Up
-          </Button>
-          <Button
-            mode="contained"
-            icon="alert"
-            onPress={handlePayPenalties}
-            style={[styles.actionButton, styles.penaltyButton]}
-            buttonColor="#fa8c16"
-          >
-            Pay Penalties
-          </Button>
-        </View>
+          {/* Action Buttons */}
+          <View style={styles.actionButtons}>
+            <TouchableOpacity
+              style={[styles.actionButton, styles.topUpButton]}
+              onPress={handleTopUp}
+            >
+              <Icon name="add-circle" size={24} color="#fff" />
+              <Text style={styles.actionButtonText}>Top Up</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.actionButton, styles.penaltyButton]}
+              onPress={handlePayPenalties}
+            >
+              <Icon name="warning" size={24} color="#fff" />
+              <Text style={styles.actionButtonText}>Pay Penalties</Text>
+            </TouchableOpacity>
+          </View>
 
-        {/* Transaction History */}
-        <Card style={styles.transactionsSection} mode="elevated">
-          <Card.Title title="Transaction History" />
-          <Card.Content>
-            <FlatList
-            data={transactions}
-            renderItem={renderTransaction}
-            keyExtractor={(item) => item.id?.toString() || Math.random().toString()}
-            scrollEnabled={false}
-            ListEmptyComponent={
-              <View style={styles.emptyContainer}>
-                <Icon name="history" size={48} color="#ccc" />
-                <Paragraph style={styles.emptyText}>No transactions yet</Paragraph>
-              </View>
-            }
-          />
-          </Card.Content>
-        </Card>
-      </ScrollView>
+          {/* Transaction History */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Transaction History</Text>
+            <View style={styles.transactionsSection}>
+              {transactions.length > 0 ? (
+                <FlatList
+                  data={transactions}
+                  renderItem={renderTransaction}
+                  keyExtractor={(item) => item.id?.toString() || Math.random().toString()}
+                  scrollEnabled={false}
+                />
+              ) : (
+                <View style={styles.emptyContainer}>
+                  <Icon name="history" size={48} color="#ccc" />
+                  <Text style={styles.emptyText}>No transactions yet</Text>
+                </View>
+              )}
+            </View>
+          </View>
+        </ScrollView>
       )}
     </LecturerLayout>
   );
@@ -217,65 +205,121 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: '#f5f5f5',
   },
   content: {
     flex: 1,
     padding: 16,
+    backgroundColor: '#f5f5f5',
   },
   balanceCard: {
     backgroundColor: '#667eea',
+    borderRadius: 12,
+    padding: 24,
     marginBottom: 20,
-  },
-  balanceContent: {
     alignItems: 'center',
-    paddingVertical: 30,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
   },
   balanceLabel: {
-    color: 'white',
+    color: 'rgba(255, 255, 255, 0.9)',
     fontSize: 16,
     marginBottom: 8,
   },
   balanceAmount: {
-    color: 'white',
+    color: '#fff',
     fontSize: 36,
     fontWeight: 'bold',
   },
   actionButtons: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 20,
+    marginBottom: 24,
     gap: 12,
   },
   actionButton: {
     flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    gap: 8,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  topUpButton: {
+    backgroundColor: '#52c41a',
+  },
+  penaltyButton: {
+    backgroundColor: '#faad14',
+  },
+  actionButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  section: {
+    marginBottom: 24,
+  },
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#2c3e50',
+    marginBottom: 16,
   },
   transactionsSection: {
-    marginBottom: 20,
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
   },
   transactionItem: {
-    marginBottom: 12,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
   },
   transactionRow: {
     flexDirection: 'row',
     alignItems: 'center',
   },
+  iconContainer: {
+    borderRadius: 24,
+    width: 48,
+    height: 48,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
   transactionDetails: {
     flex: 1,
-    marginLeft: 12,
   },
   transactionType: {
     fontSize: 16,
+    fontWeight: '600',
+    color: '#2c3e50',
     marginBottom: 4,
   },
   transactionDescription: {
     fontSize: 14,
     color: '#666',
-    marginTop: 2,
+    marginBottom: 2,
   },
   transactionDate: {
     fontSize: 12,
     color: '#999',
-    marginTop: 4,
+    marginTop: 2,
   },
   transactionAmount: {
     alignItems: 'flex-end',
@@ -284,13 +328,16 @@ const styles = StyleSheet.create({
   amountText: {
     fontSize: 16,
     fontWeight: 'bold',
+    marginBottom: 4,
   },
-  iconContainer: {
-    borderRadius: 24,
-    width: 48,
-    height: 48,
-    justifyContent: 'center',
-    alignItems: 'center',
+  statusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  statusText: {
+    fontSize: 11,
+    fontWeight: '600',
   },
   emptyContainer: {
     alignItems: 'center',
@@ -300,7 +347,7 @@ const styles = StyleSheet.create({
   emptyText: {
     color: '#999',
     fontSize: 16,
-    marginTop: 10,
+    marginTop: 12,
   },
 });
 

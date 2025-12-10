@@ -365,18 +365,6 @@ const LecturerDashboard = ({ user, onLogout }) => {
               style={styles.actionCard}
               onPress={() => {
                 if (navigation) {
-                  navigation.navigate('FinesRefunds');
-                }
-              }}
-              activeOpacity={0.7}
-            >
-              <Icon name="attach-money" size={32} color="#667eea" />
-              <Text style={styles.actionText}>Fines & Refunds</Text>
-            </TouchableOpacity>
-            <TouchableOpacity 
-              style={styles.actionCard}
-              onPress={() => {
-                if (navigation) {
                   navigation.navigate('Profile');
                 }
               }}

@@ -9,18 +9,10 @@ import {
   Image,
   TouchableOpacity,
   Text,
-} from 'react-native';
-import {
-  Card,
-  Title,
-  Paragraph,
-  Chip,
-  Avatar,
-  Button,
-  Dialog,
-  Portal,
+  Modal,
   ActivityIndicator,
-} from 'react-native-paper';
+} from 'react-native';
+import { MaterialIcons as Icon } from '@expo/vector-icons';
 import LecturerLayout from '../../components/LecturerLayout';
 import { borrowingRequestAPI } from '../../services/api';
 import dayjs from 'dayjs';
@@ -49,6 +41,7 @@ const LecturerRentals = ({ user, navigation }) => {
         const dueDate = request.dueDate || request.expectReturnDate;
         const returnDate = request.returnDate || request.actualReturnDate || null;
         const normalizedStatus = (request.status || '').toUpperCase();
+        const createdAt = request.createdAt || request.borrowDate || request.startDate;
 
         let duration = request.duration;
         if (!duration && borrowDate && (returnDate || dueDate)) {
@@ -65,6 +58,7 @@ const LecturerRentals = ({ user, navigation }) => {
           kitName: request.kitName || request.kit?.kitName || 'Unknown Kit',
           requestType: request.requestType || request.type || 'BORROW_KIT',
           rentalId: request.requestCode || request.rentalId || request.id || request.code || 'N/A',
+          reason: request.reason || '',
           borrowDate,
           dueDate,
           returnDate,
@@ -72,10 +66,18 @@ const LecturerRentals = ({ user, navigation }) => {
           totalCost: request.totalCost || request.cost || 0,
           depositAmount: request.depositAmount || request.deposit || 0,
           duration: duration ?? 0,
-          groupName: request.groupName || request.studentGroupName || request.borrowingGroup?.groupName || 'N/A',
           qrCode: request.qrCode || request.qrCodeUrl || request.data?.qrCode || null,
+          createdAt,
           raw: request
         };
+      }).sort((a, b) => {
+        // Sort descending by createdAt; fallback to recent entries if missing
+        const dateA = dayjs(a.createdAt || a.borrowDate || a.dueDate);
+        const dateB = dayjs(b.createdAt || b.borrowDate || b.dueDate);
+        if (!dateA.isValid() && !dateB.isValid()) return 0;
+        if (!dateA.isValid()) return 1;
+        if (!dateB.isValid()) return -1;
+        return dateB.valueOf() - dateA.valueOf();
       });
 
       console.log('Mapped borrow status data:', mappedBorrowStatus);
@@ -112,7 +114,7 @@ const LecturerRentals = ({ user, navigation }) => {
         return '#52c41a';
       case 'PENDING':
       case 'WAITING_APPROVAL':
-        return '#fa8c16';
+        return '#faad14';
       case 'REJECTED':
       case 'CANCELLED':
         return '#ff4d4f';
@@ -127,218 +129,243 @@ const LecturerRentals = ({ user, navigation }) => {
   };
 
   const renderRentalItem = ({ item }) => (
-    <Card 
-      style={styles.rentalCard} 
-      mode="elevated"
+    <TouchableOpacity 
+      style={styles.rentalCard}
       onPress={() => handleViewDetail(item)}
     >
-      <Card.Content>
-        <View style={styles.rentalHeader}>
-          <View style={styles.rentalTitleContainer}>
-            <Avatar.Icon size={40} icon="shopping" style={{ backgroundColor: '#667eea' }} />
-            <View style={styles.rentalInfo}>
-              <Title style={styles.rentalTitle}>{item.kitName}</Title>
-              <Paragraph style={styles.rentalId}>ID: {item.rentalId}</Paragraph>
-            </View>
+      <View style={styles.rentalHeader}>
+        <View style={styles.rentalTitleContainer}>
+          <View style={[styles.iconContainer, { backgroundColor: '#667eea15' }]}>
+            <Icon name="shopping-cart" size={24} color="#667eea" />
           </View>
-          <Chip 
-            style={{ backgroundColor: getStatusColor(item.status) }}
-            textStyle={{ color: 'white' }}
-          >
+          <View style={styles.rentalInfo}>
+            <Text style={styles.rentalTitle}>{item.kitName}</Text>
+            <Text style={styles.rentalId}>ID: {item.rentalId}</Text>
+          </View>
+        </View>
+        <View style={[styles.statusBadge, { backgroundColor: `${getStatusColor(item.status)}15` }]}>
+          <Text style={[styles.statusText, { color: getStatusColor(item.status) }]}>
             {item.status}
-          </Chip>
+          </Text>
         </View>
+      </View>
 
-        <View style={styles.rentalDetails}>
-          <View style={styles.detailRow}>
-            <Avatar.Icon size={24} icon="calendar-clock" style={{ backgroundColor: '#e0e0e0' }} />
-            <Paragraph style={styles.detailText}>
-              Due: {dayjs(item.dueDate).format('DD/MM/YYYY')}
-            </Paragraph>
-          </View>
-          {item.returnDate && (
-            <View style={styles.detailRow}>
-              <Avatar.Icon size={24} icon="check-circle" style={{ backgroundColor: '#52c41a' }} />
-              <Paragraph style={styles.detailText}>
-                Returned: {dayjs(item.returnDate).format('DD/MM/YYYY')}
-              </Paragraph>
-            </View>
-          )}
-          <View style={styles.detailRow}>
-            <Avatar.Icon size={24} icon="cash" style={{ backgroundColor: '#fa8c16' }} />
-            <Paragraph style={styles.detailText}>
-              Cost: {item.totalCost?.toLocaleString() || '0'} VND
-            </Paragraph>
-          </View>
+      <View style={styles.rentalDetails}>
+        <View style={styles.detailRow}>
+          <Icon name="schedule" size={16} color="#666" />
+          <Text style={styles.detailText}>
+            Due: {item.dueDate ? dayjs(item.dueDate).format('DD/MM/YYYY') : 'N/A'}
+          </Text>
         </View>
+        {item.returnDate && (
+          <View style={styles.detailRow}>
+            <Icon name="check-circle" size={16} color="#52c41a" />
+            <Text style={styles.detailText}>
+              Returned: {dayjs(item.returnDate).format('DD/MM/YYYY')}
+            </Text>
+          </View>
+        )}
+        <View style={styles.detailRow}>
+          <Icon name="attach-money" size={16} color="#faad14" />
+          <Text style={styles.detailText}>
+            Cost: {item.totalCost?.toLocaleString() || '0'} VND
+          </Text>
+        </View>
+      </View>
 
-        <View style={styles.rentalFooter}>
-          <Button
-            mode="text"
-            icon="chevron-right"
-            onPress={() => handleViewDetail(item)}
-          >
-            View Details
-          </Button>
-        </View>
-      </Card.Content>
-    </Card>
+      <View style={styles.rentalFooter}>
+        <TouchableOpacity
+          style={styles.viewButton}
+          onPress={() => handleViewDetail(item)}
+        >
+          <Text style={styles.viewButtonText}>View Details</Text>
+          <Icon name="chevron-right" size={20} color="#667eea" />
+        </TouchableOpacity>
+      </View>
+    </TouchableOpacity>
   );
 
   const renderDetailModal = () => {
     if (!showDetail || !selectedRental) return null;
 
     return (
-      <Portal>
-        <Dialog
-          visible={showDetail}
-          onDismiss={() => setShowDetail(false)}
-          style={styles.dialog}
-        >
-          <Dialog.Title>Rental Details</Dialog.Title>
-          <Dialog.ScrollArea>
-            <ScrollView style={styles.dialogContent}>
-              <Card style={styles.detailSection} mode="outlined">
-                <Card.Title title="Kit Information" />
-                <Card.Content>
-                  <View style={styles.detailItem}>
-                    <Paragraph style={styles.detailLabel}>Kit Name:</Paragraph>
-                    <Title style={styles.detailValue}>{selectedRental.kitName}</Title>
+      <Modal
+        visible={showDetail}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowDetail(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Rental Details</Text>
+              <TouchableOpacity onPress={() => setShowDetail(false)}>
+                <Icon name="close" size={24} color="#666" />
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={styles.modalBody}>
+              {/* Kit Information */}
+              <View style={styles.detailSection}>
+                <Text style={styles.sectionTitle}>Kit Information</Text>
+                <View style={styles.detailItem}>
+                  <Text style={styles.detailLabel}>Kit Name:</Text>
+                  <Text style={styles.detailValue}>{selectedRental.kitName}</Text>
+                </View>
+                <View style={styles.detailItem}>
+                  <Text style={styles.detailLabel}>Status:</Text>
+                  <View style={[styles.badge, { backgroundColor: `${getStatusColor(selectedRental.status)}15` }]}>
+                    <Text style={[styles.badgeText, { color: getStatusColor(selectedRental.status) }]}>
+                      {selectedRental.status}
+                    </Text>
                   </View>
-                  <View style={styles.detailItem}>
-                    <Paragraph style={styles.detailLabel}>Request Type:</Paragraph>
-                    <Chip style={styles.chip}>{selectedRental.requestType}</Chip>
+                </View>
+                <View style={styles.detailItem}>
+                  <Text style={styles.detailLabel}>Request Type:</Text>
+                  <View style={[styles.badge, { backgroundColor: '#1890ff15' }]}>
+                    <Text style={[styles.badgeText, { color: '#1890ff' }]}>
+                      {selectedRental.requestType}
+                    </Text>
                   </View>
+                </View>
+                <View style={styles.detailItem}>
+                  <Text style={styles.detailLabel}>Rental ID:</Text>
+                  <Text style={styles.detailValue}>{selectedRental.rentalId}</Text>
+                </View>
+                {selectedRental.reason ? (
                   <View style={styles.detailItem}>
-                    <Paragraph style={styles.detailLabel}>Rental ID:</Paragraph>
-                    <Paragraph style={styles.detailValue}>{selectedRental.rentalId}</Paragraph>
+                    <Text style={styles.detailLabel}>Reason:</Text>
+                    <Text style={[styles.detailValue, styles.reasonValue]} numberOfLines={2}>
+                      {selectedRental.reason}
+                    </Text>
                   </View>
-                </Card.Content>
-              </Card>
+                ) : null}
+              </View>
 
-              <Card style={styles.detailSection} mode="outlined">
-                <Card.Title title="Dates" />
-                <Card.Content>
+              {/* Dates */}
+              <View style={styles.detailSection}>
+                <Text style={styles.sectionTitle}>Dates</Text>
+                <View style={styles.detailItem}>
+                  <Text style={styles.detailLabel}>Borrow Date:</Text>
+                  <Text style={styles.detailValue}>
+                    {selectedRental.borrowDate ? dayjs(selectedRental.borrowDate).format('DD/MM/YYYY HH:mm') : 'N/A'}
+                  </Text>
+                </View>
+                <View style={styles.detailItem}>
+                  <Text style={styles.detailLabel}>Due Date:</Text>
+                  <Text style={styles.detailValue}>
+                    {selectedRental.dueDate ? dayjs(selectedRental.dueDate).format('DD/MM/YYYY HH:mm') : 'N/A'}
+                  </Text>
+                </View>
+                {selectedRental.returnDate && (
                   <View style={styles.detailItem}>
-                    <Paragraph style={styles.detailLabel}>Borrow Date:</Paragraph>
-                    <Paragraph style={styles.detailValue}>
-                      {dayjs(selectedRental.borrowDate).format('DD/MM/YYYY HH:mm')}
-                    </Paragraph>
+                    <Text style={styles.detailLabel}>Return Date:</Text>
+                    <Text style={styles.detailValue}>
+                      {dayjs(selectedRental.returnDate).format('DD/MM/YYYY HH:mm')}
+                    </Text>
                   </View>
-                  <View style={styles.detailItem}>
-                    <Paragraph style={styles.detailLabel}>Due Date:</Paragraph>
-                    <Paragraph style={styles.detailValue}>
-                      {dayjs(selectedRental.dueDate).format('DD/MM/YYYY HH:mm')}
-                    </Paragraph>
+                )}
+                <View style={styles.detailItem}>
+                  <Text style={styles.detailLabel}>Duration:</Text>
+                  <Text style={styles.detailValue}>{selectedRental.duration} days</Text>
+                </View>
+              </View>
+
+              {/* Financial */}
+              <View style={styles.detailSection}>
+                <Text style={styles.sectionTitle}>Financial</Text>
+                <View style={styles.detailItem}>
+                  <Text style={styles.detailLabel}>Total Cost:</Text>
+                  <Text style={[styles.detailValue, styles.costValue]}>
+                    -{selectedRental.totalCost?.toLocaleString() || '0'} VND
+                  </Text>
+                </View>
+                <View style={styles.detailItem}>
+                  <Text style={styles.detailLabel}>Deposit Amount:</Text>
+                  <Text style={styles.detailValue}>
+                    {selectedRental.depositAmount?.toLocaleString() || '0'} VND
+                  </Text>
+                </View>
+              </View>
+
+              {/* QR Code */}
+              {selectedRental.qrCode && (
+                <View style={styles.detailSection}>
+                  <Text style={styles.sectionTitle}>QR Code</Text>
+                  <View style={styles.qrCodeContainer}>
+                    {(() => {
+                      const qrCode = selectedRental.qrCode;
+                      // Check if it's a URL (http/https)
+                      if (typeof qrCode === 'string' && (qrCode.startsWith('http://') || qrCode.startsWith('https://'))) {
+                        return (
+                          <Image
+                            source={{ uri: qrCode }}
+                            style={styles.qrCodeImage}
+                            resizeMode="contain"
+                          />
+                        );
+                      }
+                      // Check if it's a data URI (base64 encoded image)
+                      if (typeof qrCode === 'string' && qrCode.startsWith('data:image')) {
+                        return (
+                          <Image
+                            source={{ uri: qrCode }}
+                            style={styles.qrCodeImage}
+                            resizeMode="contain"
+                          />
+                        );
+                      }
+                      // Check if it's base64 string without data URI prefix
+                      if (typeof qrCode === 'string' && qrCode.length > 100 && /^[A-Za-z0-9+/=]+$/.test(qrCode)) {
+                        // Assume it's PNG base64
+                        const dataUri = `data:image/png;base64,${qrCode}`;
+                        return (
+                          <Image
+                            source={{ uri: dataUri }}
+                            style={styles.qrCodeImage}
+                            resizeMode="contain"
+                          />
+                        );
+                      }
+                      // Otherwise show as text with icon
+                      return (
+                        <View style={styles.qrCodePlaceholder}>
+                          <Icon name="qr-code-2" size={80} color="#667eea" />
+                          <Text style={styles.qrCodeText}>
+                            {qrCode.length > 50 ? `${qrCode.substring(0, 50)}...` : qrCode}
+                          </Text>
+                        </View>
+                      );
+                    })()}
                   </View>
-                  {selectedRental.returnDate && (
+                  {selectedRental.qrCode && typeof selectedRental.qrCode === 'string' && (
                     <View style={styles.detailItem}>
-                      <Paragraph style={styles.detailLabel}>Return Date:</Paragraph>
-                      <Paragraph style={styles.detailValue}>
-                        {dayjs(selectedRental.returnDate).format('DD/MM/YYYY HH:mm')}
-                      </Paragraph>
+                      <Text style={styles.detailLabel}>QR Code Data:</Text>
+                      <Text style={[styles.detailValue, styles.qrCodeData]}>
+                        {selectedRental.qrCode.length > 100 
+                          ? `${selectedRental.qrCode.substring(0, 100)}...` 
+                          : selectedRental.qrCode}
+                      </Text>
                     </View>
                   )}
-                  <View style={styles.detailItem}>
-                    <Paragraph style={styles.detailLabel}>Duration:</Paragraph>
-                    <Paragraph style={styles.detailValue}>{selectedRental.duration} days</Paragraph>
-                  </View>
-                </Card.Content>
-              </Card>
-
-              <Card style={styles.detailSection} mode="outlined">
-                <Card.Title title="Financial" />
-                <Card.Content>
-                  <View style={styles.detailItem}>
-                    <Paragraph style={styles.detailLabel}>Total Cost:</Paragraph>
-                    <Title style={[styles.detailValue, styles.costValue]}>
-                      -{selectedRental.totalCost?.toLocaleString() || '0'} VND
-                    </Title>
-                  </View>
-                  <View style={styles.detailItem}>
-                    <Paragraph style={styles.detailLabel}>Deposit Amount:</Paragraph>
-                    <Paragraph style={[styles.detailValue, { color: '#ff4d4f', fontSize: 16 }]}>
-                      -{selectedRental.depositAmount?.toLocaleString() || '0'} VND
-                    </Paragraph>
-                  </View>
-                </Card.Content>
-              </Card>
-
-              {selectedRental.qrCode && (
-                <Card style={styles.detailSection} mode="outlined">
-                  <Card.Title title="QR Code" />
-                  <Card.Content>
-                    <View style={styles.qrCodeContainer}>
-                      {(() => {
-                        const qrCode = selectedRental.qrCode;
-                        // Check if it's a URL (http/https)
-                        if (typeof qrCode === 'string' && (qrCode.startsWith('http://') || qrCode.startsWith('https://'))) {
-                          return (
-                            <Image
-                              source={{ uri: qrCode }}
-                              style={styles.qrCodeImage}
-                              resizeMode="contain"
-                            />
-                          );
-                        }
-                        // Check if it's a data URI (base64 encoded image)
-                        if (typeof qrCode === 'string' && qrCode.startsWith('data:image')) {
-                          return (
-                            <Image
-                              source={{ uri: qrCode }}
-                              style={styles.qrCodeImage}
-                              resizeMode="contain"
-                            />
-                          );
-                        }
-                        // Check if it's base64 string without data URI prefix
-                        if (typeof qrCode === 'string' && qrCode.length > 100 && /^[A-Za-z0-9+/=]+$/.test(qrCode)) {
-                          // Assume it's PNG base64
-                          const dataUri = `data:image/png;base64,${qrCode}`;
-                          return (
-                            <Image
-                              source={{ uri: dataUri }}
-                              style={styles.qrCodeImage}
-                              resizeMode="contain"
-                            />
-                          );
-                        }
-                        // Otherwise show as text with icon
-                        return (
-                          <View style={styles.qrCodePlaceholder}>
-                            <Avatar.Icon size={80} icon="qr-code-2" style={{ backgroundColor: '#667eea' }} />
-                            <Paragraph style={styles.qrCodeText}>
-                              {qrCode.length > 50 ? `${qrCode.substring(0, 50)}...` : qrCode}
-                            </Paragraph>
-                          </View>
-                        );
-                      })()}
-                    </View>
-                    {selectedRental.qrCode && typeof selectedRental.qrCode === 'string' && (
-                      <View style={styles.detailItem}>
-                        <Paragraph style={styles.detailLabel}>QR Code Data:</Paragraph>
-                        <Paragraph style={[styles.detailValue, styles.qrCodeData]}>
-                          {selectedRental.qrCode.length > 100 
-                            ? `${selectedRental.qrCode.substring(0, 100)}...` 
-                            : selectedRental.qrCode}
-                        </Paragraph>
-                      </View>
-                    )}
-                  </Card.Content>
-                </Card>
+                </View>
               )}
             </ScrollView>
-          </Dialog.ScrollArea>
-          <Dialog.Actions>
-            <Button onPress={() => setShowDetail(false)}>Close</Button>
-          </Dialog.Actions>
-        </Dialog>
-      </Portal>
+            <View style={styles.modalFooter}>
+              <TouchableOpacity
+                style={styles.closeButton}
+                onPress={() => setShowDetail(false)}
+              >
+                <Text style={styles.closeButtonText}>Close</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     );
   };
 
   return (
-    <LecturerLayout title="Borrow Status">
+    <LecturerLayout title="Borrow Tracking">
       {loading && !refreshing ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#667eea" />
@@ -354,8 +381,8 @@ const LecturerRentals = ({ user, navigation }) => {
         }
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
-            <Avatar.Icon size={64} icon="shopping" style={{ backgroundColor: '#ccc' }} />
-            <Paragraph style={styles.emptyText}>No rentals found</Paragraph>
+            <Icon name="shopping-cart" size={64} color="#ccc" />
+            <Text style={styles.emptyText}>No rentals found</Text>
           </View>
         }
         />
@@ -370,12 +397,22 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: '#f5f5f5',
   },
   listContainer: {
     padding: 16,
+    backgroundColor: '#f5f5f5',
   },
   rentalCard: {
-    marginBottom: 16,
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
   },
   rentalHeader: {
     flexDirection: 'row',
@@ -387,26 +424,46 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flex: 1,
   },
+  iconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
   rentalInfo: {
-    marginLeft: 12,
     flex: 1,
   },
   rentalTitle: {
     fontSize: 16,
+    fontWeight: 'bold',
+    color: '#2c3e50',
+    marginBottom: 4,
   },
   rentalId: {
     fontSize: 12,
     color: '#999',
-    marginTop: 2,
+  },
+  statusBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  statusText: {
+    fontSize: 11,
+    fontWeight: '600',
   },
   rentalDetails: {
     marginBottom: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#f0f0f0',
   },
   detailRow: {
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 8,
-    gap: 8,
   },
   detailText: {
     fontSize: 14,
@@ -415,14 +472,24 @@ const styles = StyleSheet.create({
   },
   rentalFooter: {
     borderTopWidth: 1,
-    borderTopColor: '#eee',
+    borderTopColor: '#f0f0f0',
     paddingTop: 12,
     marginTop: 12,
   },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: 'center',
+  viewButton: {
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'flex-end',
+  },
+  viewButtonText: {
+    fontSize: 14,
+    color: '#667eea',
+    fontWeight: '600',
+    marginRight: 4,
+  },
+  emptyContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
     paddingVertical: 64,
   },
   emptyText: {
@@ -430,13 +497,51 @@ const styles = StyleSheet.create({
     color: '#999',
     marginTop: 16,
   },
-  dialog: {
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
     maxHeight: '90%',
   },
-  dialogContent: {
-    paddingHorizontal: 16,
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#2c3e50',
+  },
+  modalBody: {
+    padding: 16,
+    maxHeight: 500,
+  },
+  modalFooter: {
+    padding: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#f0f0f0',
   },
   detailSection: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#f0f0f0',
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#2c3e50',
     marginBottom: 16,
   },
   detailItem: {
@@ -453,16 +558,26 @@ const styles = StyleSheet.create({
   detailValue: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#333',
+    color: '#2c3e50',
     flex: 1,
     textAlign: 'right',
+  },
+  reasonValue: {
+    textAlign: 'right',
+    flexWrap: 'wrap',
   },
   costValue: {
     color: '#ff4d4f',
     fontSize: 18,
   },
-  chip: {
-    backgroundColor: '#667eea',
+  badge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  badgeText: {
+    fontSize: 12,
+    fontWeight: '600',
   },
   qrCodeContainer: {
     alignItems: 'center',
@@ -493,6 +608,18 @@ const styles = StyleSheet.create({
     fontFamily: 'monospace',
     color: '#667eea',
     flexWrap: 'wrap',
+  },
+  closeButton: {
+    backgroundColor: '#667eea',
+    paddingVertical: 14,
+    paddingHorizontal: 32,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  closeButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });
 
