@@ -206,7 +206,7 @@ const LeaderProfile = ({ user, navigation }) => {
     <LeaderLayout 
       title="My Profile"
       rightAction={!isEditing ? {
-        icon: 'edit',
+        icon: 'pencil',
       } : null}
       onRightAction={!isEditing ? handleEdit : null}
     >
