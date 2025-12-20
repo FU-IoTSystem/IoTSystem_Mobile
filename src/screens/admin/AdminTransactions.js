@@ -69,17 +69,42 @@ const AdminTransactions = ({ onLogout }) => {
   };
 
   const getTransactionTypeColor = (type) => {
-    switch (type) {
+    // Keep color mapping consistent with dashboard and wallet UIs
+    const upperType = (type || '').toUpperCase();
+    switch (upperType) {
       case 'TOP_UP':
-        return '#52c41a';
-      case 'PENALTY_PAYMENT':
-        return '#ff4d4f';
-      case 'REFUND':
-        return '#1890ff';
+      case 'TOPUP':
+        return '#52c41a'; // green for top up
       case 'RENTAL_FEE':
-        return '#722ed1';
+        return '#1890ff'; // blue for rental fee
+      case 'PENALTY_PAYMENT':
+      case 'PENALTY':
+      case 'FINE':
+        return '#ff4d4f'; // red for penalties
+      case 'REFUND':
+        return '#722ed1'; // purple for refunds
       default:
         return '#666';
+    }
+  };
+
+  const getTransactionIconName = (type) => {
+    // Use type-specific icons similar to dashboard "Recent Transactions"
+    const upperType = (type || '').toUpperCase();
+    switch (upperType) {
+      case 'TOP_UP':
+      case 'TOPUP':
+        return 'add-circle';
+      case 'RENTAL_FEE':
+        return 'shopping-cart';
+      case 'PENALTY_PAYMENT':
+      case 'PENALTY':
+      case 'FINE':
+        return 'warning';
+      case 'REFUND':
+        return 'undo';
+      default:
+        return 'payment';
     }
   };
 
@@ -121,6 +146,7 @@ const AdminTransactions = ({ onLogout }) => {
   const renderTransactionItem = ({ item }) => {
     const transactionType = item.type || item.transactionType || 'UNKNOWN';
     const status = item.status || item.transactionStatus || 'UNKNOWN';
+    const iconName = getTransactionIconName(transactionType);
 
     return (
       <TouchableOpacity
@@ -133,7 +159,7 @@ const AdminTransactions = ({ onLogout }) => {
         <View style={styles.transactionHeader}>
           <View style={styles.transactionInfo}>
             <Icon 
-              name="account-circle" 
+              name={iconName} 
               size={32} 
               color={getTransactionTypeColor(transactionType)} 
             />
@@ -622,5 +648,3 @@ const styles = StyleSheet.create({
 });
 
 export default AdminTransactions;
-
-

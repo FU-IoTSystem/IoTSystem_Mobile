@@ -1,0 +1,1029 @@
+import React, { useState, useEffect } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  RefreshControl,
+  TouchableOpacity,
+  TextInput,
+  Modal,
+  Alert,
+  FlatList,
+  Image,
+} from 'react-native';
+import { useNavigation } from '@react-navigation/native';
+import { MaterialIcons as Icon } from '@expo/vector-icons';
+import { kitComponentAPI } from '../../services/api';
+
+const COMPONENT_TYPE_OPTIONS = ['RED', 'BLACK', 'WHITE'];
+
+const AdminKitComponents = ({ onLogout }) => {
+  const navigation = useNavigation();
+  const [components, setComponents] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [searchText, setSearchText] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [editModalVisible, setEditModalVisible] = useState(false);
+  const [typeDropdownVisible, setTypeDropdownVisible] = useState(false);
+  const [editingComponent, setEditingComponent] = useState(null);
+  const [formData, setFormData] = useState({
+    componentName: '',
+    componentType: '',
+    quantityTotal: 1,
+    quantityAvailable: 1,
+    pricePerCom: 0,
+    status: 'AVAILABLE',
+    description: '',
+    imageUrl: '',
+    link: '',
+  });
+
+  useEffect(() => {
+    loadComponents();
+  }, []);
+
+  const loadComponents = async () => {
+    setLoading(true);
+    try {
+      const response = await kitComponentAPI.getAllComponents();
+      const data = Array.isArray(response) ? response : (response?.data || []);
+      // Only keep global components that are not linked to any specific kit (kitId == null)
+      const globalComponents = (Array.isArray(data) ? data : []).filter(
+        (component) => component.kitId == null
+      );
+      setComponents(globalComponents);
+    } catch (error) {
+      console.error('Error loading components:', error);
+      Alert.alert('Error', 'Failed to load kit components');
+      setComponents([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await loadComponents();
+    setRefreshing(false);
+  };
+
+  const handleLogout = async () => {
+    Alert.alert(
+      'Logout',
+      'Are you sure you want to logout?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Logout',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              if (onLogout) {
+                await onLogout();
+              }
+            } catch (error) {
+              console.error('Logout failed:', error);
+              Alert.alert('Error', 'Failed to logout');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const openAddModal = () => {
+    setEditingComponent(null);
+    setTypeDropdownVisible(false);
+    setFormData({
+      componentName: '',
+      componentType: COMPONENT_TYPE_OPTIONS[0],
+      quantityTotal: 1,
+      quantityAvailable: 1,
+      pricePerCom: 0,
+      status: 'AVAILABLE',
+      description: '',
+      imageUrl: '',
+      link: '',
+    });
+    setEditModalVisible(true);
+  };
+
+  const openEditModal = (component) => {
+    setEditingComponent(component);
+    setTypeDropdownVisible(false);
+    setFormData({
+      componentName: component.componentName || component.name || '',
+      componentType:
+        component.componentType ||
+        component.type ||
+        COMPONENT_TYPE_OPTIONS[0],
+      quantityTotal: component.quantityTotal || component.quantityAvailable || 1,
+      quantityAvailable: component.quantityAvailable || 1,
+      pricePerCom: component.pricePerCom || 0,
+      status: component.status || 'AVAILABLE',
+      description: component.description || '',
+      imageUrl: component.imageUrl || '',
+      link: component.link || '',
+    });
+    setEditModalVisible(true);
+  };
+
+  const handleSaveComponent = async () => {
+    if (!formData.componentName.trim()) {
+      Alert.alert('Error', 'Please enter component name');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const payload = {
+        kitId: null,
+        componentName: formData.componentName,
+        componentType: formData.componentType,
+        description: formData.description || '',
+        quantityTotal: formData.quantityTotal,
+        quantityAvailable: formData.quantityAvailable,
+        pricePerCom: formData.pricePerCom || 0,
+        status: formData.status,
+        imageUrl: formData.imageUrl || '',
+        link: formData.link || '',
+      };
+
+      if (editingComponent && editingComponent.id) {
+        await kitComponentAPI.updateComponent(editingComponent.id, payload);
+        Alert.alert('Success', 'Component updated successfully');
+      } else {
+        await kitComponentAPI.createComponent(payload);
+        Alert.alert('Success', 'Component created successfully');
+      }
+
+      setEditModalVisible(false);
+      setEditingComponent(null);
+      await loadComponents();
+    } catch (error) {
+      console.error('Error saving component:', error);
+      Alert.alert('Error', 'Failed to save component');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteComponent = async (component) => {
+    Alert.alert(
+      'Confirm Delete',
+      `Delete component "${component.componentName || component.name}"?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await kitComponentAPI.deleteComponent(component.id);
+              Alert.alert('Success', 'Component deleted successfully');
+              await loadComponents();
+            } catch (error) {
+              console.error('Error deleting component:', error);
+              Alert.alert('Error', 'Failed to delete component');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const filteredComponents = components.filter((component) => {
+    const search = searchText.trim().toLowerCase();
+    const matchesSearch =
+      !search ||
+      component.componentName?.toLowerCase().includes(search) ||
+      component.name?.toLowerCase().includes(search) ||
+      component.id?.toString().includes(search);
+
+    const matchesStatus =
+      statusFilter === 'all' || (component.status || '').toUpperCase() === statusFilter.toUpperCase();
+
+    return matchesSearch && matchesStatus;
+  });
+
+  const renderComponentItem = ({ item }) => {
+    const typeLabel = item.componentType || item.type || 'N/A';
+    const statusUpper = (item.status || 'UNKNOWN').toUpperCase();
+    const isAvailable = statusUpper === 'AVAILABLE';
+
+    return (
+      <View style={styles.componentCard}>
+        {/* Image */}
+        {item.imageUrl && item.imageUrl !== 'null' && item.imageUrl !== 'undefined' ? (
+          <Image
+            source={{ uri: item.imageUrl }}
+            style={styles.componentImage}
+            resizeMode="cover"
+          />
+        ) : (
+          <View style={styles.componentImagePlaceholder}>
+            <Icon name="memory" size={32} color="#fff" />
+          </View>
+        )}
+
+        {/* Content */}
+        <View style={styles.componentCardContent}>
+          <View style={styles.componentHeaderRow}>
+            <Text style={styles.componentName} numberOfLines={1}>
+              {item.componentName || item.name || 'Component'}
+            </Text>
+            <View
+              style={[
+                styles.statusChip,
+                { backgroundColor: isAvailable ? '#52c41a15' : '#faad1415' },
+              ]}
+            >
+              <Text
+                style={[
+                  styles.statusChipText,
+                  { color: isAvailable ? '#52c41a' : '#faad14' },
+                ]}
+              >
+                {statusUpper}
+              </Text>
+            </View>
+          </View>
+
+          <View style={styles.componentBadge}>
+            <Text style={styles.componentBadgeText}>{typeLabel}</Text>
+          </View>
+
+          <View style={styles.componentDetailsRow}>
+            <Text style={styles.componentDetailText}>
+              Total: {item.quantityTotal ?? item.quantityAvailable ?? 0}
+            </Text>
+            <Text style={[styles.componentDetailText, { color: '#52c41a' }]}>
+              Avail: {item.quantityAvailable ?? 0}
+            </Text>
+          </View>
+
+          {item.pricePerCom > 0 && (
+            <Text style={styles.componentPrice}>
+              {(item.pricePerCom || 0).toLocaleString('vi-VN')} VND
+            </Text>
+          )}
+
+          {item.description ? (
+            <Text style={styles.componentDescription} numberOfLines={1}>
+              {item.description}
+            </Text>
+          ) : null}
+
+          <View style={styles.componentActionsRow}>
+            <TouchableOpacity
+              style={styles.actionButton}
+              onPress={() => openEditModal(item)}
+            >
+              <Icon name="edit" size={16} color="#1890ff" />
+              <Text style={[styles.actionButtonText, { color: '#1890ff' }]}>
+                Edit
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.actionButton}
+              onPress={() => handleDeleteComponent(item)}
+            >
+              <Icon name="delete" size={16} color="#ff4d4f" />
+              <Text style={[styles.actionButtonText, { color: '#ff4d4f' }]}>
+                Delete
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    );
+  };
+
+  return (
+    <View style={styles.container}>
+      {/* Header */}
+      <View style={styles.header}>
+        <View style={styles.headerTop}>
+          <TouchableOpacity
+            style={styles.menuButton}
+            onPress={() => navigation.openDrawer()}
+          >
+            <Icon name="menu" size={24} color="#fff" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Kit Components</Text>
+        </View>
+        <View style={styles.headerButtons}>
+          <TouchableOpacity
+            style={styles.logoutButton}
+            onPress={handleLogout}
+          >
+            <Icon name="logout" size={20} color="#fff" />
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {/* Filters & actions */}
+      <ScrollView
+        style={styles.content}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+      >
+        <View style={styles.searchContainer}>
+          <Icon name="search" size={20} color="#666" style={styles.searchIcon} />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search components..."
+            value={searchText}
+            onChangeText={setSearchText}
+          />
+          {searchText.length > 0 && (
+            <TouchableOpacity onPress={() => setSearchText('')}>
+              <Icon name="close" size={20} color="#666" />
+            </TouchableOpacity>
+          )}
+        </View>
+
+        <View style={styles.filterChipsRow}>
+          <TouchableOpacity
+            style={[
+              styles.filterChip,
+              statusFilter === 'all' && styles.filterChipActive,
+            ]}
+            onPress={() => setStatusFilter('all')}
+          >
+            <Text
+              style={[
+                styles.filterChipText,
+                statusFilter === 'all' && styles.filterChipTextActive,
+              ]}
+            >
+              All Status
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.filterChip,
+              statusFilter === 'AVAILABLE' && styles.filterChipActive,
+            ]}
+            onPress={() => setStatusFilter('AVAILABLE')}
+          >
+            <Text
+              style={[
+                styles.filterChipText,
+                statusFilter === 'AVAILABLE' && styles.filterChipTextActive,
+              ]}
+            >
+              Available
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.filterChip,
+              statusFilter === 'UNAVAILABLE' && styles.filterChipActive,
+            ]}
+            onPress={() => setStatusFilter('UNAVAILABLE')}
+          >
+            <Text
+              style={[
+                styles.filterChipText,
+                statusFilter === 'UNAVAILABLE' && styles.filterChipTextActive,
+              ]}
+            >
+              Unavailable
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.actionsRow}>
+          <TouchableOpacity
+            style={styles.primaryButton}
+            onPress={openAddModal}
+          >
+            <Icon name="add" size={20} color="#fff" />
+            <Text style={styles.primaryButtonText}>Add Component</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Components list */}
+        <View style={styles.listContainer}>
+          {filteredComponents.length > 0 ? (
+            <FlatList
+              data={filteredComponents}
+              renderItem={renderComponentItem}
+              keyExtractor={(item) => item.id?.toString() || Math.random().toString()}
+              numColumns={2}
+              columnWrapperStyle={styles.gridRow}
+              scrollEnabled={false}
+            />
+          ) : (
+            <View style={styles.emptyState}>
+              <Icon name="memory" size={48} color="#ccc" />
+              <Text style={styles.emptyText}>No components found</Text>
+            </View>
+          )}
+        </View>
+      </ScrollView>
+
+      {/* Edit/Add Component Modal */}
+      <Modal
+        visible={editModalVisible}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setEditModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>
+                {editingComponent ? 'Edit Component' : 'Add Component'}
+              </Text>
+              <TouchableOpacity onPress={() => setEditModalVisible(false)}>
+                <Icon name="close" size={24} color="#666" />
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={styles.modalBody}>
+              <View style={styles.formRow}>
+                <Text style={styles.formLabel}>Name</Text>
+                <TextInput
+                  style={styles.formInput}
+                  value={formData.componentName}
+                  onChangeText={(text) =>
+                    setFormData((prev) => ({ ...prev, componentName: text }))
+                  }
+                  placeholder="Component name"
+                />
+              </View>
+              <View style={styles.formRow}>
+                <Text style={styles.formLabel}>Type</Text>
+                <TouchableOpacity
+                  style={styles.formSelect}
+                  onPress={() =>
+                    setTypeDropdownVisible((prevVisible) => !prevVisible)
+                  }
+                >
+                  <Text
+                    style={
+                      formData.componentType
+                        ? styles.formSelectText
+                        : styles.formSelectPlaceholder
+                    }
+                  >
+                    {formData.componentType || 'Select type'}
+                  </Text>
+                  <Icon
+                    name={
+                      typeDropdownVisible ? 'keyboard-arrow-up' : 'keyboard-arrow-down'
+                    }
+                    size={20}
+                    color="#666"
+                  />
+                </TouchableOpacity>
+                {typeDropdownVisible && (
+                  <View style={styles.dropdownOptions}>
+                    {COMPONENT_TYPE_OPTIONS.map((option) => (
+                      <TouchableOpacity
+                        key={option}
+                        style={[
+                          styles.dropdownOption,
+                          formData.componentType === option &&
+                            styles.dropdownOptionSelected,
+                        ]}
+                        onPress={() => {
+                          setFormData((prev) => ({
+                            ...prev,
+                            componentType: option,
+                          }));
+                          setTypeDropdownVisible(false);
+                        }}
+                      >
+                        <View
+                          style={[
+                            styles.typeColorDot,
+                            {
+                              backgroundColor:
+                                option === 'RED'
+                                  ? '#ff4d4f'
+                                  : option === 'BLACK'
+                                  ? '#000000'
+                                  : '#f0f0f0',
+                            },
+                          ]}
+                        />
+                        <Text
+                          style={[
+                            styles.dropdownOptionText,
+                            formData.componentType === option &&
+                              styles.dropdownOptionTextSelected,
+                          ]}
+                        >
+                          {option}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                )}
+              </View>
+              <View style={styles.formRowInline}>
+                <View style={styles.formColumn}>
+                  <Text style={styles.formLabel}>Total</Text>
+                  <TextInput
+                    style={styles.formInput}
+                    keyboardType="numeric"
+                    value={String(formData.quantityTotal)}
+                    onChangeText={(text) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        quantityTotal: Number(text) || 0,
+                      }))
+                    }
+                  />
+                </View>
+                <View style={styles.formColumn}>
+                  <Text style={styles.formLabel}>Available</Text>
+                  <TextInput
+                    style={styles.formInput}
+                    keyboardType="numeric"
+                    value={String(formData.quantityAvailable)}
+                    onChangeText={(text) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        quantityAvailable: Number(text) || 0,
+                      }))
+                    }
+                  />
+                </View>
+              </View>
+              <View style={styles.formRow}>
+                <Text style={styles.formLabel}>Price per component</Text>
+                <TextInput
+                  style={styles.formInput}
+                  keyboardType="numeric"
+                  value={String(formData.pricePerCom)}
+                  onChangeText={(text) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      pricePerCom: Number(text) || 0,
+                    }))
+                  }
+                  placeholder="Price (VND)"
+                />
+              </View>
+              <View style={styles.formRow}>
+                <Text style={styles.formLabel}>Status</Text>
+                <TextInput
+                  style={styles.formInput}
+                  value={formData.status}
+                  onChangeText={(text) =>
+                    setFormData((prev) => ({ ...prev, status: text }))
+                  }
+                  placeholder="Status (e.g. AVAILABLE)"
+                />
+              </View>
+              <View style={styles.formRow}>
+                <Text style={styles.formLabel}>Image URL</Text>
+                <TextInput
+                  style={styles.formInput}
+                  value={formData.imageUrl}
+                  onChangeText={(text) =>
+                    setFormData((prev) => ({ ...prev, imageUrl: text }))
+                  }
+                  placeholder="https://..."
+                  autoCapitalize="none"
+                />
+              </View>
+              <View style={styles.formRow}>
+                <Text style={styles.formLabel}>Link</Text>
+                <TextInput
+                  style={styles.formInput}
+                  value={formData.link}
+                  onChangeText={(text) =>
+                    setFormData((prev) => ({ ...prev, link: text }))
+                  }
+                  placeholder="Reference link"
+                  autoCapitalize="none"
+                />
+              </View>
+              <View style={styles.formRow}>
+                <Text style={styles.formLabel}>Description</Text>
+                <TextInput
+                  style={[styles.formInput, styles.formInputMultiline]}
+                  value={formData.description}
+                  onChangeText={(text) =>
+                    setFormData((prev) => ({ ...prev, description: text }))
+                  }
+                  placeholder="Description"
+                  multiline
+                  numberOfLines={3}
+                />
+              </View>
+            </ScrollView>
+            <View style={styles.modalFooter}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.modalButtonSecondary]}
+                onPress={() => setEditModalVisible(false)}
+              >
+                <Text style={styles.modalButtonSecondaryText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.modalButtonPrimary]}
+                onPress={handleSaveComponent}
+              >
+                <Text style={styles.modalButtonPrimaryText}>Save</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+    </View>
+  );
+};
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#f5f5f5',
+  },
+  header: {
+    backgroundColor: '#667eea',
+    padding: 16,
+    paddingTop: 50,
+    borderBottomLeftRadius: 20,
+    borderBottomRightRadius: 20,
+  },
+  headerTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  menuButton: {
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  headerTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#fff',
+    flex: 1,
+  },
+  headerButtons: {
+    flexDirection: 'row',
+    gap: 8,
+    alignItems: 'center',
+  },
+  logoutButton: {
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  content: {
+    flex: 1,
+    padding: 16,
+  },
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    marginBottom: 12,
+    elevation: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+  },
+  searchIcon: {
+    marginRight: 8,
+  },
+  searchInput: {
+    flex: 1,
+    height: 40,
+    fontSize: 14,
+  },
+  filterChipsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 12,
+  },
+  filterChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+  },
+  filterChipActive: {
+    backgroundColor: '#667eea15',
+    borderColor: '#667eea',
+  },
+  filterChipText: {
+    fontSize: 12,
+    color: '#666',
+    fontWeight: '500',
+  },
+  filterChipTextActive: {
+    color: '#667eea',
+  },
+  actionsRow: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    marginBottom: 12,
+  },
+  primaryButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#667eea',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  primaryButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+    marginLeft: 8,
+  },
+  listContainer: {
+    marginTop: 6,
+    paddingBottom: 16,
+  },
+  gridRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  componentCard: {
+    width: '46%',
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    overflow: 'hidden',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    borderWidth: 1,
+    borderColor: '#f0f0f0',
+  },
+  componentImage: {
+    width: '100%',
+    height: 70,
+  },
+  componentImagePlaceholder: {
+    width: '100%',
+    height: 70,
+    backgroundColor: '#667eea',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  componentCardContent: {
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+  },
+  componentHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 4,
+  },
+  componentName: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#2c3e50',
+  },
+  statusChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    backgroundColor: '#f5f5f5',
+  },
+  statusChipText: {
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  componentBadge: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#722ed115',
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 4,
+    marginBottom: 2,
+  },
+  componentBadgeText: {
+    fontSize: 10,
+    color: '#722ed1',
+    fontWeight: '600',
+  },
+  componentDetailsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 4,
+    marginBottom: 2,
+  },
+  componentDetailText: {
+    fontSize: 10,
+    color: '#666',
+  },
+  componentPrice: {
+    fontSize: 11,
+    color: '#1890ff',
+    fontWeight: '600',
+    marginTop: 4,
+    marginBottom: 2,
+    alignSelf: 'flex-start',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    backgroundColor: '#e6f4ff',
+    borderRadius: 12,
+  },
+  componentDescription: {
+    fontSize: 11,
+    color: '#666',
+    marginTop: 4,
+    lineHeight: 16,
+  },
+  componentActionsRow: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    marginTop: 6,
+    gap: 8,
+  },
+  actionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  actionButtonText: {
+    fontSize: 12,
+    marginLeft: 4,
+    fontWeight: '600',
+  },
+  emptyState: {
+    alignItems: 'center',
+    padding: 40,
+  },
+  emptyText: {
+    fontSize: 16,
+    color: '#999',
+    marginTop: 12,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: '90%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#2c3e50',
+  },
+  modalBody: {
+    padding: 16,
+  },
+  formRow: {
+    marginBottom: 12,
+  },
+  formRowInline: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 12,
+  },
+  formColumn: {
+    flex: 1,
+  },
+  formLabel: {
+    fontSize: 12,
+    color: '#666',
+    marginBottom: 4,
+  },
+  formInput: {
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    fontSize: 14,
+    backgroundColor: '#fff',
+  },
+  formInputMultiline: {
+    height: 80,
+    textAlignVertical: 'top',
+  },
+  formSelect: {
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 10,
+    backgroundColor: '#fff',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  formSelectText: {
+    fontSize: 14,
+    color: '#2c3e50',
+    fontWeight: '500',
+  },
+  formSelectPlaceholder: {
+    fontSize: 14,
+    color: '#999',
+  },
+  dropdownOptions: {
+    marginTop: 6,
+    borderRadius: 8,
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+    overflow: 'hidden',
+  },
+  dropdownOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  dropdownOptionSelected: {
+    backgroundColor: '#667eea15',
+  },
+  dropdownOptionText: {
+    fontSize: 14,
+    color: '#2c3e50',
+  },
+  dropdownOptionTextSelected: {
+    fontWeight: '600',
+    color: '#667eea',
+  },
+  typeColorDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    marginRight: 8,
+    backgroundColor: '#666',
+  },
+  modalFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    padding: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#e0e0e0',
+    gap: 12,
+  },
+  modalButton: {
+    flex: 1,
+    borderRadius: 12,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  modalButtonSecondary: {
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+  },
+  modalButtonSecondaryText: {
+    color: '#666',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  modalButtonPrimary: {
+    backgroundColor: '#667eea',
+  },
+  modalButtonPrimaryText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+});
+
+export default AdminKitComponents;
+
+

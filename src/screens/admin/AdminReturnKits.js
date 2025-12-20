@@ -188,13 +188,13 @@ const AdminReturnKits = ({ onLogout, route }) => {
     setInspectionModalVisible(true);
   };
 
-  const handleComponentDamage = (componentName, isDamaged, damageValue = 0) => {
+  const handleComponentDamage = (componentName, isDamaged, componentPrice = 0) => {
     setDamageAssessment(prev => {
       const newAssessment = {
         ...prev,
         [componentName]: {
           damaged: isDamaged,
-          value: damageValue
+          value: isDamaged ? componentPrice : 0
         }
       };
       
@@ -623,7 +623,8 @@ const AdminReturnKits = ({ onLogout, route }) => {
                     selectedKit.components.map((component, index) => {
                       const componentName = component.componentName || component.name || `Component ${index + 1}`;
                       const isDamaged = damageAssessment[componentName]?.damaged || false;
-                      const damageValue = damageAssessment[componentName]?.value || 0;
+                      const componentPrice = component.pricePerCom || component.price || 0;
+                      const damageValue = damageAssessment[componentName]?.value || (isDamaged ? componentPrice : 0);
                       
                       return (
                         <View key={component.id || index} style={styles.componentInspectionItem}>
@@ -632,6 +633,11 @@ const AdminReturnKits = ({ onLogout, route }) => {
                             <Text style={styles.componentDetails}>
                               Type: {component.componentType || 'N/A'} | Qty: {component.rentedQuantity || component.quantityTotal || 0}
                             </Text>
+                            {componentPrice > 0 && (
+                              <Text style={[styles.componentDetails, { color: '#1890ff', marginTop: 4 }]}>
+                                Price: {componentPrice.toLocaleString('vi-VN')} VND
+                              </Text>
+                            )}
                           </View>
                           <View style={styles.damageControls}>
                             <TouchableOpacity
@@ -639,7 +645,7 @@ const AdminReturnKits = ({ onLogout, route }) => {
                                 styles.damageButton,
                                 isDamaged && styles.damageButtonActive
                               ]}
-                              onPress={() => handleComponentDamage(componentName, !isDamaged, damageValue)}
+                              onPress={() => handleComponentDamage(componentName, !isDamaged, componentPrice)}
                             >
                               <Text style={[
                                 styles.damageButtonText,
@@ -649,17 +655,11 @@ const AdminReturnKits = ({ onLogout, route }) => {
                               </Text>
                             </TouchableOpacity>
                             {isDamaged && (
-                              <TextInput
-                                style={styles.damageValueInput}
-                                value={damageValue.toString()}
-                                onChangeText={(text) => {
-                                  const value = parseInt(text) || 0;
-                                  handleComponentDamage(componentName, true, value);
-                                }}
-                                placeholder="Fine amount"
-                                keyboardType="numeric"
-                                placeholderTextColor="#999"
-                              />
+                              <View style={styles.damageValueContainer}>
+                                <Text style={styles.damageValueText}>
+                                  Fine: {damageValue.toLocaleString('vi-VN')} VND
+                                </Text>
+                              </View>
                             )}
                           </View>
                         </View>
@@ -994,6 +994,21 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#e0e0e0',
   },
+  damageValueContainer: {
+    flex: 1,
+    marginLeft: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: '#fff7e6',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#ffd591',
+  },
+  damageValueText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#ff4d4f',
+  },
   noComponentsText: {
     fontSize: 14,
     color: '#999',
@@ -1031,4 +1046,3 @@ const styles = StyleSheet.create({
 });
 
 export default AdminReturnKits;
-

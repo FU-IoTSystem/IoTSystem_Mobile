@@ -257,64 +257,7 @@ const AdminDashboard = ({ user, onLogout }) => {
           </View>
         </View>
 
-        {/* Recent Activity */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Recent Activity</Text>
-          {rentalRequests.slice(0, 5).map((request) => (
-            <View key={request.id} style={styles.activityItem}>
-              <View style={styles.activityIcon}>
-                <Icon 
-                  name={
-                    request.status === 'APPROVED' ? 'check-circle' : 
-                    request.status === 'REJECTED' ? 'cancel' : 
-                    'schedule'
-                  } 
-                  size={20} 
-                  color={
-                    request.status === 'APPROVED' ? '#52c41a' : 
-                    request.status === 'REJECTED' ? '#ff4d4f' : 
-                    '#faad14'
-                  } 
-                />
-              </View>
-              <View style={styles.activityContent}>
-                <Text style={styles.activityText}>
-                  {request.requestedBy?.fullName || 'Unknown'} requested kit
-                </Text>
-                <Text style={styles.activityTime}>
-                  {request.createdAt 
-                    ? new Date(request.createdAt).toLocaleDateString('vi-VN')
-                    : 'N/A'}
-                </Text>
-              </View>
-              <View style={[
-                styles.statusBadge,
-                { backgroundColor: 
-                  request.status === 'APPROVED' ? '#52c41a15' : 
-                  request.status === 'REJECTED' ? '#ff4d4f15' : 
-                  '#faad1415'
-                }
-              ]}>
-                <Text style={[
-                  styles.statusText,
-                  { color: 
-                    request.status === 'APPROVED' ? '#52c41a' : 
-                    request.status === 'REJECTED' ? '#ff4d4f' : 
-                    '#faad14'
-                  }
-                ]}>
-                  {request.status || 'PENDING'}
-                </Text>
-              </View>
-            </View>
-          ))}
-          {rentalRequests.length === 0 && (
-            <View style={styles.emptyState}>
-              <Icon name="inbox" size={48} color="#ccc" />
-              <Text style={styles.emptyText}>No recent activity</Text>
-            </View>
-          )}
-        </View>
+        {/* Recent Activity section removed by design */}
       </ScrollView>
     </AdminLayout>
   );
