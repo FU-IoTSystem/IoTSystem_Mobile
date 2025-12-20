@@ -305,7 +305,18 @@ export const walletTransactionAPI = {
   getHistory: async () => {
     const response = await apiRequest('/api/wallet-transactions/history');
     return response.data || [];
-  }
+  },
+
+  transfer: async (recipientEmail, amount, description) => {
+    return apiRequest('/api/wallet-transactions/transfer', {
+      method: 'POST',
+      body: JSON.stringify({
+        recipientEmail,
+        amount,
+        description,
+      }),
+    });
+  },
 };
 
 // Borrowing Group API
@@ -509,6 +520,11 @@ export const kitAPI = {
 
 // Kit Component API
 export const kitComponentAPI = {
+  getAllComponents: async () => {
+    // Fetch all components (including components without a specific kit)
+    return apiRequest('/api/kitComponent/all');
+  },
+
   createComponent: async (componentData) => {
     return apiRequest('/api/kitComponent', {
       method: 'POST',
@@ -526,6 +542,22 @@ export const kitComponentAPI = {
   deleteComponent: async (id) => {
     return apiRequest(`/api/kitComponent?id=${id}`, {
       method: 'DELETE',
+    });
+  }
+};
+
+// Kit Component History API
+export const kitComponentHistoryAPI = {
+  getByKit: async (kitId) => {
+    return apiRequest(`/api/kit-component-history/kit/${kitId}`);
+  },
+  getByComponent: async (componentId) => {
+    return apiRequest(`/api/kit-component-history/component/${componentId}`);
+  },
+  create: async (payload) => {
+    return apiRequest('/api/kit-component-history', {
+      method: 'POST',
+      body: JSON.stringify(payload),
     });
   }
 };
