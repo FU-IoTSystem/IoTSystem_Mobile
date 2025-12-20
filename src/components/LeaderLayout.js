@@ -27,7 +27,8 @@ const LeaderLayout = ({
   const loadNotifications = async () => {
     try {
       setNotificationLoading(true);
-      const response = await notificationAPI.getRoleNotifications();
+      // Use user-specific notifications instead of role-based to match web behavior
+      const response = await notificationAPI.getMyNotifications();
       const data = response?.data ?? response;
       const notificationsList = Array.isArray(data) ? data : [];
       // Sort by createdAt descending (newest first)
@@ -67,6 +68,20 @@ const LeaderLayout = ({
       );
     } catch (error) {
       console.error('Error marking notification as read:', error);
+    }
+  };
+
+  const handleMarkAllAsRead = async () => {
+    try {
+      const unreadNotifications = notifications.filter(item => !item.isRead);
+      await Promise.all(
+        unreadNotifications.map(notif => notificationAPI.markAsRead(notif.id))
+      );
+      setNotifications(prevNotifications =>
+        prevNotifications.map(notif => ({ ...notif, isRead: true }))
+      );
+    } catch (error) {
+      console.error('Error marking all notifications as read:', error);
     }
   };
 
@@ -198,12 +213,22 @@ const LeaderLayout = ({
         <View style={styles.modalContainer}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>Thông báo</Text>
-            <TouchableOpacity
-              onPress={() => setNotificationModalVisible(false)}
-              style={styles.closeButton}
-            >
-              <Icon name="close" size={24} color="#333" />
-            </TouchableOpacity>
+            <View style={styles.modalHeaderActions}>
+              {unreadNotificationsCount > 0 && (
+                <TouchableOpacity
+                  onPress={handleMarkAllAsRead}
+                  style={styles.markAllAsReadButton}
+                >
+                  <Text style={styles.markAllAsReadText}>Mark all as read</Text>
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity
+                onPress={() => setNotificationModalVisible(false)}
+                style={styles.closeButton}
+              >
+                <Icon name="close" size={24} color="#fff" />
+              </TouchableOpacity>
+            </View>
           </View>
           {notificationLoading ? (
             <View style={styles.loadingContainer}>
@@ -270,10 +295,26 @@ const styles = StyleSheet.create({
     backgroundColor: '#667eea',
     paddingTop: 50,
   },
+  modalHeaderActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
   modalTitle: {
     fontSize: 20,
     fontWeight: 'bold',
     color: '#fff',
+  },
+  markAllAsReadButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    borderRadius: 8,
+  },
+  markAllAsReadText: {
+    fontSize: 14,
+    color: '#fff',
+    fontWeight: '600',
   },
   closeButton: {
     padding: 4,
