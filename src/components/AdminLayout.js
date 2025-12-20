@@ -121,6 +121,20 @@ const AdminLayout = ({
     }
   };
 
+  const handleMarkAllAsRead = async () => {
+    try {
+      const unreadNotifications = notifications.filter(item => !item.isRead);
+      await Promise.all(
+        unreadNotifications.map(notif => notificationAPI.markAsRead(notif.id))
+      );
+      setNotifications(prevNotifications =>
+        prevNotifications.map(notif => ({ ...notif, isRead: true }))
+      );
+    } catch (error) {
+      console.error('Error marking all notifications as read:', error);
+    }
+  };
+
   const renderNotificationItem = ({ item }) => {
     const typeInfo = notificationTypeStyles[item.type] || { color: '#1890ff', label: item.type || 'Thông báo' };
     const notificationDate = formatDateTime(item.createdAt);
@@ -228,12 +242,22 @@ const AdminLayout = ({
         <View style={styles.modalContainer}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>Thông báo</Text>
-            <TouchableOpacity
-              onPress={() => setNotificationModalVisible(false)}
-              style={styles.closeButton}
-            >
-              <Icon name="close" size={24} color="#333" />
-            </TouchableOpacity>
+            <View style={styles.modalHeaderActions}>
+              {unreadNotificationsCount > 0 && (
+                <TouchableOpacity
+                  onPress={handleMarkAllAsRead}
+                  style={styles.markAllButton}
+                >
+                  <Text style={styles.markAllButtonText}>Mark all as read</Text>
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity
+                onPress={() => setNotificationModalVisible(false)}
+                style={styles.closeButton}
+              >
+                <Icon name="close" size={24} color="#fff" />
+              </TouchableOpacity>
+            </View>
           </View>
           {notificationLoading ? (
             <View style={styles.loadingContainer}>
@@ -296,10 +320,26 @@ const styles = StyleSheet.create({
     backgroundColor: '#667eea',
     paddingTop: 50,
   },
+  modalHeaderActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
   modalTitle: {
     fontSize: 20,
     fontWeight: 'bold',
     color: '#fff',
+  },
+  markAllButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    borderRadius: 8,
+  },
+  markAllButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
   },
   closeButton: {
     padding: 4,
