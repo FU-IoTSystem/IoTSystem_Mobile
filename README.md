@@ -81,6 +81,8 @@ iotsystem_mobile/
     │   │   │   ├── AdminDashboard.js
     │   │   │   ├── AdminFines.js
     │   │   │   ├── AdminGroups.js
+    │   │   │   ├── AdminKitComponentHistory.js
+    │   │   │   ├── AdminKitComponents.js
     │   │   │   ├── AdminKits.js
     │   │   │   ├── AdminLogHistory.js
     │   │   │   ├── AdminPenaltyPolicies.js
@@ -124,6 +126,7 @@ iotsystem_mobile/
     │   │   └── shared/               # Shared screens across roles
     │   │       ├── PenaltyPaymentScreen.js
     │   │       ├── QRInfoScreen.js
+    │   │       ├── TransferScreen.js
     │   │       └── TopUpScreen.js
     │   │
     │   ├── services/                 # API & external services
