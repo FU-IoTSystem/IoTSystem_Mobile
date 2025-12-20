@@ -65,6 +65,14 @@ const MemberWallet = ({ user, navigation, onLogout }) => {
     }
   };
 
+  const handleTransfer = () => {
+    if (navigation) {
+      navigation.navigate('Transfer');
+    } else {
+      Alert.alert('Info', 'Transfer functionality coming soon');
+    }
+  };
+
   const handlePayPenalties = () => {
     if (navigation) {
       navigation.navigate('PenaltyPayment');
@@ -75,20 +83,24 @@ const MemberWallet = ({ user, navigation, onLogout }) => {
 
   const getTransactionTypeInfo = (type) => {
     const upperType = (type || '').toUpperCase();
+    const displayLabel = upperType ? upperType.replace(/_/g, ' ') : 'TRANSACTION';
     switch (upperType) {
       case 'TOP_UP':
       case 'TOPUP':
-        return { icon: 'add-circle', color: '#52c41a', label: 'Nạp tiền', amountColor: '#52c41a' };
+        return { icon: 'add-circle', color: '#52c41a', label: displayLabel, amountColor: '#52c41a' };
       case 'RENTAL_FEE':
-        return { icon: 'shopping-cart', color: '#ff4d4f', label: 'Thuê kit', amountColor: '#ff4d4f' };
+        // Match dashboard UI: blue icon/tag, red amount
+        return { icon: 'shopping-cart', color: '#1890ff', label: displayLabel, amountColor: '#ff4d4f' };
       case 'PENALTY_PAYMENT':
       case 'PENALTY':
       case 'FINE':
-        return { icon: 'warning', color: '#ff4d4f', label: 'Phí phạt', amountColor: '#ff4d4f' };
+        return { icon: 'warning', color: '#ff4d4f', label: displayLabel, amountColor: '#ff4d4f' };
       case 'REFUND':
-        return { icon: 'undo', color: '#52c41a', label: 'Hoàn tiền', amountColor: '#52c41a' };
+        // Match dashboard UI: purple icon/tag, green amount
+        return { icon: 'undo', color: '#722ed1', label: displayLabel, amountColor: '#52c41a' };
       default:
-        return { icon: 'info', color: '#666', label: type || 'Khác', amountColor: '#666' };
+        // Generic payment icon to align with dashboard/admin default transaction icon
+        return { icon: 'payment', color: '#666', label: displayLabel, amountColor: '#666' };
     }
   };
 
@@ -127,7 +139,7 @@ const MemberWallet = ({ user, navigation, onLogout }) => {
                 styles.statusText,
                 { color: item.status === 'COMPLETED' || item.status === 'SUCCESS' ? '#52c41a' : '#faad14' }
               ]}>
-                {item.status === 'COMPLETED' || item.status === 'SUCCESS' ? 'Hoàn thành' : 'Chờ xử lý'}
+                {item.status === 'COMPLETED' || item.status === 'SUCCESS' ? 'Completed' : 'Pending'}
               </Text>
             </View>
           </View>
@@ -195,6 +207,13 @@ const MemberWallet = ({ user, navigation, onLogout }) => {
             >
               <Icon name="add-circle" size={24} color="#fff" />
               <Text style={styles.actionButtonText}>Top Up</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.actionButton, styles.transferButton]}
+              onPress={handleTransfer}
+            >
+              <Icon name="swap-horiz" size={24} color="#fff" />
+              <Text style={styles.actionButtonText}>Transfer</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.actionButton, styles.penaltyButton]}
@@ -287,6 +306,9 @@ const styles = StyleSheet.create({
   },
   topUpButton: {
     backgroundColor: '#52c41a',
+  },
+  transferButton: {
+    backgroundColor: '#13c2c2',
   },
   penaltyButton: {
     backgroundColor: '#faad14',
