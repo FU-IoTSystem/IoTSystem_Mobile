@@ -28,6 +28,7 @@ const LeaderDashboard = ({ user, onLogout }) => {
   });
   const [rentalRequests, setRentalRequests] = useState([]);
   const [wallet, setWallet] = useState({ balance: 0 });
+  const [transactions, setTransactions] = useState([]);
 
   useEffect(() => {
     console.log('LeaderDashboard mounted, user:', user);
@@ -74,11 +75,34 @@ const LeaderDashboard = ({ user, onLogout }) => {
       // Load transactions
       try {
         const transactionsResponse = await walletTransactionAPI.getHistory();
-        transactions = Array.isArray(transactionsResponse) 
+        const transactionsData = Array.isArray(transactionsResponse) 
           ? transactionsResponse 
           : (transactionsResponse?.data || []);
+        
+        // Map transactions to match expected structure (similar to LeaderPortal.js)
+        const mappedTransactions = transactionsData.map(txn => ({
+          type: txn.type || txn.transactionType || 'UNKNOWN',
+          amount: txn.amount || 0,
+          previousBalance: txn.previousBalance || null,
+          date: txn.createdAt ? new Date(txn.createdAt).toLocaleDateString('vi-VN') : 'N/A',
+          description: txn.description || '',
+          status: txn.status || txn.transactionStatus || 'COMPLETED',
+          id: txn.id,
+          createdAt: txn.createdAt || txn.transactionDate
+        }));
+        
+        // Sort by createdAt descending (newest first)
+        mappedTransactions.sort((a, b) => {
+          const dateA = new Date(a.createdAt || 0);
+          const dateB = new Date(b.createdAt || 0);
+          return dateB - dateA;
+        });
+        
+        transactions = mappedTransactions;
+        setTransactions(mappedTransactions);
       } catch (error) {
         console.error('Error loading transactions:', error);
+        setTransactions([]);
       }
 
       // Calculate stats
@@ -293,61 +317,120 @@ const LeaderDashboard = ({ user, onLogout }) => {
           </View>
         </View>
 
-        {/* Recent Activity */}
+        {/* Recent Transactions */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Recent Activity</Text>
-          {rentalRequests.slice(0, 5).map((request) => (
-            <View key={request.id} style={styles.activityItem}>
-              <View style={styles.activityIcon}>
-                <Icon 
-                  name={
-                    request.status === 'APPROVED' || request.status === 'BORROWED' ? 'check-circle' : 
-                    request.status === 'REJECTED' ? 'cancel' : 
-                    'schedule'
-                  } 
-                  size={20} 
-                  color={
-                    request.status === 'APPROVED' || request.status === 'BORROWED' ? '#52c41a' : 
-                    request.status === 'REJECTED' ? '#ff4d4f' : 
-                    '#faad14'
-                  } 
-                />
+          <Text style={styles.sectionTitle}>Recent Transactions</Text>
+          {transactions.slice(0, 5).map((transaction) => {
+            // Determine color based on transaction type (similar to LeaderPortal.js)
+            const typeUpper = (transaction.type || '').toUpperCase();
+            const isPositiveTransaction = 
+              typeUpper === 'TOP_UP' || 
+              typeUpper === 'TOPUP' || 
+              typeUpper === 'REFUND';
+            const isNegativeTransaction = 
+              typeUpper === 'RENTAL_FEE' || 
+              typeUpper === 'PENALTY_PAYMENT' || 
+              typeUpper === 'PENALTY' || 
+              typeUpper === 'FINE';
+            
+            // Use type-based color if available, otherwise fallback to amount-based
+            let amountColor = '#595959'; // default gray
+            if (isPositiveTransaction) {
+              amountColor = '#52c41a'; // green for top-up and refund
+            } else if (isNegativeTransaction) {
+              amountColor = '#ff4d4f'; // red for rental fee and penalty
+            } else {
+              // Fallback: use amount sign
+              amountColor = transaction.amount > 0 ? '#52c41a' : '#ff4d4f';
+            }
+
+            // Get icon name based on type
+            let iconName = 'attach-money';
+            let iconColor = amountColor;
+            if (typeUpper === 'TOP_UP' || typeUpper === 'TOPUP') {
+              iconName = 'add-circle';
+              iconColor = '#52c41a';
+            } else if (typeUpper === 'RENTAL_FEE') {
+              iconName = 'shopping-cart';
+              iconColor = '#1890ff';
+            } else if (typeUpper === 'PENALTY_PAYMENT' || typeUpper === 'PENALTY' || typeUpper === 'FINE') {
+              iconName = 'warning';
+              iconColor = '#ff4d4f';
+            } else if (typeUpper === 'REFUND') {
+              iconName = 'undo';
+              iconColor = '#722ed1';
+            }
+
+            // Get tag color based on type
+            let tagColor = '#52c41a';
+            let tagBg = '#52c41a15';
+            if (typeUpper === 'TOP_UP' || typeUpper === 'TOPUP') {
+              tagColor = '#52c41a';
+              tagBg = '#52c41a15';
+            } else if (typeUpper === 'RENTAL_FEE') {
+              tagColor = '#1890ff';
+              tagBg = '#1890ff15';
+            } else if (typeUpper === 'PENALTY_PAYMENT' || typeUpper === 'PENALTY' || typeUpper === 'FINE') {
+              tagColor = '#ff4d4f';
+              tagBg = '#ff4d4f15';
+            } else if (typeUpper === 'REFUND') {
+              tagColor = '#722ed1';
+              tagBg = '#722ed115';
+            }
+
+            return (
+              <View key={transaction.id} style={styles.activityItem}>
+                <View style={styles.activityIcon}>
+                  <Icon 
+                    name={iconName}
+                    size={20} 
+                    color={iconColor}
+                  />
+                </View>
+                <View style={styles.activityContent}>
+                  <View style={styles.transactionHeader}>
+                    <View style={[
+                      styles.typeBadge,
+                      { backgroundColor: tagBg }
+                    ]}>
+                      <Text style={[
+                        styles.typeText,
+                        { color: tagColor }
+                      ]}>
+                        {transaction.type?.replace(/_/g, ' ') || 'Transaction'}
+                      </Text>
+                    </View>
+                  </View>
+                  <Text style={styles.activityText}>
+                    {transaction.description || transaction.date || 'N/A'}
+                  </Text>
+                  <Text style={styles.activityTime}>
+                    {transaction.createdAt 
+                      ? new Date(transaction.createdAt).toLocaleDateString('vi-VN', {
+                          day: '2-digit',
+                          month: '2-digit',
+                          year: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })
+                      : transaction.date || 'N/A'}
+                  </Text>
+                </View>
+                <View style={styles.transactionAmount}>
+                  <Text style={[
+                    styles.amountText,
+                    { color: amountColor }
+                  ]}>
+                    {isPositiveTransaction ? '+' : isNegativeTransaction ? '-' : ''}{Math.abs(transaction.amount || 0)?.toLocaleString('vi-VN')} VND
+                  </Text>
+                </View>
               </View>
-              <View style={styles.activityContent}>
-                <Text style={styles.activityText}>
-                  {request.kitName || request.kit?.kitName || request.componentName || request.component?.componentName || request.requestCode || 'Rental'} rental request
-                </Text>
-                <Text style={styles.activityTime}>
-                  {request.createdAt 
-                    ? new Date(request.createdAt).toLocaleDateString('vi-VN')
-                    : 'N/A'}
-                </Text>
-              </View>
-              <View style={[
-                styles.statusBadge,
-                { backgroundColor: 
-                  request.status === 'APPROVED' || request.status === 'BORROWED' ? '#52c41a15' : 
-                  request.status === 'REJECTED' ? '#ff4d4f15' : 
-                  '#faad1415'
-                }
-              ]}>
-                <Text style={[
-                  styles.statusText,
-                  { color: 
-                    request.status === 'APPROVED' || request.status === 'BORROWED' ? '#52c41a' : 
-                    request.status === 'REJECTED' ? '#ff4d4f' : 
-                    '#faad14'
-                  }
-                ]}>
-                  {request.status || 'PENDING'}
-                </Text>
-              </View>
-            </View>
-          ))}
-          {rentalRequests.length === 0 && (
+            );
+          })}
+          {transactions.length === 0 && (
             <View style={styles.emptyState}>
               <Icon name="inbox" size={48} color="#ccc" />
-              <Text style={styles.emptyText}>No recent activity</Text>
+              <Text style={styles.emptyText}>No recent transactions</Text>
             </View>
           )}
         </View>
@@ -493,6 +576,30 @@ const styles = StyleSheet.create({
   statusText: {
     fontSize: 11,
     fontWeight: '600',
+  },
+  transactionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  typeBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
+    alignSelf: 'flex-start',
+  },
+  typeText: {
+    fontSize: 11,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+  },
+  transactionAmount: {
+    alignItems: 'flex-end',
+    justifyContent: 'center',
+  },
+  amountText: {
+    fontSize: 14,
+    fontWeight: 'bold',
   },
   emptyState: {
     alignItems: 'center',

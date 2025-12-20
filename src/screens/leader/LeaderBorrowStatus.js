@@ -500,16 +500,6 @@ const LeaderBorrowStatus = ({ user, navigation }) => {
                       );
                     })()}
                   </View>
-                  {selectedRental.qrCode && typeof selectedRental.qrCode === 'string' && (
-                    <View style={styles.detailItem}>
-                      <Text style={styles.detailLabel}>QR Code Data:</Text>
-                      <Text style={[styles.detailValue, styles.qrCodeData]}>
-                        {selectedRental.qrCode.length > 100 
-                          ? `${selectedRental.qrCode.substring(0, 100)}...` 
-                          : selectedRental.qrCode}
-                      </Text>
-                    </View>
-                  )}
                 </View>
               )}
             </ScrollView>
