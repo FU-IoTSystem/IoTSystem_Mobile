@@ -396,8 +396,8 @@ const LecturerKitRental = ({ user }) => {
                 </View>
                 <View style={styles.detailItem}>
                   <Text style={styles.detailLabel}>Price:</Text>
-                  <Text style={[styles.detailValue, { color: '#ff4d4f', fontSize: 16 }]}>
-                    -{depositAmount.toLocaleString()} VND
+                  <Text style={[styles.detailValue, { color: '#2c3e50', fontSize: 16 }]}>
+                    {depositAmount.toLocaleString()} VND
                   </Text>
                 </View>
               </View>
@@ -435,10 +435,10 @@ const LecturerKitRental = ({ user }) => {
                   <Text
                     style={[
                       styles.summaryValue,
-                      { color: '#ff4d4f' },
+                      { color: '#2c3e50' },
                     ]}
                   >
-                    -{depositAmount.toLocaleString()} VND
+                    {depositAmount.toLocaleString()} VND
                   </Text>
                 </View>
                 <View style={styles.summaryRow}>
@@ -535,20 +535,54 @@ const LecturerKitRental = ({ user }) => {
 
             <ScrollView style={styles.modalBody}>
               <View style={styles.qrContainer}>
-                {qrCodeData && (
-                  typeof qrCodeData === 'string' && qrCodeData.startsWith('http') ? (
-                    <Image
-                      source={{ uri: qrCodeData }}
-                      style={styles.qrImage}
-                      resizeMode="contain"
-                    />
-                  ) : (
+                {qrCodeData && (() => {
+                  // Check if it's a URL
+                  if (typeof qrCodeData === 'string' && (qrCodeData.startsWith('http://') || qrCodeData.startsWith('https://'))) {
+                    return (
+                      <Image
+                        source={{ uri: qrCodeData }}
+                        style={styles.qrImage}
+                        resizeMode="contain"
+                      />
+                    );
+                  }
+                  
+                  // Check if it's already a data URI
+                  if (typeof qrCodeData === 'string' && qrCodeData.startsWith('data:image')) {
+                    return (
+                      <Image
+                        source={{ uri: qrCodeData }}
+                        style={styles.qrImage}
+                        resizeMode="contain"
+                      />
+                    );
+                  }
+                  
+                  // Check if it's a base64 string - try to display as image
+                  // Base64 strings are typically longer than 100 chars and contain only base64 characters
+                  if (typeof qrCodeData === 'string' && qrCodeData.length > 50 && 
+                      qrCodeData.match(/^[A-Za-z0-9+/=]+$/) && 
+                      !qrCodeData.includes(' ') && 
+                      !qrCodeData.includes('\n')) {
+                    // Convert base64 to data URI (assume PNG format for QR codes)
+                    const base64Uri = `data:image/png;base64,${qrCodeData}`;
+                    return (
+                      <Image
+                        source={{ uri: base64Uri }}
+                        style={styles.qrImage}
+                        resizeMode="contain"
+                      />
+                    );
+                  }
+                  
+                  // Fallback: show as text (should not happen for valid QR codes)
+                  return (
                     <View style={styles.qrCodePlaceholder}>
                       <Icon name="qr-code" size={150} color="#667eea" />
                       <Text style={styles.qrCodeText}>{qrCodeData}</Text>
                     </View>
-                  )
-                )}
+                  );
+                })()}
               </View>
 
               {submittedRequest && (

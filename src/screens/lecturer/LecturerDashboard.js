@@ -56,15 +56,24 @@ const LecturerDashboard = ({ user, onLogout }) => {
             ? transactionHistoryResponse 
             : (transactionHistoryResponse?.data || []);
           
-          // Map transactions to expected format
+          // Map transactions to expected format (similar to LeaderDashboard.js)
           transactions = transactionData.map(txn => ({
             type: txn.type || txn.transactionType || 'UNKNOWN',
             amount: txn.amount || 0,
+            previousBalance: txn.previousBalance || null,
             date: txn.createdAt ? dayjs(txn.createdAt).format('DD/MM/YYYY HH:mm') : 'N/A',
             description: txn.description || '',
             status: txn.status || txn.transactionStatus || 'COMPLETED',
-            id: txn.id
+            id: txn.id,
+            createdAt: txn.createdAt || txn.transactionDate
           }));
+          
+          // Sort by createdAt descending (newest first)
+          transactions.sort((a, b) => {
+            const dateA = new Date(a.createdAt || 0);
+            const dateB = new Date(b.createdAt || 0);
+            return dateB - dateA;
+          });
           
           console.log('Mapped transactions:', transactions);
         } catch (txnError) {
@@ -417,32 +426,122 @@ const LecturerDashboard = ({ user, onLogout }) => {
         </View>
 
             {/* Recent Transactions Section */}
-            {recentTransactions.length > 0 && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Recent Transactions</Text>
-                  {recentTransactions.map((transaction) => (
-              <View key={transaction.id} style={styles.activityItem}>
-                <View style={styles.activityIcon}>
-                  <Icon 
-                    name={transaction.type === 'TOP_UP' ? 'arrow-upward' : 'arrow-downward'} 
-                    size={20} 
-                    color={transaction.amount > 0 ? '#52c41a' : '#ff4d4f'} 
-                  />
-                </View>
-                <View style={styles.activityContent}>
-                  <Text style={styles.activityText}>{transaction.type}</Text>
-                  <Text style={styles.activityTime}>{transaction.date}</Text>
-                          </View>
-                <Text style={[
-                  styles.activityAmount,
-                            { color: transaction.amount > 0 ? '#52c41a' : '#ff4d4f' }
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Recent Transactions</Text>
+              {recentTransactions.map((transaction) => {
+                // Determine color based on transaction type (similar to LeaderDashboard.js)
+                const typeUpper = (transaction.type || '').toUpperCase();
+                const isPositiveTransaction = 
+                  typeUpper === 'TOP_UP' || 
+                  typeUpper === 'TOPUP' || 
+                  typeUpper === 'REFUND';
+                const isNegativeTransaction = 
+                  typeUpper === 'RENTAL_FEE' || 
+                  typeUpper === 'PENALTY_PAYMENT' || 
+                  typeUpper === 'PENALTY' || 
+                  typeUpper === 'FINE';
+                
+                // Use type-based color if available, otherwise fallback to amount-based
+                let amountColor = '#595959'; // default gray
+                if (isPositiveTransaction) {
+                  amountColor = '#52c41a'; // green for top-up and refund
+                } else if (isNegativeTransaction) {
+                  amountColor = '#ff4d4f'; // red for rental fee and penalty
+                } else {
+                  // Fallback: use amount sign
+                  amountColor = transaction.amount > 0 ? '#52c41a' : '#ff4d4f';
+                }
+
+                // Get icon name based on type
+                let iconName = 'attach-money';
+                let iconColor = amountColor;
+                if (typeUpper === 'TOP_UP' || typeUpper === 'TOPUP') {
+                  iconName = 'add-circle';
+                  iconColor = '#52c41a';
+                } else if (typeUpper === 'RENTAL_FEE') {
+                  iconName = 'shopping-cart';
+                  iconColor = '#1890ff';
+                } else if (typeUpper === 'PENALTY_PAYMENT' || typeUpper === 'PENALTY' || typeUpper === 'FINE') {
+                  iconName = 'warning';
+                  iconColor = '#ff4d4f';
+                } else if (typeUpper === 'REFUND') {
+                  iconName = 'undo';
+                  iconColor = '#722ed1';
+                }
+
+                // Get tag color based on type
+                let tagColor = '#52c41a';
+                let tagBg = '#52c41a15';
+                if (typeUpper === 'TOP_UP' || typeUpper === 'TOPUP') {
+                  tagColor = '#52c41a';
+                  tagBg = '#52c41a15';
+                } else if (typeUpper === 'RENTAL_FEE') {
+                  tagColor = '#1890ff';
+                  tagBg = '#1890ff15';
+                } else if (typeUpper === 'PENALTY_PAYMENT' || typeUpper === 'PENALTY' || typeUpper === 'FINE') {
+                  tagColor = '#ff4d4f';
+                  tagBg = '#ff4d4f15';
+                } else if (typeUpper === 'REFUND') {
+                  tagColor = '#722ed1';
+                  tagBg = '#722ed115';
+                }
+
+                return (
+                  <View key={transaction.id} style={styles.activityItem}>
+                    <View style={styles.activityIcon}>
+                      <Icon 
+                        name={iconName}
+                        size={20} 
+                        color={iconColor}
+                      />
+                    </View>
+                    <View style={styles.activityContent}>
+                      <View style={styles.transactionHeader}>
+                        <View style={[
+                          styles.typeBadge,
+                          { backgroundColor: tagBg }
+                        ]}>
+                          <Text style={[
+                            styles.typeText,
+                            { color: tagColor }
                           ]}>
-                  {transaction.amount > 0 ? '+' : ''}{transaction.amount.toLocaleString('vi-VN')} VND
-                </Text>
+                            {transaction.type?.replace(/_/g, ' ') || 'Transaction'}
+                          </Text>
                         </View>
-                  ))}
-          </View>
-            )}
+                      </View>
+                      <Text style={styles.activityText}>
+                        {transaction.description || transaction.date || 'N/A'}
+                      </Text>
+                      <Text style={styles.activityTime}>
+                        {transaction.createdAt 
+                          ? new Date(transaction.createdAt).toLocaleDateString('vi-VN', {
+                              day: '2-digit',
+                              month: '2-digit',
+                              year: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })
+                          : transaction.date || 'N/A'}
+                      </Text>
+                    </View>
+                    <View style={styles.transactionAmount}>
+                      <Text style={[
+                        styles.amountText,
+                        { color: amountColor }
+                      ]}>
+                        {isPositiveTransaction ? '+' : isNegativeTransaction ? '-' : ''}{Math.abs(transaction.amount || 0)?.toLocaleString('vi-VN')} VND
+                      </Text>
+                    </View>
+                  </View>
+                );
+              })}
+              {recentTransactions.length === 0 && (
+                <View style={styles.emptyState}>
+                  <Icon name="inbox" size={48} color="#ccc" />
+                  <Text style={styles.emptyText}>No recent transactions</Text>
+                </View>
+              )}
+            </View>
 
             {/* Penalties Section */}
             {unresolvedPenalties.length > 0 && (
@@ -707,6 +806,30 @@ const styles = StyleSheet.create({
   },
   activityAmount: {
     fontSize: 16,
+    fontWeight: 'bold',
+  },
+  transactionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  typeBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
+    alignSelf: 'flex-start',
+  },
+  typeText: {
+    fontSize: 11,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+  },
+  transactionAmount: {
+    alignItems: 'flex-end',
+    justifyContent: 'center',
+  },
+  amountText: {
+    fontSize: 14,
     fontWeight: 'bold',
   },
   penaltyCard: {

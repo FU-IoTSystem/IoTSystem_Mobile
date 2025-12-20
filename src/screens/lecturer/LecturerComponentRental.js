@@ -16,7 +16,7 @@ import {
 } from 'react-native';
 import { MaterialIcons as Icon } from '@expo/vector-icons';
 import LecturerLayout from '../../components/LecturerLayout';
-import { kitAPI, borrowingRequestAPI, notificationAPI, walletAPI } from '../../services/api';
+import { kitAPI, kitComponentAPI, borrowingRequestAPI, notificationAPI, walletAPI } from '../../services/api';
 
 const LecturerComponentRental = ({ user }) => {
   const [loading, setLoading] = useState(false);
@@ -35,7 +35,8 @@ const LecturerComponentRental = ({ user }) => {
   const [submittedRequest, setSubmittedRequest] = useState(null);
   const [searchText, setSearchText] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
-  const [filterType, setFilterType] = useState('all');
+  // const [filterType, setFilterType] = useState('all'); // Type filter disabled by design
+  const [kitComponents, setKitComponents] = useState([]);
   const [statusFilterModalVisible, setStatusFilterModalVisible] = useState(false);
   const [typeFilterModalVisible, setTypeFilterModalVisible] = useState(false);
 
@@ -77,6 +78,21 @@ const LecturerComponentRental = ({ user }) => {
     }
   };
 
+  const loadKitComponents = async () => {
+    try {
+      const response = await kitComponentAPI.getAllComponents();
+      const data = Array.isArray(response) ? response : response?.data || [];
+      // Only use global components (kitId == null) for rental, same as AdminScreen
+      const globals = (Array.isArray(data) ? data : []).filter(
+        (component) => component.kitId == null
+      );
+      setKitComponents(globals);
+    } catch (error) {
+      console.error('Error loading kit components for rental:', error);
+      setKitComponents([]);
+    }
+  };
+
   const loadWallet = async () => {
     try {
       const walletResponse = await walletAPI.getMyWallet();
@@ -90,13 +106,14 @@ const LecturerComponentRental = ({ user }) => {
 
   const onRefresh = React.useCallback(async () => {
     setRefreshing(true);
-    await Promise.all([loadKits(), loadWallet()]);
+    await Promise.all([loadKits(), loadWallet(), loadKitComponents()]);
     setRefreshing(false);
   }, []);
 
   useEffect(() => {
     loadKits();
     loadWallet();
+    loadKitComponents();
   }, []);
 
   const handleViewKitDetail = (kit) => {
@@ -226,160 +243,88 @@ const LecturerComponentRental = ({ user }) => {
     }
   };
 
-  // Filter kits giống LeaderComponentRental
-  const filteredKits = kits.filter(kit => {
-    if (kit.quantityAvailable <= 0) return false;
-    if (!kit.components || !kit.components.some(c => (c.quantityAvailable || 0) > 0)) {
-      return false;
-    }
+  // Filter global kit components giống LeaderComponentRental
+  const filteredComponents = kitComponents.filter(component => {
+    const available = component.quantityAvailable || 0;
+    if (available <= 0) return false;
 
     if (searchText && searchText.trim() !== '') {
       const searchLower = searchText.toLowerCase();
-      const kitName = (kit.name || kit.kitName || '').toLowerCase();
-      const kitId = (kit.id || '').toString().toLowerCase();
-      if (!kitName.includes(searchLower) && !kitId.includes(searchLower)) {
+      const name = (component.componentName || component.name || '').toLowerCase();
+      const id = (component.id || '').toString().toLowerCase();
+      const type = (component.componentType || '').toLowerCase();
+      if (!name.includes(searchLower) && !id.includes(searchLower) && !type.includes(searchLower)) {
         return false;
       }
     }
 
-    if (filterStatus !== 'all' && kit.status !== filterStatus) {
-      return false;
-    }
-
-    if (filterType !== 'all' && kit.type !== filterType) {
+    if (filterStatus !== 'all' && (component.status || '').toUpperCase() !== filterStatus.toUpperCase()) {
       return false;
     }
 
     return true;
   });
 
-  const renderKitItem = ({ item }) => (
-    <TouchableOpacity
-      style={styles.kitCard}
-      onPress={() => handleViewKitDetail(item)}
-      activeOpacity={0.8}
-    >
-      <View style={styles.kitImageContainer}>
+  const renderComponentItem = ({ item }) => {
+    const available = item.quantityAvailable || 0;
+
+    return (
+      <View style={styles.componentCard}>
         {item.imageUrl && item.imageUrl !== 'null' && item.imageUrl !== 'undefined' ? (
           <Image
             source={{ uri: item.imageUrl }}
-            style={styles.kitImage}
+            style={styles.componentImage}
             resizeMode="cover"
           />
         ) : (
-          <View style={styles.kitImagePlaceholder}>
-            <Icon name="build" size={48} color="#fff" />
+          <View style={styles.componentImagePlaceholder}>
+            <Icon name="extension" size={32} color="#fff" />
           </View>
         )}
-        <View style={styles.kitImageBadge}>
-          <View
-            style={[
-              styles.badge,
-              { backgroundColor: item.status === 'AVAILABLE' ? '#52c41a' : '#faad14' },
-            ]}
-          >
-            <Text style={[styles.badgeText, { color: '#fff' }]}>
-              {item.status || 'AVAILABLE'}
-            </Text>
-          </View>
-        </View>
-      </View>
 
-      <View style={styles.kitCardContent}>
-        <View style={styles.kitHeader}>
-          <Text style={styles.kitName} numberOfLines={2}>
-            {item.name || item.kitName || 'N/A'}
+        <View style={styles.componentCardContent}>
+          <Text style={styles.componentName} numberOfLines={1}>
+            {item.componentName || item.name || 'N/A'}
           </Text>
-          <View
-            style={[
-              styles.badge,
-              { backgroundColor: item.type === 'LECTURER_KIT' ? '#ff4d4f15' : '#1890ff15' },
-            ]}
-          >
-            <Text
-              style={[
-                styles.badgeText,
-                { color: item.type === 'LECTURER_KIT' ? '#ff4d4f' : '#1890ff' },
-              ]}
-            >
-              {item.type === 'LECTURER_KIT' ? 'Lecturer' : 'Student'}
+
+          <View style={styles.componentBadge}>
+            <Text style={styles.componentBadgeText}>
+              {item.componentType || 'N/A'}
             </Text>
           </View>
-        </View>
 
-        <View style={styles.kitDetails}>
-          <View style={styles.detailRow}>
-            <Icon name="inventory-2" size={14} color="#666" />
-            <Text style={styles.detailText}>
+          <View style={styles.componentStatsRow}>
+            <Text style={styles.componentStatText}>
               Total: {item.quantityTotal || 0}
             </Text>
-          </View>
-          <View style={styles.detailRow}>
-            <Icon name="check-circle" size={14} color="#52c41a" />
-            <Text style={[styles.detailText, { color: '#52c41a' }]}>
-              Available: {item.quantityAvailable || 0}
+            <Text style={[styles.componentStatText, { color: '#52c41a' }]}>
+              Available: {available}
             </Text>
           </View>
-          <View style={styles.detailRow}>
-            <Icon name="extension" size={14} color="#722ed1" />
-            <Text style={styles.detailText}>
-              Components: {item.components?.length || 0}
+
+          {item.pricePerCom > 0 && (
+            <Text style={styles.componentPrice}>
+              {item.pricePerCom.toLocaleString('vi-VN')} VND
             </Text>
-          </View>
-        </View>
+          )}
 
-        <TouchableOpacity
-          style={styles.viewButton}
-          onPress={(e) => {
-            e.stopPropagation();
-            handleViewKitDetail(item);
-          }}
-        >
-          <Icon name="visibility" size={18} color="#52c41a" />
-          <Text style={styles.viewButtonText}>View Components</Text>
-        </TouchableOpacity>
-      </View>
-    </TouchableOpacity>
-  );
-
-  const renderComponentItem = ({ item }) => {
-    const available = item.quantityAvailable || 0;
-    return (
-      <View style={styles.componentCard}>
-        <View style={styles.componentHeader}>
-          <View style={styles.componentInfo}>
-            <Text style={styles.componentName}>{item.componentName}</Text>
-            <Text style={styles.componentType}>{item.componentType || 'N/A'}</Text>
-          </View>
-          <View
-            style={[
-              styles.availabilityBadge,
-              { backgroundColor: available > 0 ? '#52c41a' : '#ff4d4f' },
-            ]}
-          >
-            <Text style={styles.availabilityText}>{available} available</Text>
-          </View>
-        </View>
-        <View style={styles.componentDetails}>
-          <Text style={styles.componentPrice}>
-            Price: {item.pricePerCom?.toLocaleString() || '0'} VND/unit
-          </Text>
-          {item.description && (
+          {item.description ? (
             <Text style={styles.componentDescription} numberOfLines={2}>
               {item.description}
             </Text>
-          )}
+          ) : null}
+
+          <TouchableOpacity
+            style={[styles.rentButton, { opacity: available === 0 ? 0.5 : 1 }]}
+            onPress={() => handleRentComponent(item)}
+            disabled={available === 0}
+          >
+            <Icon name="shopping-cart" size={20} color="#fff" />
+            <Text style={styles.rentButtonText}>
+              {available === 0 ? 'Sold Out' : 'Rent Component'}
+            </Text>
+          </TouchableOpacity>
         </View>
-        <TouchableOpacity
-          style={[styles.rentButton, { opacity: available === 0 ? 0.5 : 1 }]}
-          onPress={() => handleRentComponent(item)}
-          disabled={available === 0}
-        >
-          <Icon name="shopping-cart" size={20} color="white" />
-          <Text style={styles.rentButtonText}>
-            {available === 0 ? 'Sold Out' : 'Rent Component'}
-          </Text>
-        </TouchableOpacity>
       </View>
     );
   };
@@ -388,7 +333,7 @@ const LecturerComponentRental = ({ user }) => {
     if (!showKitDetail || !selectedKit) return null;
 
     const availableComponents =
-      selectedKit.components?.filter(c => (c.quantityAvailable || 0) > 0) || [];
+      kitComponents.filter(c => (c.quantityAvailable || 0) > 0);
 
     return (
       <Modal
@@ -436,6 +381,8 @@ const LecturerComponentRental = ({ user }) => {
                     data={availableComponents}
                     renderItem={renderComponentItem}
                     keyExtractor={(item, index) => item.id?.toString() || index.toString()}
+                    numColumns={2}
+                    columnWrapperStyle={styles.componentsRow}
                     scrollEnabled={false}
                   />
                 </View>
@@ -739,19 +686,7 @@ const LecturerComponentRental = ({ user }) => {
               </Text>
               <Icon name="arrow-drop-down" size={20} color="#666" />
             </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.filterButton}
-              onPress={() => setTypeFilterModalVisible(true)}
-            >
-              <Text style={styles.filterButtonText}>
-                {filterType === 'all'
-                  ? 'All Types'
-                  : filterType === 'STUDENT_KIT'
-                  ? 'Student Kit'
-                  : 'Lecturer Kit'}
-              </Text>
-              <Icon name="arrow-drop-down" size={20} color="#666" />
-            </TouchableOpacity>
+            {/* Type filter removed by design; keep only status + search */}
           </View>
         </View>
 
@@ -761,37 +696,30 @@ const LecturerComponentRental = ({ user }) => {
           </View>
         ) : (
           <FlatList
-            data={filteredKits}
-            renderItem={renderKitItem}
+            data={filteredComponents}
+            renderItem={renderComponentItem}
             keyExtractor={(item) => item.id?.toString() || Math.random().toString()}
             numColumns={2}
-            columnWrapperStyle={styles.row}
+            columnWrapperStyle={styles.componentsRow}
             contentContainerStyle={styles.listContent}
             refreshControl={
               <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
             }
             ListEmptyComponent={
               <View style={styles.emptyState}>
-                <Icon name="build" size={64} color="#ccc" />
+                <Icon name="extension" size={64} color="#ccc" />
                 <Text style={styles.emptyText}>
                   {searchText || filterStatus !== 'all' || filterType !== 'all'
-                    ? 'No kits match your filters'
-                    : 'No kits with available components'}
+                    ? 'No components match your filters'
+                    : 'No components available'}
                 </Text>
               </View>
             }
             ListFooterComponent={
-              filteredKits.length > 0 ? (
+              filteredComponents.length > 0 ? (
                 <View style={styles.footerText}>
                   <Text style={styles.footerTextContent}>
-                    Showing {filteredKits.length} of{' '}
-                    {kits.filter(
-                      k =>
-                        k.quantityAvailable > 0 &&
-                        k.components &&
-                        k.components.some(c => (c.quantityAvailable || 0) > 0)
-                    ).length}{' '}
-                    available kit(s)
+                    Showing {filteredComponents.length} of {kitComponents.length} component(s)
                   </Text>
                 </View>
               ) : null
@@ -843,52 +771,7 @@ const LecturerComponentRental = ({ user }) => {
         </TouchableOpacity>
       </Modal>
 
-      {/* Type Filter Modal */}
-      <Modal
-        visible={typeFilterModalVisible}
-        transparent={true}
-        animationType="slide"
-        onRequestClose={() => setTypeFilterModalVisible(false)}
-      >
-        <TouchableOpacity
-          style={styles.filterModalOverlay}
-          activeOpacity={1}
-          onPress={() => setTypeFilterModalVisible(false)}
-        >
-          <View style={styles.filterModalContent} onStartShouldSetResponder={() => true}>
-            <Text style={styles.filterModalTitle}>Filter by Type</Text>
-            {['all', 'STUDENT_KIT', 'LECTURER_KIT'].map((type) => (
-              <TouchableOpacity
-                key={type}
-                style={[
-                  styles.filterOption,
-                  filterType === type && styles.filterOptionSelected,
-                ]}
-                onPress={() => {
-                  setFilterType(type);
-                  setTypeFilterModalVisible(false);
-                }}
-              >
-                <Text
-                  style={[
-                    styles.filterOptionText,
-                    filterType === type && styles.filterOptionTextSelected,
-                  ]}
-                >
-                  {type === 'all'
-                    ? 'All Types'
-                    : type === 'STUDENT_KIT'
-                    ? 'Student Kit'
-                    : 'Lecturer Kit'}
-                </Text>
-                {filterType === type && (
-                  <Icon name="check" size={20} color="#667eea" />
-                )}
-              </TouchableOpacity>
-            ))}
-          </View>
-        </TouchableOpacity>
-      </Modal>
+      {/* Type Filter Modal removed by design */}
 
       {renderKitDetailModal()}
       {renderRentModal()}
@@ -1083,61 +966,94 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
   },
-  componentCard: {
-    backgroundColor: '#f9f9f9',
-    borderRadius: 8,
-    padding: 16,
-    marginBottom: 12,
-  },
-  componentHeader: {
+  componentsRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 10,
   },
-  componentInfo: {
-    flex: 1,
+  componentCard: {
+    width: '46%',
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    overflow: 'hidden',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    borderWidth: 1,
+    borderColor: '#f0f0f0',
+  },
+  componentImage: {
+    width: '100%',
+    height: 90,
+  },
+  componentImagePlaceholder: {
+    width: '100%',
+    height: 90,
+    backgroundColor: '#667eea',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  componentCardContent: {
+    paddingHorizontal: 12,
+    paddingVertical: 10,
   },
   componentName: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '600',
-    color: '#333',
+    color: '#2c3e50',
+    marginBottom: 6,
   },
-  componentType: {
-    fontSize: 12,
+  componentBadge: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#722ed115',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 4,
+    marginBottom: 6,
+  },
+  componentBadgeText: {
+    fontSize: 10,
+    color: '#722ed1',
+    fontWeight: '600',
+  },
+  componentStatsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 8,
+    marginBottom: 4,
+  },
+  componentStatText: {
+    fontSize: 11,
     color: '#666',
-    marginTop: 4,
-  },
-  availabilityBadge: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 12,
-  },
-  availabilityText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: 'white',
-  },
-  componentDetails: {
-    marginBottom: 12,
   },
   componentPrice: {
-    fontSize: 14,
+    fontSize: 12,
     color: '#1890ff',
     fontWeight: '600',
+    marginTop: 6,
     marginBottom: 4,
+    alignSelf: 'flex-start',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    backgroundColor: '#e6f4ff',
+    borderRadius: 12,
   },
   componentDescription: {
     fontSize: 12,
     color: '#666',
+    marginTop: 8,
+    lineHeight: 18,
   },
   rentButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 10,
-    borderRadius: 8,
+    borderRadius: 10,
     backgroundColor: '#667eea',
+    marginTop: 10,
   },
   rentButtonText: {
     fontSize: 14,
