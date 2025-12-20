@@ -27,7 +27,8 @@ const LecturerLayout = ({
   const loadNotifications = async () => {
     try {
       setNotificationLoading(true);
-      const response = await notificationAPI.getRoleNotifications();
+      // Use user-specific notifications instead of role-based to match web behavior
+      const response = await notificationAPI.getMyNotifications();
       const data = response?.data ?? response;
       const notificationsList = Array.isArray(data) ? data : [];
       // Sort by newest first (createdAt descending)

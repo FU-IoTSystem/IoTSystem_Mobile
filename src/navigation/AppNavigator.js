@@ -51,6 +51,8 @@ import AdminGroups from '../screens/admin/AdminGroups';
 import AdminFines from '../screens/admin/AdminFines';
 import AdminPenaltyPolicies from '../screens/admin/AdminPenaltyPolicies';
 import AdminScanQR from '../screens/admin/AdminScanQR';
+import AdminKitComponents from '../screens/admin/AdminKitComponents';
+import AdminKitComponentHistory from '../screens/admin/AdminKitComponentHistory';
 
 // Academic Affairs Screens
 import AcademicDashboard from '../screens/academic/AcademicDashboard';
@@ -63,6 +65,7 @@ import AcademicStudentEnrollment from '../screens/academic/AcademicStudentEnroll
 import TopUpScreen from '../screens/shared/TopUpScreen';
 import PenaltyPaymentScreen from '../screens/shared/PenaltyPaymentScreen';
 import QRInfoScreen from '../screens/shared/QRInfoScreen';
+import TransferScreen from '../screens/shared/TransferScreen';
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -275,6 +278,9 @@ function MemberStack({ user, onLogout }) {
       <Stack.Screen name="TopUp">
         {(props) => <TopUpScreen {...props} user={user} />}
       </Stack.Screen>
+      <Stack.Screen name="Transfer">
+        {(props) => <TransferScreen {...props} user={user} />}
+      </Stack.Screen>
       <Stack.Screen name="PenaltyPayment">
         {(props) => <PenaltyPaymentScreen {...props} user={user} />}
       </Stack.Screen>
@@ -294,6 +300,9 @@ function LeaderDrawer({ user, onLogout }) {
       </Stack.Screen>
       <Stack.Screen name="TopUp">
         {(props) => <TopUpScreen {...props} user={user} />}
+      </Stack.Screen>
+      <Stack.Screen name="Transfer">
+        {(props) => <TransferScreen {...props} user={user} />}
       </Stack.Screen>
       <Stack.Screen name="PenaltyPayment">
         {(props) => <PenaltyPaymentScreen {...props} user={user} />}
@@ -370,7 +379,7 @@ function LecturerDrawerInner({ user, onLogout }) {
       <Drawer.Screen 
         name="Rentals"
         options={{
-          drawerLabel: 'Borrow Status',
+          drawerLabel: 'Borrow Tracking',
           drawerIcon: ({ color, size }) => (
             <Icon name="shopping-cart" size={size} color={color} />
           ),
@@ -413,6 +422,9 @@ function LecturerDrawer({ user, onLogout }) {
       </Stack.Screen>
       <Stack.Screen name="TopUp">
         {(props) => <TopUpScreen {...props} user={user} />}
+      </Stack.Screen>
+      <Stack.Screen name="Transfer">
+        {(props) => <TransferScreen {...props} user={user} />}
       </Stack.Screen>
       <Stack.Screen name="PenaltyPayment">
         {(props) => <PenaltyPaymentScreen {...props} user={user} />}
@@ -463,6 +475,17 @@ function AdminDrawer({ user, onLogout }) {
         }}
       >
         {(props) => <AdminKits {...props} onLogout={onLogout} />}
+      </Drawer.Screen>
+      <Drawer.Screen 
+        name="KitComponents"
+        options={{
+          drawerLabel: 'Kit Components',
+          drawerIcon: ({ color, size }) => (
+            <Icon name="memory" size={size} color={color} />
+          ),
+        }}
+      >
+        {(props) => <AdminKitComponents {...props} onLogout={onLogout} />}
       </Drawer.Screen>
       <Drawer.Screen 
         name="Approvals"
@@ -528,6 +551,28 @@ function AdminDrawer({ user, onLogout }) {
         {(props) => <AdminGroups {...props} onLogout={onLogout} />}
       </Drawer.Screen>
       <Drawer.Screen 
+        name="KitComponentHistory"
+        options={{
+          drawerLabel: 'Component History',
+          drawerIcon: ({ color, size }) => (
+            <Icon name="history-toggle-off" size={size} color={color} />
+          ),
+        }}
+      >
+        {(props) => <AdminKitComponentHistory {...props} onLogout={onLogout} />}
+      </Drawer.Screen>
+      <Drawer.Screen 
+        name="LogHistory"
+        options={{
+          drawerLabel: 'Log History',
+          drawerIcon: ({ color, size }) => (
+            <Icon name="history" size={size} color={color} />
+          ),
+        }}
+      >
+        {(props) => <AdminLogHistory {...props} onLogout={onLogout} />}
+      </Drawer.Screen>
+      <Drawer.Screen 
         name="Transactions"
         options={{
           drawerLabel: 'Transaction History',
@@ -559,17 +604,6 @@ function AdminDrawer({ user, onLogout }) {
         }}
       >
         {(props) => <AdminPenaltyPolicies {...props} onLogout={onLogout} />}
-      </Drawer.Screen>
-      <Drawer.Screen 
-        name="LogHistory"
-        options={{
-          drawerLabel: 'Log History',
-          drawerIcon: ({ color, size }) => (
-            <Icon name="history" size={size} color={color} />
-          ),
-        }}
-      >
-        {(props) => <AdminLogHistory {...props} onLogout={onLogout} />}
       </Drawer.Screen>
     </Drawer.Navigator>
   );
