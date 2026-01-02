@@ -62,8 +62,8 @@ const AdminKits = ({ onLogout }) => {
     setLoading(true);
     try {
       const kitsResponse = await kitAPI.getAllKits();
-      const kitsData = Array.isArray(kitsResponse) 
-        ? kitsResponse 
+      const kitsData = Array.isArray(kitsResponse)
+        ? kitsResponse
         : (kitsResponse?.data || []);
       setKits(kitsData);
     } catch (error) {
@@ -76,7 +76,7 @@ const AdminKits = ({ onLogout }) => {
 
   // Filter kits based on search and filters
   const filteredKits = kits.filter(kit => {
-    const matchesSearch = !searchText || 
+    const matchesSearch = !searchText ||
       kit.kitName?.toLowerCase().includes(searchText.toLowerCase()) ||
       kit.name?.toLowerCase().includes(searchText.toLowerCase()) ||
       kit.id?.toString().includes(searchText);
@@ -142,6 +142,33 @@ const AdminKits = ({ onLogout }) => {
     const kitComponents = await loadComponents(kit.id);
     setComponents(kitComponents);
     setComponentModalVisible(true);
+  };
+
+  const handleDeleteKit = (kit) => {
+    Alert.alert(
+      'Delete Kit',
+      `Are you sure you want to delete ${kit.kitName || kit.name}?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              setLoading(true);
+              await kitAPI.deleteKit(kit.id);
+              Alert.alert('Success', 'Kit deleted successfully');
+              await loadKits();
+            } catch (error) {
+              console.error('Error deleting kit:', error);
+              Alert.alert('Error', 'Failed to delete kit');
+            } finally {
+              setLoading(false);
+            }
+          },
+        },
+      ]
+    );
   };
 
   const handleSaveKit = async () => {
@@ -245,7 +272,7 @@ const AdminKits = ({ onLogout }) => {
         await kitComponentAPI.createComponent(componentData);
         Alert.alert('Success', 'Component created successfully');
       }
-      
+
       // Reload components
       const updatedComponents = await loadComponents(selectedKit.id);
       setComponents(updatedComponents);
@@ -294,7 +321,7 @@ const AdminKits = ({ onLogout }) => {
   };
 
   const renderKitItem = ({ item }) => (
-    <TouchableOpacity 
+    <TouchableOpacity
       style={styles.kitCard}
       onPress={() => showKitDetails(item)}
       activeOpacity={0.8}
@@ -302,8 +329,8 @@ const AdminKits = ({ onLogout }) => {
       {/* Kit Image */}
       <View style={styles.kitImageContainer}>
         {item.imageUrl && item.imageUrl !== 'null' && item.imageUrl !== 'undefined' ? (
-          <Image 
-            source={{ uri: item.imageUrl }} 
+          <Image
+            source={{ uri: item.imageUrl }}
             style={styles.kitImage}
             resizeMode="cover"
           />
@@ -341,7 +368,7 @@ const AdminKits = ({ onLogout }) => {
             </Text>
           </View>
         </View>
-        
+
         <View style={styles.kitDetails}>
           <View style={styles.detailRow}>
             <Icon name="inventory-2" size={14} color="#666" />
@@ -371,8 +398,7 @@ const AdminKits = ({ onLogout }) => {
               handleEditKit(item);
             }}
           >
-            <Icon name="edit" size={16} color="#1890ff" />
-            <Text style={[styles.actionButtonText, { color: '#1890ff' }]}>Edit</Text>
+            <Icon name="edit" size={20} color="#1890ff" />
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.actionButton, { backgroundColor: '#722ed115', flex: 1 }]}
@@ -381,8 +407,16 @@ const AdminKits = ({ onLogout }) => {
               handleManageComponents(item);
             }}
           >
-            <Icon name="settings" size={16} color="#722ed1" />
-            <Text style={[styles.actionButtonText, { color: '#722ed1' }]}>Manage</Text>
+            <Icon name="settings" size={20} color="#722ed1" />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.actionButton, { backgroundColor: '#ff4d4f15', flex: 1 }]}
+            onPress={(e) => {
+              e.stopPropagation();
+              handleDeleteKit(item);
+            }}
+          >
+            <Icon name="delete" size={20} color="#ff4d4f" />
           </TouchableOpacity>
         </View>
       </View>
@@ -494,8 +528,8 @@ const AdminKits = ({ onLogout }) => {
           <View style={styles.emptyState}>
             <Icon name="inventory-2" size={64} color="#ccc" />
             <Text style={styles.emptyText}>
-              {searchText || filterStatus !== 'all' || filterType !== 'all' 
-                ? 'No kits match your filters' 
+              {searchText || filterStatus !== 'all' || filterType !== 'all'
+                ? 'No kits match your filters'
                 : 'No kits available'}
             </Text>
             {(!searchText && filterStatus === 'all' && filterType === 'all') && (
@@ -585,9 +619,9 @@ const AdminKits = ({ onLogout }) => {
                   <TextInput
                     style={styles.input}
                     value={formData.quantityTotal.toString()}
-                    onChangeText={(text) => setFormData({ 
-                      ...formData, 
-                      quantityTotal: parseInt(text) || 0 
+                    onChangeText={(text) => setFormData({
+                      ...formData,
+                      quantityTotal: parseInt(text) || 0
                     })}
                     keyboardType="numeric"
                     placeholder="0"
@@ -598,9 +632,9 @@ const AdminKits = ({ onLogout }) => {
                   <TextInput
                     style={styles.input}
                     value={formData.quantityAvailable.toString()}
-                    onChangeText={(text) => setFormData({ 
-                      ...formData, 
-                      quantityAvailable: parseInt(text) || 0 
+                    onChangeText={(text) => setFormData({
+                      ...formData,
+                      quantityAvailable: parseInt(text) || 0
                     })}
                     keyboardType="numeric"
                     placeholder="0"
@@ -765,9 +799,9 @@ const AdminKits = ({ onLogout }) => {
                 <TextInput
                   style={styles.input}
                   value={componentFormData.componentName}
-                  onChangeText={(text) => setComponentFormData({ 
-                    ...componentFormData, 
-                    componentName: text 
+                  onChangeText={(text) => setComponentFormData({
+                    ...componentFormData,
+                    componentName: text
                   })}
                   placeholder="Component name"
                 />
@@ -775,9 +809,9 @@ const AdminKits = ({ onLogout }) => {
                   <TextInput
                     style={[styles.input, { flex: 1, marginRight: 8 }]}
                     value={componentFormData.quantityTotal.toString()}
-                    onChangeText={(text) => setComponentFormData({ 
-                      ...componentFormData, 
-                      quantityTotal: parseInt(text) || 0 
+                    onChangeText={(text) => setComponentFormData({
+                      ...componentFormData,
+                      quantityTotal: parseInt(text) || 0
                     })}
                     keyboardType="numeric"
                     placeholder="Quantity"
@@ -785,14 +819,49 @@ const AdminKits = ({ onLogout }) => {
                   <TextInput
                     style={[styles.input, { flex: 1, marginLeft: 8 }]}
                     value={componentFormData.pricePerCom.toString()}
-                    onChangeText={(text) => setComponentFormData({ 
-                      ...componentFormData, 
-                      pricePerCom: parseInt(text) || 0 
+                    onChangeText={(text) => setComponentFormData({
+                      ...componentFormData,
+                      pricePerCom: parseInt(text) || 0
                     })}
                     keyboardType="numeric"
                     placeholder="Price"
                   />
                 </View>
+
+                <View style={styles.formGroup}>
+                  <Text style={styles.label}>Status</Text>
+                  <View style={styles.statusButtons}>
+                    <TouchableOpacity
+                      style={[
+                        styles.statusButton,
+                        componentFormData.status === 'AVAILABLE' && styles.statusButtonActive
+                      ]}
+                      onPress={() => setComponentFormData({ ...componentFormData, status: 'AVAILABLE' })}
+                    >
+                      <Text style={[
+                        styles.statusButtonText,
+                        componentFormData.status === 'AVAILABLE' && styles.statusButtonTextActive
+                      ]}>
+                        Available
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[
+                        styles.statusButton,
+                        componentFormData.status === 'UNAVAILABLE' && styles.statusButtonActive
+                      ]}
+                      onPress={() => setComponentFormData({ ...componentFormData, status: 'UNAVAILABLE' })}
+                    >
+                      <Text style={[
+                        styles.statusButtonText,
+                        componentFormData.status === 'UNAVAILABLE' && styles.statusButtonTextActive
+                      ]}>
+                        Unavailable
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+
                 <View style={styles.componentFormActions}>
                   <TouchableOpacity
                     style={[styles.modalButton, styles.cancelButton]}
@@ -845,8 +914,8 @@ const AdminKits = ({ onLogout }) => {
                 {/* Kit Image */}
                 {selectedKit.imageUrl && selectedKit.imageUrl !== 'null' && selectedKit.imageUrl !== 'undefined' ? (
                   <View style={styles.detailsImageContainer}>
-                    <Image 
-                      source={{ uri: selectedKit.imageUrl }} 
+                    <Image
+                      source={{ uri: selectedKit.imageUrl }}
                       style={styles.detailsImage}
                       resizeMode="cover"
                     />
@@ -951,7 +1020,7 @@ const AdminKits = ({ onLogout }) => {
                       Components ({components.length || 0})
                     </Text>
                   </View>
-                  
+
                   {components.length > 0 ? (
                     <>
                       {(() => {
@@ -959,15 +1028,15 @@ const AdminKits = ({ onLogout }) => {
                         const endIndex = startIndex + componentPageSize;
                         const currentComponents = components.slice(startIndex, endIndex);
                         const totalPages = Math.ceil(components.length / componentPageSize);
-                        
+
                         return (
                           <>
                             <View style={styles.componentsGrid}>
                               {currentComponents.map((component, index) => (
                                 <View key={component.id || index} style={styles.componentCard}>
                                   {component.imageUrl && component.imageUrl !== 'null' ? (
-                                    <Image 
-                                      source={{ uri: component.imageUrl }} 
+                                    <Image
+                                      source={{ uri: component.imageUrl }}
                                       style={styles.componentImage}
                                       resizeMode="cover"
                                     />
@@ -1002,7 +1071,7 @@ const AdminKits = ({ onLogout }) => {
                                 </View>
                               ))}
                             </View>
-                            
+
                             {totalPages > 1 && (
                               <View style={styles.paginationContainer}>
                                 <TouchableOpacity

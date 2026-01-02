@@ -14,7 +14,7 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import { MaterialIcons as Icon } from '@expo/vector-icons';
 import AdminLayout from '../../components/AdminLayout';
-import { borrowingRequestAPI, kitAPI, penaltiesAPI, penaltyDetailAPI, notificationAPI, userAPI } from '../../services/api';
+import { borrowingRequestAPI, kitAPI, penaltiesAPI, penaltyDetailAPI, notificationAPI, userAPI, borrowingGroupAPI } from '../../services/api';
 
 const AdminReturnKits = ({ onLogout, route }) => {
   const navigation = useNavigation();
@@ -45,14 +45,14 @@ const AdminReturnKits = ({ onLogout, route }) => {
         // Wait for data to load first
         if (refundRequests.length > 0 && kits.length > 0 && users.length > 0) {
           const requestId = route.params.requestId;
-          const request = refundRequests.find(req => 
+          const request = refundRequests.find(req =>
             req.id?.toString() === requestId?.toString() || req.id === requestId
           );
-          
+
           if (request) {
             // Auto-open the inspection modal for this request
             await openKitInspection(request);
-            
+
             // Clear the params to avoid reopening on subsequent renders
             navigation.setParams({ requestId: undefined, autoOpen: undefined });
           }
@@ -66,8 +66,8 @@ const AdminReturnKits = ({ onLogout, route }) => {
   const loadKits = async () => {
     try {
       const kitsResponse = await kitAPI.getAllKits();
-      const kitsData = Array.isArray(kitsResponse) 
-        ? kitsResponse 
+      const kitsData = Array.isArray(kitsResponse)
+        ? kitsResponse
         : (kitsResponse?.data || []);
       setKits(kitsData);
     } catch (error) {
@@ -91,7 +91,7 @@ const AdminReturnKits = ({ onLogout, route }) => {
     try {
       // Get all approved requests (these are the ones that need to be returned)
       const approvedResponse = await borrowingRequestAPI.getApproved();
-      
+
       // Transform approved requests to refund request format
       const refundRequestsData = approvedResponse.map(request => ({
         id: request.id,
@@ -107,7 +107,7 @@ const AdminReturnKits = ({ onLogout, route }) => {
         requestType: request.requestType || 'BORROW_KIT',
         raw: request
       }));
-      
+
       setRefundRequests(refundRequestsData);
     } catch (error) {
       console.error('Error loading refund requests:', error);
@@ -120,20 +120,20 @@ const AdminReturnKits = ({ onLogout, route }) => {
 
   const openKitInspection = async (refundRequest) => {
     console.log('Opening kit inspection for:', refundRequest);
-    
+
     const isComponentRental = refundRequest.requestType === 'BORROW_COMPONENT';
-    
+
     // Find the kit
-    const kit = kits.find(k => 
-      k.kitName === refundRequest.kitName || 
+    const kit = kits.find(k =>
+      k.kitName === refundRequest.kitName ||
       k.name === refundRequest.kitName
     );
-    
+
     if (!kit) {
       Alert.alert('Kit Not Found', `The kit "${refundRequest.kitName}" could not be found.`);
       return;
     }
-    
+
     // Create a rental-like object for the refund request
     const rentalObject = {
       id: refundRequest.id || refundRequest.rentalId,
@@ -146,17 +146,17 @@ const AdminReturnKits = ({ onLogout, route }) => {
       requestType: refundRequest.requestType,
       raw: refundRequest.raw || refundRequest
     };
-    
+
     let kitToUse = kit;
-    
+
     // If component rental, fetch the rented components
     if (isComponentRental) {
       try {
         const rentedComponents = await borrowingRequestAPI.getRequestComponents(refundRequest.id);
-        
+
         if (rentedComponents && rentedComponents.length > 0) {
           const actualComponents = rentedComponents.map(rc => {
-            const actualComp = kit.components?.find(c => 
+            const actualComp = kit.components?.find(c =>
               c.id === rc.kitComponentsId || c.componentName === rc.componentName
             );
             return actualComp ? {
@@ -170,7 +170,7 @@ const AdminReturnKits = ({ onLogout, route }) => {
               rentedQuantity: rc.quantity
             };
           });
-          
+
           kitToUse = {
             ...kit,
             components: actualComponents.length > 0 ? actualComponents : kit.components
@@ -180,8 +180,32 @@ const AdminReturnKits = ({ onLogout, route }) => {
         console.error('Error fetching rented components:', error);
       }
     }
-    
-    setSelectedRental(rentalObject);
+
+    // Fetch group/class info
+    let groupInfo = null;
+    const userId = refundRequest.requestedBy?.id || refundRequest.userId;
+    if (userId) {
+      try {
+        const groups = await borrowingGroupAPI.getByAccountId(userId);
+        if (groups && groups.length > 0) {
+          // Use the most recent group or the first one
+          // Request 'classCode' and 'semester' are now directly available in the response
+          const group = groups[0];
+          groupInfo = {
+            groupName: group.studentGroupName || group.groupName || 'N/A',
+            classCode: group.classCode || group.studentGroup?.class?.classCode || 'N/A',
+            semester: group.semester || group.studentGroup?.class?.semester || 'N/A'
+          };
+        }
+      } catch (err) {
+        console.log('Error fetching group info:', err);
+      }
+    }
+
+    setSelectedRental({
+      ...rentalObject,
+      groupInfo: groupInfo
+    });
     setSelectedKit(kitToUse);
     setDamageAssessment(refundRequest.damageAssessment || {});
     setFineAmount(0);
@@ -197,7 +221,7 @@ const AdminReturnKits = ({ onLogout, route }) => {
           value: isDamaged ? componentPrice : 0
         }
       };
-      
+
       // Calculate fine amount
       let totalFine = 0;
       Object.values(newAssessment).forEach(component => {
@@ -205,7 +229,7 @@ const AdminReturnKits = ({ onLogout, route }) => {
           totalFine += component.value || 0;
         }
       });
-      
+
       setFineAmount(totalFine);
       return newAssessment;
     });
@@ -214,7 +238,7 @@ const AdminReturnKits = ({ onLogout, route }) => {
   const submitKitInspection = async () => {
     setInspectionLoading(true);
     let totalFine = fineAmount;
-    
+
     try {
       // Create penalty if there's damage
       let penaltyCreated = false;
@@ -231,10 +255,10 @@ const AdminReturnKits = ({ onLogout, route }) => {
             accountId: users.find(u => u.email === selectedRental?.userEmail)?.id,
             policyId: null
           };
-          
+
           const penaltyResponse = await penaltiesAPI.create(penaltyData);
           const penaltyId = penaltyResponse?.id || penaltyResponse?.data?.id;
-          
+
           if (penaltyId) {
             // Create penalty details for each damaged component
             const penaltyDetails = Object.entries(damageAssessment)
@@ -243,15 +267,15 @@ const AdminReturnKits = ({ onLogout, route }) => {
                 penaltyId: penaltyId,
                 amount: component.value || 0,
                 description: `Damage to ${componentName}`,
-                kitComponentId: selectedKit?.components?.find(c => 
+                kitComponentId: selectedKit?.components?.find(c =>
                   c.componentName === componentName || c.name === componentName
                 )?.id || null
               }));
-            
+
             if (penaltyDetails.length > 0) {
               await penaltyDetailAPI.createMultiple(penaltyDetails);
             }
-            
+
             penaltyCreated = true;
           }
         } catch (penaltyError) {
@@ -261,11 +285,11 @@ const AdminReturnKits = ({ onLogout, route }) => {
           return;
         }
       }
-      
+
       // Update borrowing request status to RETURNED
       const actualReturnDateStr = new Date().toISOString();
       let isLate = false;
-      
+
       if (selectedRental?.raw?.expectReturnDate) {
         const dueDay = new Date(selectedRental.raw.expectReturnDate);
         const returnDay = new Date(actualReturnDateStr);
@@ -273,13 +297,13 @@ const AdminReturnKits = ({ onLogout, route }) => {
           isLate = true;
         }
       }
-      
-      await borrowingRequestAPI.update(selectedRental.id, { 
+
+      await borrowingRequestAPI.update(selectedRental.id, {
         status: 'RETURNED',
         actualReturnDate: actualReturnDateStr,
         isLate: isLate
       });
-      
+
       // Send notification
       const targetAccountId = users.find(u => u.email === selectedRental?.userEmail)?.id;
       if (targetAccountId) {
@@ -296,14 +320,14 @@ const AdminReturnKits = ({ onLogout, route }) => {
           console.error('Error sending notification:', notifyError);
         }
       }
-      
+
       Alert.alert(
         'Success',
-        totalFine > 0 
+        totalFine > 0
           ? `Kit inspection completed. Fine of ${totalFine.toLocaleString()} VND has been created.`
           : 'Kit returned successfully. Deposit will be refunded if no penalty exists.'
       );
-      
+
       // Close modal and refresh
       setInspectionModalVisible(false);
       setSelectedKit(null);
@@ -328,15 +352,15 @@ const AdminReturnKits = ({ onLogout, route }) => {
       const userEmail = (request.userEmail || '').toLowerCase();
       const kitName = (request.kitName || '').toLowerCase();
       const requestId = request.id?.toString().toLowerCase() || '';
-      
-      if (!userName.includes(searchLower) && 
-          !userEmail.includes(searchLower) && 
-          !kitName.includes(searchLower) &&
-          !requestId.includes(searchLower)) {
+
+      if (!userName.includes(searchLower) &&
+        !userEmail.includes(searchLower) &&
+        !kitName.includes(searchLower) &&
+        !requestId.includes(searchLower)) {
         return false;
       }
     }
-    
+
     return true;
   });
 
@@ -424,7 +448,7 @@ const AdminReturnKits = ({ onLogout, route }) => {
   );
 
   return (
-    <AdminLayout 
+    <AdminLayout
       title="Return Checking"
       rightAction={{
         icon: 'refresh',
@@ -462,8 +486,8 @@ const AdminReturnKits = ({ onLogout, route }) => {
           <View style={styles.emptyState}>
             <Icon name="assignment-returned" size={64} color="#ccc" />
             <Text style={styles.emptyText}>
-              {searchText 
-                ? 'No requests match your search' 
+              {searchText
+                ? 'No requests match your search'
                 : 'No return requests available'}
             </Text>
           </View>
@@ -587,7 +611,7 @@ const AdminReturnKits = ({ onLogout, route }) => {
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Kit Inspection</Text>
-              <TouchableOpacity 
+              <TouchableOpacity
                 onPress={() => {
                   if (!inspectionLoading) {
                     setInspectionModalVisible(false);
@@ -603,10 +627,32 @@ const AdminReturnKits = ({ onLogout, route }) => {
               <ScrollView style={styles.modalBody}>
                 <View style={styles.inspectionSection}>
                   <Text style={styles.sectionTitle}>Kit Information</Text>
+
+                  {/* Basic Info */}
+                  <View style={styles.detailsRow}>
+                    <Text style={styles.detailsLabel}>Rental ID:</Text>
+                    <Text style={styles.detailsValue}>#{selectedRental.id}</Text>
+                  </View>
+                  <View style={styles.detailsRow}>
+                    <Text style={styles.detailsLabel}>Type:</Text>
+                    <View style={[
+                      styles.badge,
+                      { backgroundColor: selectedRental.requestType === 'BORROW_COMPONENT' ? '#faad1415' : '#1890ff15' }
+                    ]}>
+                      <Text style={[
+                        styles.badgeText,
+                        { color: selectedRental.requestType === 'BORROW_COMPONENT' ? '#faad14' : '#1890ff' }
+                      ]}>
+                        {selectedRental.requestType === 'BORROW_COMPONENT' ? 'Component' : 'Full Kit'}
+                      </Text>
+                    </View>
+                  </View>
                   <View style={styles.detailsRow}>
                     <Text style={styles.detailsLabel}>Kit Name:</Text>
                     <Text style={styles.detailsValue}>{selectedKit.kitName || selectedKit.name}</Text>
                   </View>
+
+                  {/* User Info */}
                   <View style={styles.detailsRow}>
                     <Text style={styles.detailsLabel}>User:</Text>
                     <Text style={styles.detailsValue}>{selectedRental.userName}</Text>
@@ -615,6 +661,80 @@ const AdminReturnKits = ({ onLogout, route }) => {
                     <Text style={styles.detailsLabel}>Email:</Text>
                     <Text style={styles.detailsValue}>{selectedRental.userEmail}</Text>
                   </View>
+
+                  {/* Group & Class Info */}
+                  <View style={styles.detailsRow}>
+                    <Text style={styles.detailsLabel}>Group:</Text>
+                    <Text style={styles.detailsValue}>
+                      {selectedRental.groupInfo?.groupName || selectedRental.raw?.groupName || selectedRental.raw?.group?.groupName || 'N/A'}
+                    </Text>
+                  </View>
+                  <View style={styles.detailsRow}>
+                    <Text style={styles.detailsLabel}>Class:</Text>
+                    <Text style={styles.detailsValue}>
+                      {selectedRental.groupInfo?.classCode || selectedRental.raw?.classCode || selectedRental.raw?.class?.classCode || 'N/A'}
+                    </Text>
+                  </View>
+                  <View style={styles.detailsRow}>
+                    <Text style={styles.detailsLabel}>Semester:</Text>
+                    <Text style={styles.detailsValue}>
+                      {selectedRental.groupInfo?.semester || selectedRental.raw?.semester || selectedRental.raw?.class?.semester || 'N/A'}
+                    </Text>
+                  </View>
+
+                  {/* Dates */}
+                  <View style={styles.detailsRow}>
+                    <Text style={styles.detailsLabel}>Request Date:</Text>
+                    <Text style={styles.detailsValue}>{formatDateTime(selectedRental.raw?.createdAt)}</Text>
+                  </View>
+                  <View style={styles.detailsRow}>
+                    <Text style={styles.detailsLabel}>Approval Date:</Text>
+                    <Text style={styles.detailsValue}>{formatDateTime(selectedRental.raw?.approvedDate)}</Text>
+                  </View>
+                  <View style={styles.detailsRow}>
+                    <Text style={styles.detailsLabel}>Expected Return:</Text>
+                    <Text style={styles.detailsValue}>{formatDateTime(selectedRental.raw?.expectReturnDate)}</Text>
+                  </View>
+
+                  {/* Duration / Lateness */}
+                  <View style={styles.detailsRow}>
+                    <Text style={styles.detailsLabel}>Return Status:</Text>
+                    {(() => {
+                      const now = new Date();
+                      const expectDate = selectedRental.raw?.expectReturnDate ? new Date(selectedRental.raw.expectReturnDate) : null;
+
+                      if (!expectDate) return <Text style={styles.detailsValue}>N/A</Text>;
+
+                      const diffTime = expectDate - now;
+                      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                      const isLate = diffDays < 0;
+
+                      return (
+                        <View style={{ flex: 2, alignItems: 'flex-end' }}>
+                          <View style={[
+                            styles.badge,
+                            { backgroundColor: isLate ? '#ff4d4f15' : '#52c41a15' }
+                          ]}>
+                            <Text style={[
+                              styles.badgeText,
+                              { color: isLate ? '#ff4d4f' : '#52c41a' }
+                            ]}>
+                              {isLate ? `Late by ${Math.abs(diffDays)} day(s)` : `On time (${diffDays} days left)`}
+                            </Text>
+                          </View>
+                        </View>
+                      );
+                    })()}
+                  </View>
+
+                  {/* Reason */}
+                  <View style={styles.detailsRow}>
+                    <Text style={styles.detailsLabel}>Reason:</Text>
+                    <Text style={styles.detailsValue}>
+                      {selectedRental.raw?.borrowReason || selectedRental.raw?.reason || 'N/A'}
+                    </Text>
+                  </View>
+
                 </View>
 
                 <View style={styles.inspectionSection}>
@@ -625,7 +745,7 @@ const AdminReturnKits = ({ onLogout, route }) => {
                       const isDamaged = damageAssessment[componentName]?.damaged || false;
                       const componentPrice = component.pricePerCom || component.price || 0;
                       const damageValue = damageAssessment[componentName]?.value || (isDamaged ? componentPrice : 0);
-                      
+
                       return (
                         <View key={component.id || index} style={styles.componentInspectionItem}>
                           <View style={styles.componentInfo}>
