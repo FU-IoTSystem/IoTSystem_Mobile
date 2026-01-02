@@ -14,40 +14,44 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { DrawerActions } from '@react-navigation/native';
-// Note: expo-document-picker may need to be installed
-// For now, using a placeholder import - install with: npx expo install expo-document-picker
-let DocumentPicker;
-try {
-  DocumentPicker = require('expo-document-picker');
-} catch (e) {
-  console.warn('expo-document-picker not installed. Import functionality will be limited.');
-  DocumentPicker = null;
-}
 import { MaterialIcons as Icon } from '@expo/vector-icons';
-import { userAPI, excelImportAPI } from '../../services/api';
+import { userAPI, classesAPI, classAssignmentAPI } from '../../services/api';
 import dayjs from 'dayjs';
 
 const AcademicStudents = ({ user, onLogout }) => {
   const navigation = useNavigation();
   const [loading, setLoading] = useState(false);
   const [students, setStudents] = useState([]);
+  const [classes, setClasses] = useState([]); // List of active classes
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [importing, setImporting] = useState(false);
-  
+
   // Modal states
   const [studentModal, setStudentModal] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState(null);
-  
+
   // Form states
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [studentCode, setStudentCode] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
+  const [selectedClassId, setSelectedClassId] = useState(null); // Selected class for enrollment
 
   useEffect(() => {
     loadStudents();
+    loadClasses();
   }, []);
+
+  const loadClasses = async () => {
+    try {
+      const classesData = await classesAPI.getAllClasses();
+      // Filter for active classes if needed, or just show all
+      const activeClasses = (classesData || []).filter(c => c.status === true);
+      setClasses(activeClasses);
+    } catch (error) {
+      console.error('Error loading classes:', error);
+    }
+  };
 
   const loadStudents = async () => {
     setLoading(true);
@@ -78,17 +82,35 @@ const AcademicStudents = ({ user, onLogout }) => {
     setEmail('');
     setStudentCode('');
     setPhoneNumber('');
+    setSelectedClassId(null);
     setStudentModal(true);
   };
 
-  const handleEdit = (student) => {
+  const handleEdit = async (student) => {
     setEditing(true);
     setSelectedStudent(student);
     setName(student.name || '');
     setEmail(student.email || '');
     setStudentCode(student.studentCode || '');
     setPhoneNumber(student.phoneNumber || '');
+    setSelectedClassId(null); // Reset first
     setStudentModal(true);
+
+    // Try to find if student is enrolled in a class to pre-fill
+    // This is optional and might require matching assignments
+    try {
+      const assignments = await classAssignmentAPI.getAll();
+      const studentAssignment = assignments.find(a =>
+        a.accountId === student.id &&
+        a.roleName === 'STUDENT' &&
+        classes.some(c => c.id === a.classId && c.status === true) // Prefer active class
+      );
+      if (studentAssignment) {
+        setSelectedClassId(studentAssignment.classId);
+      }
+    } catch (err) {
+      console.log('Error fetching student assignments in edit:', err);
+    }
   };
 
   const handleSave = async () => {
@@ -100,17 +122,57 @@ const AcademicStudents = ({ user, onLogout }) => {
     setSaving(true);
     try {
       if (editing && selectedStudent) {
-        // Update student - note: API might not support update, so this is placeholder
-        Alert.alert('Info', 'Student update functionality may require backend support');
+        // Update student
+        // Note: userAPI.updateUser might be what's needed here if update is supported
+        // Checks on User Management/Profile typically use updateProfile or updateUser
+        await userAPI.updateUser(selectedStudent.id, {
+          fullName: name.trim(),
+          phoneNumber: phoneNumber.trim(),
+          email: email.trim(), // Email usually can't be changed but sending it defined
+          studentCode: studentCode.trim()
+        });
+
+        // If class is selected, update enrollment
+        if (selectedClassId) {
+          // First check if already enrolled in this class to avoid duplicate
+          const assignments = await classAssignmentAPI.getAll();
+          const existingAssignment = assignments.find(a =>
+            a.accountId === selectedStudent.id &&
+            a.classId === selectedClassId &&
+            a.roleName === 'STUDENT'
+          );
+
+          if (!existingAssignment) {
+            // Assign to new class
+            await classAssignmentAPI.create({
+              classId: selectedClassId,
+              accountId: selectedStudent.id,
+              roleName: 'STUDENT'
+            });
+          }
+        }
+
+        Alert.alert('Success', 'Student updated successfully');
+        setStudentModal(false);
+        await loadStudents();
       } else {
         // Create new student
-        await userAPI.createSingleStudent({
+        const result = await userAPI.createSingleStudent({
           name: name.trim(),
           email: email.trim(),
           studentCode: studentCode.trim(),
           phoneNumber: phoneNumber.trim(),
         });
-        
+
+        // If class is selected, enroll the new student
+        if (selectedClassId && result && result.id) {
+          await classAssignmentAPI.create({
+            classId: selectedClassId,
+            accountId: result.id,
+            roleName: 'STUDENT'
+          });
+        }
+
         Alert.alert('Success', 'Student created successfully');
         setStudentModal(false);
         await loadStudents();
@@ -147,38 +209,7 @@ const AcademicStudents = ({ user, onLogout }) => {
     );
   };
 
-  const handleImport = async () => {
-    if (!DocumentPicker || !DocumentPicker.getDocumentAsync) {
-      Alert.alert('Info', 'Document picker not available. Please install expo-document-picker');
-      return;
-    }
-    
-    try {
-      const result = await DocumentPicker.getDocumentAsync({
-        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        copyToCacheDirectory: true,
-      });
 
-      if (result.type === 'cancel') {
-        return;
-      }
-
-      setImporting(true);
-      const response = await excelImportAPI.importAccounts(result, 'STUDENT');
-      
-      if (response.success) {
-        Alert.alert('Success', response.message || 'Students imported successfully');
-        await loadStudents();
-      } else {
-        Alert.alert('Error', response.message || 'Failed to import students');
-      }
-    } catch (error) {
-      console.error('Import error:', error);
-      Alert.alert('Error', 'Failed to import students. Please check file format.');
-    } finally {
-      setImporting(false);
-    }
-  };
 
   const formatDateTimeDisplay = (dateString) => {
     if (!dateString) return 'N/A';
@@ -200,7 +231,7 @@ const AcademicStudents = ({ user, onLogout }) => {
           <Text style={styles.statusText}>{item.status}</Text>
         </View>
       </View>
-      
+
       <View style={styles.studentDetails}>
         <View style={styles.detailRow}>
           <Text style={styles.detailLabel}>Student Code:</Text>
@@ -215,7 +246,7 @@ const AcademicStudents = ({ user, onLogout }) => {
           <Text style={styles.detailValue}>{item.createdAt}</Text>
         </View>
       </View>
-      
+
       <View style={styles.studentActions}>
         <TouchableOpacity
           style={styles.editButton}
@@ -231,13 +262,13 @@ const AcademicStudents = ({ user, onLogout }) => {
           <Icon name="delete" size={20} color="#e74c3c" />
         </TouchableOpacity>
       </View>
-  </View>
-);
+    </View>
+  );
 
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.menuButton}
           onPress={() => navigation.dispatch(DrawerActions.openDrawer())}
         >
@@ -245,17 +276,6 @@ const AcademicStudents = ({ user, onLogout }) => {
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Student Management</Text>
         <View style={styles.headerButtons}>
-          <TouchableOpacity
-            style={styles.importButton}
-            onPress={handleImport}
-            disabled={importing}
-          >
-            {importing ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Icon name="upload-file" size={24} color="#fff" />
-            )}
-          </TouchableOpacity>
           <TouchableOpacity
             style={styles.addButton}
             onPress={handleAdd}
@@ -309,7 +329,7 @@ const AcademicStudents = ({ user, onLogout }) => {
                 <Icon name="close" size={24} color="#666" />
               </TouchableOpacity>
             </View>
-            
+
             <ScrollView style={styles.modalBody}>
               <View style={styles.formGroup}>
                 <Text style={styles.formLabel}>Student Name *</Text>
@@ -320,7 +340,7 @@ const AcademicStudents = ({ user, onLogout }) => {
                   onChangeText={setName}
                 />
               </View>
-              
+
               <View style={styles.formGroup}>
                 <Text style={styles.formLabel}>Email *</Text>
                 <TextInput
@@ -333,7 +353,7 @@ const AcademicStudents = ({ user, onLogout }) => {
                   editable={!editing}
                 />
               </View>
-              
+
               <View style={styles.formGroup}>
                 <Text style={styles.formLabel}>Student Code *</Text>
                 <TextInput
@@ -344,7 +364,7 @@ const AcademicStudents = ({ user, onLogout }) => {
                   editable={!editing}
                 />
               </View>
-              
+
               <View style={styles.formGroup}>
                 <Text style={styles.formLabel}>Phone Number</Text>
                 <TextInput
@@ -355,8 +375,37 @@ const AcademicStudents = ({ user, onLogout }) => {
                   keyboardType="phone-pad"
                 />
               </View>
+
+              <View style={styles.formGroup}>
+                <Text style={styles.formLabel}>Class (Optional)</Text>
+                <ScrollView style={styles.selectContainer} nestedScrollEnabled={true}>
+                  {classes.map((cls) => (
+                    <TouchableOpacity
+                      key={cls.id}
+                      style={[
+                        styles.selectOption,
+                        selectedClassId === cls.id && styles.selectOptionSelected
+                      ]}
+                      onPress={() => setSelectedClassId(cls.id)}
+                    >
+                      <Text style={[
+                        styles.selectOptionText,
+                        selectedClassId === cls.id && styles.selectOptionTextSelected
+                      ]}>
+                        {cls.classCode} ({cls.semester})
+                      </Text>
+                      {selectedClassId === cls.id && (
+                        <Icon name="check-circle" size={20} color="#43e97b" />
+                      )}
+                    </TouchableOpacity>
+                  ))}
+                  {classes.length === 0 && (
+                    <Text style={styles.emptyOptionText}>No active classes found</Text>
+                  )}
+                </ScrollView>
+              </View>
             </ScrollView>
-            
+
             <View style={styles.modalFooter}>
               <TouchableOpacity
                 style={styles.modalCancelButton}
@@ -377,9 +426,9 @@ const AcademicStudents = ({ user, onLogout }) => {
               </TouchableOpacity>
             </View>
           </View>
-        </View>
-      </Modal>
-    </View>
+        </View >
+      </Modal >
+    </View >
   );
 };
 
@@ -412,14 +461,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 12,
   },
-  importButton: {
-    backgroundColor: '#52c41a',
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+
   addButton: {
     backgroundColor: '#667eea',
     width: 48,
@@ -482,7 +524,7 @@ const styles = StyleSheet.create({
   statusText: {
     fontSize: 10,
     fontWeight: 'bold',
-    color: '#c62828',
+    color: '#2e7d32', // Green color requested
   },
   studentDetails: {
     marginBottom: 12,
@@ -599,6 +641,39 @@ const styles = StyleSheet.create({
   formInputDisabled: {
     backgroundColor: '#f0f0f0',
     color: '#999',
+  },
+  selectContainer: {
+    maxHeight: 150,
+    backgroundColor: '#f5f5f5',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+  },
+  selectOption: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+  },
+  selectOptionSelected: {
+    backgroundColor: '#e8f5e9',
+  },
+  selectOptionText: {
+    fontSize: 14,
+    color: '#333',
+    flex: 1,
+  },
+  selectOptionTextSelected: {
+    color: '#43e97b',
+    fontWeight: '600',
+  },
+  emptyOptionText: {
+    padding: 12,
+    color: '#999',
+    fontStyle: 'italic',
+    textAlign: 'center'
   },
   modalFooter: {
     flexDirection: 'row',

@@ -15,23 +15,27 @@ import { MaterialIcons as Icon } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { DrawerActions } from '@react-navigation/native';
 import { classAssignmentAPI, classesAPI, userAPI } from '../../services/api';
+import dayjs from 'dayjs';
 
 const AcademicStudentEnrollment = ({ user, onLogout }) => {
   const navigation = useNavigation();
   const [loading, setLoading] = useState(false);
   const [classAssignments, setClassAssignments] = useState([]);
+  const [allAssignments, setAllAssignments] = useState([]); // Store all assignments for filtering
   const [classes, setClasses] = useState([]);
   const [students, setStudents] = useState([]);
   const [lecturers, setLecturers] = useState([]);
-  
+
   // Modal states
   const [assignLecturerModal, setAssignLecturerModal] = useState(false);
   const [addStudentModal, setAddStudentModal] = useState(false);
   const [viewStudentsModal, setViewStudentsModal] = useState(false);
   const [selectedClass, setSelectedClass] = useState(null);
   const [classStudents, setClassStudents] = useState([]);
-  
+
   // Form states
+  const [editing, setEditing] = useState(false);
+  const [selectedAssignment, setSelectedAssignment] = useState(null);
   const [selectedClassId, setSelectedClassId] = useState(null);
   const [selectedLecturerId, setSelectedLecturerId] = useState(null);
   const [selectedStudentId, setSelectedStudentId] = useState(null);
@@ -46,7 +50,8 @@ const AcademicStudentEnrollment = ({ user, onLogout }) => {
     try {
       // Load class assignments (lecturers only for main table)
       const allAssignments = await classAssignmentAPI.getAll();
-      const lecturerAssignments = allAssignments.filter(assignment => 
+      setAllAssignments(allAssignments); // Keep all for filtering
+      const lecturerAssignments = allAssignments.filter(assignment =>
         assignment.roleName === 'LECTURER' || assignment.roleName === 'TEACHER'
       );
       setClassAssignments(lecturerAssignments);
@@ -70,6 +75,14 @@ const AcademicStudentEnrollment = ({ user, onLogout }) => {
     }
   };
 
+  const handleEditAssignment = (assignment) => {
+    setEditing(true);
+    setSelectedAssignment(assignment);
+    setSelectedClassId(assignment.classId);
+    setSelectedLecturerId(assignment.accountId);
+    setAssignLecturerModal(true);
+  };
+
   const handleAssignLecturer = async () => {
     if (!selectedClassId || !selectedLecturerId) {
       Alert.alert('Error', 'Please select both class and lecturer');
@@ -78,13 +91,25 @@ const AcademicStudentEnrollment = ({ user, onLogout }) => {
 
     setSubmitting(true);
     try {
-      await classAssignmentAPI.create({
-        classId: selectedClassId,
-        accountId: selectedLecturerId,
-      });
-      
-      Alert.alert('Success', 'Lecturer assigned successfully');
+      if (editing && selectedAssignment) {
+        // Delete old assignment and create new one
+        await classAssignmentAPI.delete(selectedAssignment.id);
+        await classAssignmentAPI.create({
+          classId: selectedClassId,
+          accountId: selectedLecturerId,
+        });
+        Alert.alert('Success', 'Assignment updated successfully');
+      } else {
+        await classAssignmentAPI.create({
+          classId: selectedClassId,
+          accountId: selectedLecturerId,
+        });
+        Alert.alert('Success', 'Lecturer assigned successfully');
+      }
+
       setAssignLecturerModal(false);
+      setEditing(false);
+      setSelectedAssignment(null);
       setSelectedClassId(null);
       setSelectedLecturerId(null);
       await loadData();
@@ -108,7 +133,7 @@ const AcademicStudentEnrollment = ({ user, onLogout }) => {
         classId: selectedClassId,
         accountId: selectedStudentId,
       });
-      
+
       Alert.alert('Success', 'Student enrolled successfully');
       setAddStudentModal(false);
       setSelectedStudentId(null);
@@ -124,8 +149,8 @@ const AcademicStudentEnrollment = ({ user, onLogout }) => {
   const handleViewStudents = async (record) => {
     try {
       const allAssignments = await classAssignmentAPI.getAll();
-      const studentsInClass = allAssignments.filter(assignment => 
-        assignment.classId === record.classId && 
+      const studentsInClass = allAssignments.filter(assignment =>
+        assignment.classId === record.classId &&
         assignment.roleName === 'STUDENT'
       );
       setClassStudents(studentsInClass);
@@ -166,6 +191,12 @@ const AcademicStudentEnrollment = ({ user, onLogout }) => {
     return classInfo ? `${classInfo.classCode} - ${classInfo.semester}` : '-';
   };
 
+  const formatDate = (dateString) => {
+    if (!dateString) return 'N/A';
+    const date = dayjs(dateString);
+    return date.isValid() ? date.format('DD/MM/YYYY HH:mm') : 'N/A';
+  };
+
   const renderAssignment = ({ item }) => (
     <View style={styles.assignmentCard}>
       <View style={styles.assignmentHeader}>
@@ -176,8 +207,21 @@ const AcademicStudentEnrollment = ({ user, onLogout }) => {
         </View>
       </View>
       <View style={styles.assignmentDetails}>
-        <Text style={styles.assignmentLabel}>IoT Subject:</Text>
-        <Text style={styles.assignmentValue}>{getClassName(item.classId)}</Text>
+        <View style={styles.detailRow}>
+          <Text style={styles.assignmentLabel}>IoT Subject:</Text>
+          <Text style={styles.assignmentValue}>{getClassName(item.classId)}</Text>
+        </View>
+        <View style={styles.detailRow}>
+          <Text style={styles.assignmentLabel}>Lecturer:</Text>
+          <Text style={styles.assignmentValue}>
+            {item.accountName || item.accountEmail || 'N/A'}
+            {item.lecturerCode ? ` (${item.lecturerCode})` : ''}
+          </Text>
+        </View>
+        <View style={styles.detailRow}>
+          <Text style={styles.assignmentLabel}>Enrollment Date:</Text>
+          <Text style={styles.assignmentValue}>{formatDate(item.createdAt)}</Text>
+        </View>
       </View>
       <View style={styles.assignmentActions}>
         <TouchableOpacity
@@ -186,6 +230,13 @@ const AcademicStudentEnrollment = ({ user, onLogout }) => {
         >
           <Icon name="visibility" size={20} color="#667eea" />
           <Text style={styles.actionButtonText}>View Students</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.actionButton, styles.actionButtonEdit]}
+          onPress={() => handleEditAssignment(item)}
+        >
+          <Icon name="edit" size={20} color="#667eea" />
+          <Text style={styles.actionButtonText}>Edit</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.actionButton, styles.actionButtonAdd]}
@@ -213,6 +264,10 @@ const AcademicStudentEnrollment = ({ user, onLogout }) => {
       <View style={styles.studentInfo}>
         <Text style={styles.studentName}>{item.accountName || item.accountEmail}</Text>
         <Text style={styles.studentEmail}>{item.accountEmail}</Text>
+        {item.studentCode && (
+          <Text style={styles.studentDetail}>Student Code: {item.studentCode}</Text>
+        )}
+        <Text style={styles.studentDetail}>Enrolled: {formatDate(item.createdAt)}</Text>
       </View>
       <TouchableOpacity
         style={styles.removeButton}
@@ -226,7 +281,7 @@ const AcademicStudentEnrollment = ({ user, onLogout }) => {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.menuButton}
           onPress={() => navigation.dispatch(DrawerActions.openDrawer())}
         >
@@ -235,7 +290,15 @@ const AcademicStudentEnrollment = ({ user, onLogout }) => {
         <Text style={styles.headerTitle}>Student Enrollment</Text>
         <TouchableOpacity
           style={styles.addButton}
-          onPress={() => setAssignLecturerModal(true)}
+          onPress={() => {
+            setEditing(false);
+            setSelectedAssignment(null);
+            setSelectedClassId(null);
+            setSelectedAssignment(null);
+            setSelectedClassId(null);
+            setSelectedLecturerId(null); // Reset, will be set when class is selected
+            setAssignLecturerModal(true);
+          }}
         >
           <Icon name="add" size={24} color="#fff" />
         </TouchableOpacity>
@@ -278,13 +341,21 @@ const AcademicStudentEnrollment = ({ user, onLogout }) => {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Assign Lecturer</Text>
-              <TouchableOpacity onPress={() => setAssignLecturerModal(false)}>
+              <Text style={styles.modalTitle}>
+                {editing ? 'Edit Assignment' : 'Assign Lecturer'}
+              </Text>
+              <TouchableOpacity onPress={() => {
+                setAssignLecturerModal(false);
+                setEditing(false);
+                setSelectedAssignment(null);
+                setSelectedClassId(null);
+                setSelectedLecturerId(null);
+              }}>
                 <Icon name="close" size={24} color="#666" />
               </TouchableOpacity>
             </View>
-            
-            <ScrollView 
+
+            <ScrollView
               style={styles.modalBody}
               nestedScrollEnabled={true}
               keyboardShouldPersistTaps="handled"
@@ -293,7 +364,7 @@ const AcademicStudentEnrollment = ({ user, onLogout }) => {
                 <Text style={styles.formLabel}>IoT Subject *</Text>
                 <View style={styles.selectContainer}>
                   <FlatList
-                    data={classes}
+                    data={editing ? classes : classes.filter(c => !classAssignments.some(a => a.classId === c.id))}
                     keyExtractor={(item) => item.id?.toString() || Math.random().toString()}
                     renderItem={({ item: cls }) => (
                       <TouchableOpacity
@@ -301,7 +372,10 @@ const AcademicStudentEnrollment = ({ user, onLogout }) => {
                           styles.selectOption,
                           selectedClassId === cls.id && styles.selectOptionSelected
                         ]}
-                        onPress={() => setSelectedClassId(cls.id)}
+                        onPress={() => {
+                          setSelectedClassId(cls.id);
+                          setSelectedLecturerId(cls.teacherId);
+                        }}
                       >
                         <Text style={[
                           styles.selectOptionText,
@@ -320,45 +394,35 @@ const AcademicStudentEnrollment = ({ user, onLogout }) => {
                   />
                 </View>
               </View>
-              
+
               <View style={styles.formGroup}>
                 <Text style={styles.formLabel}>Lecturer *</Text>
-                <View style={styles.selectContainer}>
-                  <FlatList
-                    data={lecturers}
-                    keyExtractor={(item) => item.id?.toString() || item.email || Math.random().toString()}
-                    renderItem={({ item: lecturer }) => (
-                      <TouchableOpacity
-                        style={[
-                          styles.selectOption,
-                          selectedLecturerId === lecturer.id && styles.selectOptionSelected
-                        ]}
-                        onPress={() => setSelectedLecturerId(lecturer.id)}
-                      >
-                        <Text style={[
-                          styles.selectOptionText,
-                          selectedLecturerId === lecturer.id && styles.selectOptionTextSelected
-                        ]}>
-                          {lecturer.fullName || lecturer.email} ({lecturer.email})
-                        </Text>
-                        {selectedLecturerId === lecturer.id && (
-                          <Icon name="check-circle" size={20} color="#667eea" />
-                        )}
-                      </TouchableOpacity>
-                    )}
-                    scrollEnabled={true}
-                    nestedScrollEnabled={true}
-                    style={styles.flatListContainer}
-                  />
+                <View style={styles.formValueContainer}>
+                  <Text style={styles.formValue}>
+                    {editing
+                      ? (selectedAssignment?.accountName || selectedAssignment?.accountEmail)
+                      : (lecturers.find(l => l.id === selectedLecturerId)?.fullName ||
+                        lecturers.find(l => l.id === selectedLecturerId)?.email ||
+                        'Select a subject to see lecturer')
+                    }
+                  </Text>
+                  <Text style={styles.formSubValue}>
+                    {editing
+                      ? (selectedAssignment?.accountEmail)
+                      : (lecturers.find(l => l.id === selectedLecturerId)?.email || '')
+                    }
+                  </Text>
                 </View>
               </View>
             </ScrollView>
-            
+
             <View style={styles.modalFooter}>
               <TouchableOpacity
                 style={styles.modalCancelButton}
                 onPress={() => {
                   setAssignLecturerModal(false);
+                  setEditing(false);
+                  setSelectedAssignment(null);
                   setSelectedClassId(null);
                   setSelectedLecturerId(null);
                 }}
@@ -373,7 +437,7 @@ const AcademicStudentEnrollment = ({ user, onLogout }) => {
                 {submitting ? (
                   <ActivityIndicator color="#fff" />
                 ) : (
-                  <Text style={styles.modalSubmitText}>Assign</Text>
+                  <Text style={styles.modalSubmitText}>{editing ? 'Update' : 'Assign'}</Text>
                 )}
               </TouchableOpacity>
             </View>
@@ -396,8 +460,8 @@ const AcademicStudentEnrollment = ({ user, onLogout }) => {
                 <Icon name="close" size={24} color="#666" />
               </TouchableOpacity>
             </View>
-            
-            <ScrollView 
+
+            <ScrollView
               style={styles.modalBody}
               nestedScrollEnabled={true}
               keyboardShouldPersistTaps="handled"
@@ -406,12 +470,20 @@ const AcademicStudentEnrollment = ({ user, onLogout }) => {
                 <Text style={styles.formLabel}>IoT Subject *</Text>
                 <Text style={styles.formValue}>{getClassName(selectedClassId)}</Text>
               </View>
-              
+
               <View style={styles.formGroup}>
                 <Text style={styles.formLabel}>Student *</Text>
                 <View style={styles.selectContainer}>
                   <FlatList
-                    data={students}
+                    data={students.filter(student => {
+                      // Check if student is enrolled in any ACTIVE class
+                      const isBusy = allAssignments.some(assignment =>
+                        assignment.accountId === student.id &&
+                        assignment.roleName === 'STUDENT' &&
+                        classes.find(c => c.id === assignment.classId)?.status === true
+                      );
+                      return !isBusy;
+                    })}
                     keyExtractor={(item) => item.id?.toString() || Math.random().toString()}
                     renderItem={({ item: student }) => (
                       <TouchableOpacity
@@ -439,7 +511,7 @@ const AcademicStudentEnrollment = ({ user, onLogout }) => {
                 </View>
               </View>
             </ScrollView>
-            
+
             <View style={styles.modalFooter}>
               <TouchableOpacity
                 style={styles.modalCancelButton}
@@ -483,7 +555,7 @@ const AcademicStudentEnrollment = ({ user, onLogout }) => {
                 <Icon name="close" size={24} color="#666" />
               </TouchableOpacity>
             </View>
-            
+
             {classStudents.length === 0 ? (
               <View style={styles.emptyModalContainer}>
                 <Icon name="person-off" size={48} color="#ddd" />
@@ -577,18 +649,27 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: '#f0f0f0',
   },
+  detailRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
   assignmentLabel: {
     fontSize: 12,
     color: '#666',
-    marginBottom: 4,
+    flex: 1,
   },
   assignmentValue: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '600',
     color: '#333',
+    flex: 1,
+    textAlign: 'right',
   },
   assignmentActions: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 8,
     paddingTop: 12,
     borderTopWidth: 1,
@@ -599,6 +680,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 8,
     borderRadius: 8,
+    backgroundColor: '#f0f4ff',
+  },
+  actionButtonEdit: {
     backgroundColor: '#f0f4ff',
   },
   actionButtonAdd: {
@@ -682,6 +766,16 @@ const styles = StyleSheet.create({
     padding: 12,
     backgroundColor: '#f5f5f5',
     borderRadius: 8,
+  },
+  formValueContainer: {
+    padding: 12,
+    backgroundColor: '#f5f5f5',
+    borderRadius: 8,
+  },
+  formSubValue: {
+    fontSize: 12,
+    color: '#999',
+    marginTop: 2,
   },
   selectContainer: {
     maxHeight: 200,
@@ -768,6 +862,11 @@ const styles = StyleSheet.create({
   studentEmail: {
     fontSize: 12,
     color: '#666',
+    marginTop: 2,
+  },
+  studentDetail: {
+    fontSize: 12,
+    color: '#888',
     marginTop: 2,
   },
   removeButton: {

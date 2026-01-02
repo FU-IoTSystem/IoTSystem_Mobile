@@ -14,17 +14,8 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { DrawerActions } from '@react-navigation/native';
-// Note: expo-document-picker may need to be installed
-// For now, using a placeholder import - install with: npx expo install expo-document-picker
-let DocumentPicker;
-try {
-  DocumentPicker = require('expo-document-picker');
-} catch (e) {
-  console.warn('expo-document-picker not installed. Import functionality will be limited.');
-  DocumentPicker = null;
-}
 import { MaterialIcons as Icon } from '@expo/vector-icons';
-import { userAPI, excelImportAPI } from '../../services/api';
+import { userAPI, classesAPI, classAssignmentAPI } from '../../services/api';
 import dayjs from 'dayjs';
 
 const AcademicLecturers = ({ user, onLogout }) => {
@@ -33,20 +24,34 @@ const AcademicLecturers = ({ user, onLogout }) => {
   const [lecturers, setLecturers] = useState([]);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [importing, setImporting] = useState(false);
-  
+
   // Modal states
   const [lecturerModal, setLecturerModal] = useState(false);
   const [selectedLecturer, setSelectedLecturer] = useState(null);
-  
+
   // Form states
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
+  const [lecturerCode, setLecturerCode] = useState('');
+  const [semester, setSemester] = useState('');
+  const [classes, setClasses] = useState([]); // List of active classes
+  const [selectedClassId, setSelectedClassId] = useState(null); // Selected class for assignment
 
   useEffect(() => {
     loadLecturers();
+    loadClasses();
   }, []);
+
+  const loadClasses = async () => {
+    try {
+      const classesData = await classesAPI.getAllClasses();
+      const activeClasses = (classesData || []).filter(c => c.status === true);
+      setClasses(activeClasses);
+    } catch (error) {
+      console.error('Error loading classes:', error);
+    }
+  };
 
   const loadLecturers = async () => {
     setLoading(true);
@@ -57,6 +62,8 @@ const AcademicLecturers = ({ user, onLogout }) => {
         name: lecturer.fullName,
         email: lecturer.email,
         phoneNumber: lecturer.phone || '',
+        lecturerCode: lecturer.studentCode || '', // Mapping studentCode as LecturerCode
+        semester: lecturer.semester || '',
         createdAt: lecturer.createdAt ? dayjs(lecturer.createdAt).format('DD/MM/YYYY HH:mm') : 'N/A',
         status: lecturer.status || 'ACTIVE',
       }));
@@ -75,16 +82,37 @@ const AcademicLecturers = ({ user, onLogout }) => {
     setName('');
     setEmail('');
     setPhoneNumber('');
+    setLecturerCode('');
+    setSemester('');
+    setSelectedClassId(null);
     setLecturerModal(true);
   };
 
-  const handleEdit = (lecturer) => {
+  const handleEdit = async (lecturer) => {
     setEditing(true);
     setSelectedLecturer(lecturer);
     setName(lecturer.name || '');
     setEmail(lecturer.email || '');
     setPhoneNumber(lecturer.phoneNumber || '');
+    setLecturerCode(lecturer.lecturerCode || '');
+    setSemester(lecturer.semester || '');
+    setSelectedClassId(null); // Reset first
     setLecturerModal(true);
+
+    // Try to find if lecturer is assigned to a class
+    try {
+      const assignments = await classAssignmentAPI.getAll();
+      const lecturerAssignment = assignments.find(a =>
+        a.accountId === lecturer.id &&
+        (a.roleName === 'LECTURER' || a.roleName === 'TEACHER') &&
+        classes.some(c => c.id === a.classId && c.status === true)
+      );
+      if (lecturerAssignment) {
+        setSelectedClassId(lecturerAssignment.classId);
+      }
+    } catch (err) {
+      console.log('Error fetching lecturer assignments:', err);
+    }
   };
 
   const handleSave = async () => {
@@ -96,19 +124,58 @@ const AcademicLecturers = ({ user, onLogout }) => {
     setSaving(true);
     try {
       if (editing && selectedLecturer) {
-        // Update lecturer - note: API might not support update
-        Alert.alert('Info', 'Lecturer update functionality may require backend support');
+        // Update lecturer
+        await userAPI.updateUser(selectedLecturer.id, {
+          fullName: name.trim(),
+          phoneNumber: phoneNumber.trim(),
+          email: email.trim(),
+          studentCode: lecturerCode.trim(), // Send as studentCode
+          semester: semester.trim(),
+        });
+
+        // Handle Class Assignment for Update
+        if (selectedClassId) {
+          const assignments = await classAssignmentAPI.getAll();
+          const existingAssignment = assignments.find(a =>
+            a.accountId === selectedLecturer.id &&
+            a.classId === selectedClassId &&
+            (a.roleName === 'LECTURER' || a.roleName === 'TEACHER')
+          );
+
+          if (!existingAssignment) {
+            await classAssignmentAPI.create({
+              classId: selectedClassId,
+              accountId: selectedLecturer.id,
+              roleName: 'LECTURER'
+            });
+          }
+        }
+
+        Alert.alert('Success', 'Lecturer updated successfully');
+        setLecturerModal(false);
+        await loadLecturers();
       } else {
         // Create new lecturer
-        await userAPI.createSingleLecturer({
+        const result = await userAPI.createSingleLecturer({
           name: name.trim(),
           email: email.trim(),
           phoneNumber: phoneNumber.trim(),
+          studentCode: lecturerCode.trim(), // Send as studentCode
+          semester: semester.trim(),
         });
-        
+
         Alert.alert('Success', 'Lecturer created successfully');
         setLecturerModal(false);
         await loadLecturers();
+
+        // Handle Class Assignment for new lecturer
+        if (selectedClassId && result && result.id) {
+          await classAssignmentAPI.create({
+            classId: selectedClassId,
+            accountId: result.id,
+            roleName: 'LECTURER'
+          });
+        }
       }
     } catch (error) {
       console.error('Error saving lecturer:', error);
@@ -140,44 +207,13 @@ const AcademicLecturers = ({ user, onLogout }) => {
     );
   };
 
-  const handleImport = async () => {
-    if (!DocumentPicker || !DocumentPicker.getDocumentAsync) {
-      Alert.alert('Info', 'Document picker not available. Please install expo-document-picker');
-      return;
-    }
-    
-    try {
-      const result = await DocumentPicker.getDocumentAsync({
-        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        copyToCacheDirectory: true,
-      });
 
-      if (result.type === 'cancel') {
-        return;
-      }
-
-      setImporting(true);
-      const response = await excelImportAPI.importAccounts(result, 'LECTURER');
-      
-      if (response.success) {
-        Alert.alert('Success', response.message || 'Lecturers imported successfully');
-        await loadLecturers();
-      } else {
-        Alert.alert('Error', response.message || 'Failed to import lecturers');
-      }
-    } catch (error) {
-      console.error('Import error:', error);
-      Alert.alert('Error', 'Failed to import lecturers. Please check file format.');
-    } finally {
-      setImporting(false);
-    }
-  };
 
   const renderLecturer = ({ item }) => (
     <View style={styles.lecturerCard}>
       <View style={styles.lecturerHeader}>
         <View style={styles.lecturerAvatar}>
-          <Icon name="person" size={24} color="#f093fb" />
+          <Icon name="person" size={24} color="#667eea" />
         </View>
         <View style={styles.lecturerInfo}>
           <Text style={styles.lecturerName}>{item.name}</Text>
@@ -187,8 +223,12 @@ const AcademicLecturers = ({ user, onLogout }) => {
           <Text style={styles.statusText}>{item.status}</Text>
         </View>
       </View>
-      
+
       <View style={styles.lecturerDetails}>
+        <View style={styles.detailRow}>
+          <Text style={styles.detailLabel}>Code:</Text>
+          <Text style={styles.detailValue}>{item.lecturerCode || 'N/A'}</Text>
+        </View>
         <View style={styles.detailRow}>
           <Text style={styles.detailLabel}>Phone:</Text>
           <Text style={styles.detailValue}>{item.phoneNumber || 'N/A'}</Text>
@@ -198,7 +238,7 @@ const AcademicLecturers = ({ user, onLogout }) => {
           <Text style={styles.detailValue}>{item.createdAt}</Text>
         </View>
       </View>
-      
+
       <View style={styles.lecturerActions}>
         <TouchableOpacity
           style={styles.editButton}
@@ -214,31 +254,20 @@ const AcademicLecturers = ({ user, onLogout }) => {
           <Icon name="delete" size={20} color="#e74c3c" />
         </TouchableOpacity>
       </View>
-  </View>
-);
+    </View>
+  );
 
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.menuButton}
           onPress={() => navigation.dispatch(DrawerActions.openDrawer())}
         >
-          <Icon name="menu" size={28} color="#f093fb" />
+          <Icon name="menu" size={28} color="#667eea" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Lecturer Management</Text>
         <View style={styles.headerButtons}>
-          <TouchableOpacity
-            style={styles.importButton}
-            onPress={handleImport}
-            disabled={importing}
-          >
-            {importing ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Icon name="upload-file" size={24} color="#fff" />
-            )}
-          </TouchableOpacity>
           <TouchableOpacity
             style={styles.addButton}
             onPress={handleAdd}
@@ -292,7 +321,7 @@ const AcademicLecturers = ({ user, onLogout }) => {
                 <Icon name="close" size={24} color="#666" />
               </TouchableOpacity>
             </View>
-            
+
             <ScrollView style={styles.modalBody}>
               <View style={styles.formGroup}>
                 <Text style={styles.formLabel}>Lecturer Name *</Text>
@@ -303,20 +332,40 @@ const AcademicLecturers = ({ user, onLogout }) => {
                   onChangeText={setName}
                 />
               </View>
-              
+
               <View style={styles.formGroup}>
                 <Text style={styles.formLabel}>Email *</Text>
                 <TextInput
-                  style={[styles.formInput, editing && styles.formInputDisabled]}
+                  style={styles.formInput}
                   placeholder="Enter email"
                   value={email}
                   onChangeText={setEmail}
                   keyboardType="email-address"
                   autoCapitalize="none"
+                />
+              </View>
+
+              <View style={styles.formGroup}>
+                <Text style={styles.formLabel}>Lecturer Code</Text>
+                <TextInput
+                  style={[styles.formInput, editing && styles.formInputDisabled]}
+                  placeholder="Enter lecturer code"
+                  value={lecturerCode}
+                  onChangeText={setLecturerCode}
                   editable={!editing}
                 />
               </View>
-              
+
+              <View style={styles.formGroup}>
+                <Text style={styles.formLabel}>Semester</Text>
+                <TextInput
+                  style={styles.formInput}
+                  placeholder="Enter semester (e.g. Spring 2024)"
+                  value={semester}
+                  onChangeText={setSemester}
+                />
+              </View>
+
               <View style={styles.formGroup}>
                 <Text style={styles.formLabel}>Phone Number</Text>
                 <TextInput
@@ -327,8 +376,37 @@ const AcademicLecturers = ({ user, onLogout }) => {
                   keyboardType="phone-pad"
                 />
               </View>
+
+              <View style={styles.formGroup}>
+                <Text style={styles.formLabel}>Class (Optional)</Text>
+                <ScrollView style={styles.selectContainer} nestedScrollEnabled={true}>
+                  {classes.map((cls) => (
+                    <TouchableOpacity
+                      key={cls.id}
+                      style={[
+                        styles.selectOption,
+                        selectedClassId === cls.id && styles.selectOptionSelected
+                      ]}
+                      onPress={() => setSelectedClassId(cls.id)}
+                    >
+                      <Text style={[
+                        styles.selectOptionText,
+                        selectedClassId === cls.id && styles.selectOptionTextSelected
+                      ]}>
+                        {cls.classCode} ({cls.semester})
+                      </Text>
+                      {selectedClassId === cls.id && (
+                        <Icon name="check-circle" size={20} color="#43e97b" />
+                      )}
+                    </TouchableOpacity>
+                  ))}
+                  {classes.length === 0 && (
+                    <Text style={styles.emptyOptionText}>No active classes found</Text>
+                  )}
+                </ScrollView>
+              </View>
             </ScrollView>
-            
+
             <View style={styles.modalFooter}>
               <TouchableOpacity
                 style={styles.modalCancelButton}
@@ -384,16 +462,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 12,
   },
-  importButton: {
-    backgroundColor: '#52c41a',
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+
   addButton: {
-    backgroundColor: '#f093fb',
+    backgroundColor: '#667eea',
     width: 48,
     height: 48,
     borderRadius: 24,
@@ -424,7 +495,7 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: '#fce4ec',
+    backgroundColor: '#e3f2fd',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
@@ -454,7 +525,7 @@ const styles = StyleSheet.create({
   statusText: {
     fontSize: 10,
     fontWeight: 'bold',
-    color: '#c62828',
+    color: '#2e7d32', // Green color to match students
   },
   lecturerDetails: {
     marginBottom: 12,
@@ -513,7 +584,7 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   emptyButton: {
-    backgroundColor: '#f093fb',
+    backgroundColor: '#667eea',
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 12,
@@ -595,7 +666,7 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 16,
     borderRadius: 12,
-    backgroundColor: '#f093fb',
+    backgroundColor: '#667eea',
     alignItems: 'center',
   },
   modalSubmitButtonDisabled: {
@@ -605,6 +676,39 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
     color: '#fff',
+  },
+  selectContainer: {
+    maxHeight: 150,
+    backgroundColor: '#f5f5f5',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+  },
+  selectOption: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+  },
+  selectOptionSelected: {
+    backgroundColor: '#e8f5e9',
+  },
+  selectOptionText: {
+    fontSize: 14,
+    color: '#333',
+    flex: 1,
+  },
+  selectOptionTextSelected: {
+    color: '#43e97b',
+    fontWeight: '600',
+  },
+  emptyOptionText: {
+    padding: 12,
+    color: '#999',
+    fontStyle: 'italic',
+    textAlign: 'center'
   },
 });
 

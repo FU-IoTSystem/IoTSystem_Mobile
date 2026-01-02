@@ -16,7 +16,7 @@ import {
 import { MaterialIcons as Icon } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { DrawerActions } from '@react-navigation/native';
-import { classesAPI, userAPI } from '../../services/api';
+import { classesAPI, userAPI, classAssignmentAPI } from '../../services/api';
 import dayjs from 'dayjs';
 
 const AcademicClasses = ({ user, onLogout }) => {
@@ -26,11 +26,13 @@ const AcademicClasses = ({ user, onLogout }) => {
   const [lecturers, setLecturers] = useState([]);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
-  
+
   // Modal states
   const [subjectModal, setSubjectModal] = useState(false);
+  const [viewStudentsModal, setViewStudentsModal] = useState(false);
   const [selectedSubject, setSelectedSubject] = useState(null);
-  
+  const [classStudents, setClassStudents] = useState([]);
+
   // Form states
   const [classCode, setClassCode] = useState('');
   const [semester, setSemester] = useState('');
@@ -122,7 +124,7 @@ const AcademicClasses = ({ user, onLogout }) => {
         await classesAPI.createClass(classData, lecturerId);
         Alert.alert('Success', 'IOT Subject created successfully');
       }
-      
+
       setSubjectModal(false);
       await loadData();
     } catch (error) {
@@ -157,6 +159,76 @@ const AcademicClasses = ({ user, onLogout }) => {
     );
   };
 
+  const handleViewStudents = async (subject) => {
+    try {
+      setLoading(true);
+      const allAssignments = await classAssignmentAPI.getAll();
+      const studentsInClass = allAssignments.filter(assignment =>
+        assignment.classId === subject.id &&
+        assignment.roleName === 'STUDENT'
+      );
+      setClassStudents(studentsInClass);
+      setSelectedSubject(subject);
+      setViewStudentsModal(true);
+    } catch (error) {
+      console.error('Error loading class students:', error);
+      Alert.alert('Error', 'Failed to load class students');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRemoveStudent = (student) => {
+    Alert.alert(
+      'Remove Student',
+      `Are you sure you want to remove "${student.accountName || student.accountEmail}" from this class?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Remove',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await classAssignmentAPI.delete(student.id);
+              Alert.alert('Success', 'Student removed successfully');
+              // Refresh the list
+              handleViewStudents(selectedSubject);
+            } catch (error) {
+              console.error('Error removing student:', error);
+              Alert.alert('Error', 'Failed to remove student');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const formatDate = (dateString) => {
+    if (!dateString) return 'N/A';
+    const date = dayjs(dateString);
+    return date.isValid() ? date.format('DD/MM/YYYY HH:mm') : 'N/A';
+  };
+
+  const renderStudent = ({ item }) => (
+    <View style={styles.studentCard}>
+      <Icon name="person" size={24} color="#667eea" />
+      <View style={styles.studentInfo}>
+        <Text style={styles.studentName}>{item.accountName || item.accountEmail}</Text>
+        <Text style={styles.studentEmail}>{item.accountEmail}</Text>
+        {item.studentCode && (
+          <Text style={styles.studentDetail}>Student Code: {item.studentCode}</Text>
+        )}
+        <Text style={styles.studentDetail}>Enrolled: {formatDate(item.createdAt)}</Text>
+      </View>
+      <TouchableOpacity
+        style={styles.removeButton}
+        onPress={() => handleRemoveStudent(item)}
+      >
+        <Icon name="close" size={20} color="#e74c3c" />
+      </TouchableOpacity>
+    </View>
+  );
+
   const renderSubject = ({ item }) => (
     <View style={styles.subjectCard}>
       <View style={styles.subjectHeader}>
@@ -173,7 +245,7 @@ const AcademicClasses = ({ user, onLogout }) => {
           </Text>
         </View>
       </View>
-      
+
       <View style={styles.subjectDetails}>
         <View style={styles.detailRow}>
           <Text style={styles.detailLabel}>Lecturer:</Text>
@@ -188,7 +260,7 @@ const AcademicClasses = ({ user, onLogout }) => {
           <Text style={styles.detailValue}>{item.updatedAt}</Text>
         </View>
       </View>
-      
+
       <View style={styles.subjectActions}>
         <TouchableOpacity
           style={styles.editButton}
@@ -203,14 +275,21 @@ const AcademicClasses = ({ user, onLogout }) => {
         >
           <Icon name="delete" size={20} color="#e74c3c" />
         </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.viewStudentsButton}
+          onPress={() => handleViewStudents(item)}
+        >
+          <Icon name="visibility" size={20} color="#667eea" />
+          <Text style={styles.viewStudentsButtonText}>View Students</Text>
+        </TouchableOpacity>
       </View>
-  </View>
-);
+    </View>
+  );
 
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.menuButton}
           onPress={() => navigation.dispatch(DrawerActions.openDrawer())}
         >
@@ -269,7 +348,7 @@ const AcademicClasses = ({ user, onLogout }) => {
                 <Icon name="close" size={24} color="#666" />
               </TouchableOpacity>
             </View>
-            
+
             <ScrollView style={styles.modalBody}>
               <View style={styles.formGroup}>
                 <Text style={styles.formLabel}>Class Code *</Text>
@@ -281,7 +360,7 @@ const AcademicClasses = ({ user, onLogout }) => {
                   editable={!editing}
                 />
               </View>
-              
+
               <View style={styles.formGroup}>
                 <Text style={styles.formLabel}>Semester *</Text>
                 <TextInput
@@ -292,7 +371,7 @@ const AcademicClasses = ({ user, onLogout }) => {
                   editable={!editing}
                 />
               </View>
-              
+
               <View style={styles.formGroup}>
                 <Text style={styles.formLabel}>Lecturer *</Text>
                 <ScrollView style={styles.selectContainer}>
@@ -318,7 +397,7 @@ const AcademicClasses = ({ user, onLogout }) => {
                   ))}
                 </ScrollView>
               </View>
-              
+
               <View style={styles.formGroup}>
                 <View style={styles.switchRow}>
                   <Text style={styles.formLabel}>Status</Text>
@@ -334,7 +413,7 @@ const AcademicClasses = ({ user, onLogout }) => {
                 </Text>
               </View>
             </ScrollView>
-            
+
             <View style={styles.modalFooter}>
               <TouchableOpacity
                 style={styles.modalCancelButton}
@@ -354,6 +433,41 @@ const AcademicClasses = ({ user, onLogout }) => {
                 )}
               </TouchableOpacity>
             </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* View Students Modal */}
+      <Modal
+        visible={viewStudentsModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setViewStudentsModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>
+                Students in {selectedSubject?.classCode} ({classStudents.length})
+              </Text>
+              <TouchableOpacity onPress={() => setViewStudentsModal(false)}>
+                <Icon name="close" size={24} color="#666" />
+              </TouchableOpacity>
+            </View>
+
+            {classStudents.length === 0 ? (
+              <View style={styles.emptyContainer}>
+                <Icon name="person-off" size={48} color="#ddd" />
+                <Text style={styles.emptyText}>No students enrolled</Text>
+              </View>
+            ) : (
+              <FlatList
+                data={classStudents}
+                renderItem={renderStudent}
+                keyExtractor={(item) => item.id?.toString() || Math.random().toString()}
+                style={styles.studentList}
+              />
+            )}
           </View>
         </View>
       </Modal>
@@ -643,6 +757,53 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
     color: '#fff',
+  },
+  viewStudentsButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 8,
+    borderRadius: 8,
+    backgroundColor: '#e8f5e9',
+  },
+  viewStudentsButtonText: {
+    fontSize: 12,
+    color: '#667eea',
+    marginLeft: 4,
+  },
+  studentList: {
+    padding: 20,
+    maxHeight: 500,
+  },
+  studentCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    backgroundColor: '#f9f9f9',
+    borderRadius: 8,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: '#eee',
+  },
+  studentInfo: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  studentName: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#333',
+  },
+  studentEmail: {
+    fontSize: 12,
+    color: '#666',
+  },
+  studentDetail: {
+    fontSize: 12,
+    color: '#888',
+    marginTop: 2,
+  },
+  removeButton: {
+    padding: 8,
   },
 });
 

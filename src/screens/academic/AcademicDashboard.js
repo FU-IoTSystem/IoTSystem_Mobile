@@ -10,8 +10,8 @@ import {
 } from 'react-native';
 import { MaterialIcons as Icon } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
-import { DrawerActions } from '@react-navigation/native';
 import { userAPI, classesAPI } from '../../services/api';
+import AcademicLayout from '../../components/AcademicLayout';
 
 const AcademicDashboard = ({ user, onLogout }) => {
   const navigation = useNavigation();
@@ -80,29 +80,13 @@ const AcademicDashboard = ({ user, onLogout }) => {
   };
 
   return (
-    <View style={styles.container}>
-      {/* Header with gradient background */}
-      <View style={styles.header}>
-        <View style={styles.headerContent}>
-          <TouchableOpacity 
-            style={styles.menuButton}
-            onPress={() => navigation.dispatch(DrawerActions.openDrawer())}
-          >
-            <Icon name="menu" size={28} color="#fff" />
-          </TouchableOpacity>
-          <View style={styles.headerTitleContainer}>
-            <Text style={styles.headerGreeting}>Welcome back!</Text>
-            <Text style={styles.headerTitle}>Academic Affairs</Text>
-          </View>
-          <TouchableOpacity 
-            style={styles.headerButton}
-            onPress={handleLogout}
-          >
-            <Icon name="logout" size={24} color="#fff" />
-          </TouchableOpacity>
-        </View>
-      </View>
-
+    <AcademicLayout
+      title="Academic Affairs"
+      rightAction={{
+        icon: 'logout',
+      }}
+      onRightAction={handleLogout}
+    >
       <ScrollView
         style={styles.content}
         showsVerticalScrollIndicator={false}
@@ -165,60 +149,15 @@ const AcademicDashboard = ({ user, onLogout }) => {
           </View>
         </View>
       </ScrollView>
-    </View>
+    </AcademicLayout>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#f5f5f5',
-  },
-  header: {
-    backgroundColor: '#667eea',
-    paddingTop: 50,
-    paddingBottom: 20,
-    paddingHorizontal: 20,
-    borderBottomLeftRadius: 25,
-    borderBottomRightRadius: 25,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 8,
-  },
-  headerContent: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  menuButton: {
-    padding: 8,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    borderRadius: 20,
-    marginRight: 12,
-  },
-  headerTitleContainer: {
-    flex: 1,
-  },
-  headerGreeting: {
-    fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.9)',
-    marginBottom: 4,
-  },
-  headerTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#fff',
-  },
-  headerButton: {
-    padding: 8,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    borderRadius: 20,
-  },
   content: {
     flex: 1,
     padding: 16,
+    backgroundColor: '#f5f5f5',
   },
   welcomeCard: {
     backgroundColor: '#667eea',
@@ -301,12 +240,6 @@ const styles = StyleSheet.create({
   },
   section: {
     marginBottom: 16,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 12,
   },
   overviewCard: {
     backgroundColor: 'white',

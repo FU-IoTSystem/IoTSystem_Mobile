@@ -19,11 +19,11 @@ const handleResponse = async (response) => {
   if (!response.ok) {
     let errorMessage = `HTTP error! status: ${response.status} ${response.statusText || ''}`;
     let errorDetails = null;
-    
+
     try {
       // Try to get response as text first
       const responseText = await response.text();
-      
+
       if (responseText) {
         try {
           // Try to parse as JSON
@@ -40,7 +40,7 @@ const handleResponse = async (response) => {
       console.error('Error reading error response:', textError);
       errorMessage = `HTTP ${response.status}: ${response.statusText || 'Unknown error'}`;
     }
-    
+
     const error = new Error(errorMessage);
     error.status = response.status;
     error.statusText = response.statusText;
@@ -53,7 +53,7 @@ const handleResponse = async (response) => {
     });
     throw error;
   }
-  
+
   const contentType = response.headers.get('content-type') || '';
   if (contentType.includes('application/json')) {
     try {
@@ -101,20 +101,20 @@ const extractArrayFromPayload = (payload) => {
 const apiRequest = async (endpoint, options = {}) => {
   const url = `${API_BASE_URL}${endpoint}`;
   const token = await getAuthToken();
-  
+
   const defaultHeaders = {
     'Content-Type': 'application/json',
   };
-  
+
   if (token) {
     defaultHeaders['Authorization'] = `Bearer ${token}`;
   }
-  
+
   const mergedHeaders = {
     ...defaultHeaders,
     ...(options.headers || {})
   };
-  
+
   const config = {
     ...options,
     headers: mergedHeaders
@@ -126,7 +126,7 @@ const apiRequest = async (endpoint, options = {}) => {
     headers: config.headers,
     body: config.body
   });
-  
+
   // Log request body if it exists
   if (config.body) {
     try {
@@ -154,12 +154,12 @@ const apiRequest = async (endpoint, options = {}) => {
       name: error.name,
       stack: error.stack
     });
-    
+
     // Re-throw with more context if needed
     if (!error.status && !error.message.includes('HTTP')) {
       error.message = `Network error: ${error.message || 'Failed to connect to server'}`;
     }
-    
+
     throw error;
   }
 };
@@ -175,12 +175,12 @@ export const authAPI = {
         },
         body: JSON.stringify({ username, password }),
       });
-      
+
       if (!response.ok) {
         const errorText = await response.text();
         throw new Error(errorText || 'Login failed');
       }
-      
+
       const token = await response.text();
       await AsyncStorage.setItem('authToken', token);
       return token;
@@ -229,12 +229,12 @@ export const authAPI = {
         },
         body: JSON.stringify(userData),
       });
-      
+
       if (!response.ok) {
         const errorText = await response.text();
         throw new Error(errorText || 'Update user failed');
       }
-      
+
       const result = await response.json();
       return result;
     } catch (error) {
@@ -254,7 +254,7 @@ export const walletAPI = {
   getMyWallet: async () => {
     return apiRequest('/api/wallet/myWallet');
   },
-  
+
   topUp: async (amount, description) => {
     return apiRequest('/api/wallet-transactions/top-up', {
       method: 'POST',
@@ -273,14 +273,14 @@ export const paymentAPI = {
       amount: amount,
       description: description
     };
-    
+
     if (returnUrl) {
       requestBody.returnUrl = returnUrl;
     }
     if (cancelUrl) {
       requestBody.cancelUrl = cancelUrl;
     }
-    
+
     return apiRequest('/api/payment/paypal/create', {
       method: 'POST',
       body: JSON.stringify(requestBody),
@@ -301,7 +301,7 @@ export const walletTransactionAPI = {
     const response = await apiRequest('/api/wallet-transactions/getAll');
     return response.data || [];
   },
-  
+
   getHistory: async () => {
     const response = await apiRequest('/api/wallet-transactions/history');
     return response.data || [];
@@ -623,11 +623,11 @@ export const userAPI = {
 
   createSingleStudent: async (studentData) => {
     console.log('Creating student with data:', studentData);
-    
+
     if (!studentData.email) {
       throw new Error('Email is required');
     }
-    
+
     const requestData = {
       username: studentData.email,
       password: studentData.password || '1',
@@ -636,9 +636,9 @@ export const userAPI = {
       phoneNumber: studentData.phoneNumber,
       fullName: studentData.name
     };
-    
+
     console.log('Request data:', requestData);
-    
+
     return apiRequest('/api/aas/create-single-student', {
       method: 'POST',
       body: JSON.stringify(requestData),
@@ -647,11 +647,11 @@ export const userAPI = {
 
   createSingleLecturer: async (lecturerData) => {
     console.log('Creating lecturer with data:', lecturerData);
-    
+
     if (!lecturerData.email) {
       throw new Error('Email is required');
     }
-    
+
     const requestData = {
       username: lecturerData.email,
       password: lecturerData.password || '1',
@@ -660,9 +660,9 @@ export const userAPI = {
       phoneNumber: lecturerData.phoneNumber,
       fullName: lecturerData.name
     };
-    
+
     console.log('Request data:', requestData);
-    
+
     return apiRequest('/api/aas/create-single-lecturer', {
       method: 'POST',
       body: JSON.stringify(requestData),
