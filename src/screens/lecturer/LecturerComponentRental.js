@@ -709,7 +709,7 @@ const LecturerComponentRental = ({ user }) => {
               <View style={styles.emptyState}>
                 <Icon name="extension" size={64} color="#ccc" />
                 <Text style={styles.emptyText}>
-                  {searchText || filterStatus !== 'all' || filterType !== 'all'
+                  {searchText || filterStatus !== 'all'
                     ? 'No components match your filters'
                     : 'No components available'}
                 </Text>

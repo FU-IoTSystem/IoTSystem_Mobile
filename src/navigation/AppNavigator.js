@@ -53,6 +53,7 @@ import AdminPenaltyPolicies from '../screens/admin/AdminPenaltyPolicies';
 import AdminScanQR from '../screens/admin/AdminScanQR';
 import AdminKitComponents from '../screens/admin/AdminKitComponents';
 import AdminKitComponentHistory from '../screens/admin/AdminKitComponentHistory';
+import AdminProfile from '../screens/admin/AdminProfile';
 
 // Academic Affairs Screens
 import AcademicDashboard from '../screens/academic/AcademicDashboard';
@@ -60,6 +61,7 @@ import AcademicClasses from '../screens/academic/AcademicClasses';
 import AcademicStudents from '../screens/academic/AcademicStudents';
 import AcademicLecturers from '../screens/academic/AcademicLecturers';
 import AcademicStudentEnrollment from '../screens/academic/AcademicStudentEnrollment';
+import AcademicProfile from '../screens/academic/AcademicProfile';
 
 // Shared Screens
 import TopUpScreen from '../screens/shared/TopUpScreen';
@@ -99,7 +101,7 @@ function MemberDrawerInner({ user, onLogout }) {
         headerShown: false,
       }}
     >
-      <Drawer.Screen 
+      <Drawer.Screen
         name="Dashboard"
         options={{
           drawerLabel: 'Dashboard',
@@ -110,7 +112,7 @@ function MemberDrawerInner({ user, onLogout }) {
       >
         {(props) => <MemberDashboard {...props} user={user} onLogout={onLogout} />}
       </Drawer.Screen>
-      <Drawer.Screen 
+      <Drawer.Screen
         name="Wallet"
         options={{
           drawerLabel: 'Wallet',
@@ -121,7 +123,7 @@ function MemberDrawerInner({ user, onLogout }) {
       >
         {(props) => <MemberWallet {...props} user={user} onLogout={onLogout} />}
       </Drawer.Screen>
-      <Drawer.Screen 
+      <Drawer.Screen
         name="Groups"
         options={{
           drawerLabel: 'My Groups',
@@ -132,7 +134,7 @@ function MemberDrawerInner({ user, onLogout }) {
       >
         {(props) => <MemberGroups {...props} user={user} onLogout={onLogout} />}
       </Drawer.Screen>
-      <Drawer.Screen 
+      <Drawer.Screen
         name="Notifications"
         options={{
           drawerLabel: 'Notifications',
@@ -143,7 +145,7 @@ function MemberDrawerInner({ user, onLogout }) {
       >
         {(props) => <MemberNotifications {...props} onLogout={onLogout} />}
       </Drawer.Screen>
-      <Drawer.Screen 
+      <Drawer.Screen
         name="Profile"
         options={{
           drawerLabel: 'Profile',
@@ -176,7 +178,7 @@ function LeaderDrawerInner({ user, onLogout }) {
         headerShown: false,
       }}
     >
-      <Drawer.Screen 
+      <Drawer.Screen
         name="Dashboard"
         options={{
           drawerLabel: 'Dashboard',
@@ -187,7 +189,7 @@ function LeaderDrawerInner({ user, onLogout }) {
       >
         {(props) => <LeaderDashboard {...props} user={user} onLogout={onLogout} />}
       </Drawer.Screen>
-      <Drawer.Screen 
+      <Drawer.Screen
         name="Groups"
         options={{
           drawerLabel: 'Group Management',
@@ -198,7 +200,7 @@ function LeaderDrawerInner({ user, onLogout }) {
       >
         {(props) => <GroupManagementScreen {...props} user={user} />}
       </Drawer.Screen>
-      <Drawer.Screen 
+      <Drawer.Screen
         name="KitRental"
         options={{
           drawerLabel: 'Kit Rental',
@@ -209,7 +211,7 @@ function LeaderDrawerInner({ user, onLogout }) {
       >
         {(props) => <LeaderRentals {...props} user={user} />}
       </Drawer.Screen>
-      <Drawer.Screen 
+      <Drawer.Screen
         name="ComponentRental"
         options={{
           drawerLabel: 'Kit Component Rental',
@@ -220,7 +222,7 @@ function LeaderDrawerInner({ user, onLogout }) {
       >
         {(props) => <LeaderComponentRental {...props} user={user} navigation={props.navigation} />}
       </Drawer.Screen>
-      <Drawer.Screen 
+      <Drawer.Screen
         name="BorrowStatus"
         options={{
           drawerLabel: 'Borrow Tracking',
@@ -231,7 +233,7 @@ function LeaderDrawerInner({ user, onLogout }) {
       >
         {(props) => <LeaderBorrowStatus {...props} user={user} navigation={props.navigation} />}
       </Drawer.Screen>
-      <Drawer.Screen 
+      <Drawer.Screen
         name="Wallet"
         options={{
           drawerLabel: 'Wallet',
@@ -242,7 +244,7 @@ function LeaderDrawerInner({ user, onLogout }) {
       >
         {(props) => <LeaderWallet {...props} user={user} navigation={props.navigation} />}
       </Drawer.Screen>
-      <Drawer.Screen 
+      <Drawer.Screen
         name="Profile"
         options={{
           drawerLabel: 'Profile',
@@ -253,7 +255,7 @@ function LeaderDrawerInner({ user, onLogout }) {
       >
         {(props) => <LeaderProfile {...props} user={user} navigation={props.navigation} />}
       </Drawer.Screen>
-      <Drawer.Screen 
+      <Drawer.Screen
         name="Settings"
         options={{
           drawerLabel: 'Settings',
@@ -332,7 +334,7 @@ function LecturerDrawerInner({ user, onLogout }) {
         headerShown: false,
       }}
     >
-      <Drawer.Screen 
+      <Drawer.Screen
         name="Dashboard"
         options={{
           drawerLabel: 'Dashboard',
@@ -343,7 +345,7 @@ function LecturerDrawerInner({ user, onLogout }) {
       >
         {(props) => <LecturerDashboard {...props} user={user} onLogout={onLogout} />}
       </Drawer.Screen>
-      <Drawer.Screen 
+      <Drawer.Screen
         name="Groups"
         options={{
           drawerLabel: 'My Groups',
@@ -354,7 +356,7 @@ function LecturerDrawerInner({ user, onLogout }) {
       >
         {(props) => <LecturerGroups {...props} user={user} />}
       </Drawer.Screen>
-      <Drawer.Screen 
+      <Drawer.Screen
         name="KitRental"
         options={{
           drawerLabel: 'Kit Rental',
@@ -365,7 +367,7 @@ function LecturerDrawerInner({ user, onLogout }) {
       >
         {(props) => <LecturerKitRental {...props} user={user} navigation={props.navigation} />}
       </Drawer.Screen>
-      <Drawer.Screen 
+      <Drawer.Screen
         name="ComponentRental"
         options={{
           drawerLabel: 'Kit Component Rental',
@@ -376,7 +378,7 @@ function LecturerDrawerInner({ user, onLogout }) {
       >
         {(props) => <LecturerComponentRental {...props} user={user} />}
       </Drawer.Screen>
-      <Drawer.Screen 
+      <Drawer.Screen
         name="Rentals"
         options={{
           drawerLabel: 'Borrow Tracking',
@@ -387,7 +389,7 @@ function LecturerDrawerInner({ user, onLogout }) {
       >
         {(props) => <LecturerRentals {...props} user={user} />}
       </Drawer.Screen>
-      <Drawer.Screen 
+      <Drawer.Screen
         name="Wallet"
         options={{
           drawerLabel: 'Wallet',
@@ -398,7 +400,7 @@ function LecturerDrawerInner({ user, onLogout }) {
       >
         {(props) => <LecturerWallet {...props} user={user} navigation={props.navigation} />}
       </Drawer.Screen>
-      <Drawer.Screen 
+      <Drawer.Screen
         name="Profile"
         options={{
           drawerLabel: 'Profile',
@@ -454,7 +456,7 @@ function AdminDrawer({ user, onLogout }) {
         headerShown: false,
       }}
     >
-      <Drawer.Screen 
+      <Drawer.Screen
         name="Dashboard"
         options={{
           drawerLabel: 'Dashboard',
@@ -465,7 +467,7 @@ function AdminDrawer({ user, onLogout }) {
       >
         {(props) => <AdminDashboard {...props} user={user} onLogout={onLogout} />}
       </Drawer.Screen>
-      <Drawer.Screen 
+      <Drawer.Screen
         name="Kits"
         options={{
           drawerLabel: 'Kit Management',
@@ -476,7 +478,7 @@ function AdminDrawer({ user, onLogout }) {
       >
         {(props) => <AdminKits {...props} onLogout={onLogout} />}
       </Drawer.Screen>
-      <Drawer.Screen 
+      <Drawer.Screen
         name="KitComponents"
         options={{
           drawerLabel: 'Kit Components',
@@ -487,7 +489,7 @@ function AdminDrawer({ user, onLogout }) {
       >
         {(props) => <AdminKitComponents {...props} onLogout={onLogout} />}
       </Drawer.Screen>
-      <Drawer.Screen 
+      <Drawer.Screen
         name="Approvals"
         options={{
           drawerLabel: 'Rental Approvals',
@@ -498,7 +500,7 @@ function AdminDrawer({ user, onLogout }) {
       >
         {(props) => <AdminApprovals {...props} onLogout={onLogout} />}
       </Drawer.Screen>
-      <Drawer.Screen 
+      <Drawer.Screen
         name="ReturnKits"
         options={{
           drawerLabel: 'Return Checking',
@@ -509,7 +511,7 @@ function AdminDrawer({ user, onLogout }) {
       >
         {(props) => <AdminReturnKits {...props} onLogout={onLogout} />}
       </Drawer.Screen>
-      <Drawer.Screen 
+      <Drawer.Screen
         name="ScanQRDrawer"
         options={{
           drawerLabel: 'Scan QR Code',
@@ -528,7 +530,7 @@ function AdminDrawer({ user, onLogout }) {
       >
         {(props) => <AdminScanQR {...props} onLogout={onLogout} />}
       </Drawer.Screen>
-      <Drawer.Screen 
+      <Drawer.Screen
         name="Users"
         options={{
           drawerLabel: 'User Management',
@@ -539,7 +541,7 @@ function AdminDrawer({ user, onLogout }) {
       >
         {(props) => <AdminUsers {...props} onLogout={onLogout} />}
       </Drawer.Screen>
-      <Drawer.Screen 
+      <Drawer.Screen
         name="Groups"
         options={{
           drawerLabel: 'Group Management',
@@ -550,7 +552,7 @@ function AdminDrawer({ user, onLogout }) {
       >
         {(props) => <AdminGroups {...props} onLogout={onLogout} />}
       </Drawer.Screen>
-      <Drawer.Screen 
+      <Drawer.Screen
         name="KitComponentHistory"
         options={{
           drawerLabel: 'Component History',
@@ -561,7 +563,7 @@ function AdminDrawer({ user, onLogout }) {
       >
         {(props) => <AdminKitComponentHistory {...props} onLogout={onLogout} />}
       </Drawer.Screen>
-      <Drawer.Screen 
+      <Drawer.Screen
         name="LogHistory"
         options={{
           drawerLabel: 'Log History',
@@ -572,7 +574,7 @@ function AdminDrawer({ user, onLogout }) {
       >
         {(props) => <AdminLogHistory {...props} onLogout={onLogout} />}
       </Drawer.Screen>
-      <Drawer.Screen 
+      <Drawer.Screen
         name="Transactions"
         options={{
           drawerLabel: 'Transaction History',
@@ -583,7 +585,7 @@ function AdminDrawer({ user, onLogout }) {
       >
         {(props) => <AdminTransactions {...props} onLogout={onLogout} />}
       </Drawer.Screen>
-      <Drawer.Screen 
+      <Drawer.Screen
         name="Fines"
         options={{
           drawerLabel: 'Fine Management',
@@ -594,7 +596,7 @@ function AdminDrawer({ user, onLogout }) {
       >
         {(props) => <AdminFines {...props} onLogout={onLogout} />}
       </Drawer.Screen>
-      <Drawer.Screen 
+      <Drawer.Screen
         name="PenaltyPolicies"
         options={{
           drawerLabel: 'Penalty Policies',
@@ -604,6 +606,17 @@ function AdminDrawer({ user, onLogout }) {
         }}
       >
         {(props) => <AdminPenaltyPolicies {...props} onLogout={onLogout} />}
+      </Drawer.Screen>
+      <Drawer.Screen
+        name="Profile"
+        options={{
+          drawerLabel: 'My Profile',
+          drawerIcon: ({ color, size }) => (
+            <Icon name="person" size={size} color={color} />
+          ),
+        }}
+      >
+        {(props) => <AdminProfile {...props} user={user} />}
       </Drawer.Screen>
     </Drawer.Navigator>
   );
@@ -655,7 +668,7 @@ function AcademicDrawerInner({ user, onLogout }) {
         headerShown: false,
       }}
     >
-      <Drawer.Screen 
+      <Drawer.Screen
         name="Dashboard"
         options={{
           drawerLabel: 'Dashboard',
@@ -666,7 +679,7 @@ function AcademicDrawerInner({ user, onLogout }) {
       >
         {(props) => <AcademicDashboard {...props} user={user} onLogout={onLogout} />}
       </Drawer.Screen>
-      <Drawer.Screen 
+      <Drawer.Screen
         name="StudentEnrollment"
         options={{
           drawerLabel: 'Student Enrollment',
@@ -677,8 +690,8 @@ function AcademicDrawerInner({ user, onLogout }) {
       >
         {(props) => <AcademicStudentEnrollment {...props} user={user} onLogout={onLogout} />}
       </Drawer.Screen>
-      <Drawer.Screen 
-        name="Classes" 
+      <Drawer.Screen
+        name="Classes"
         options={{
           drawerLabel: 'IOT Subjects',
           drawerIcon: ({ color, size }) => (
@@ -688,8 +701,8 @@ function AcademicDrawerInner({ user, onLogout }) {
       >
         {(props) => <AcademicClasses {...props} user={user} onLogout={onLogout} />}
       </Drawer.Screen>
-      <Drawer.Screen 
-        name="Students" 
+      <Drawer.Screen
+        name="Students"
         options={{
           drawerLabel: 'Students',
           drawerIcon: ({ color, size }) => (
@@ -699,8 +712,8 @@ function AcademicDrawerInner({ user, onLogout }) {
       >
         {(props) => <AcademicStudents {...props} user={user} onLogout={onLogout} />}
       </Drawer.Screen>
-      <Drawer.Screen 
-        name="Lecturers" 
+      <Drawer.Screen
+        name="Lecturers"
         options={{
           drawerLabel: 'Lecturers',
           drawerIcon: ({ color, size }) => (
@@ -709,6 +722,17 @@ function AcademicDrawerInner({ user, onLogout }) {
         }}
       >
         {(props) => <AcademicLecturers {...props} user={user} onLogout={onLogout} />}
+      </Drawer.Screen>
+      <Drawer.Screen
+        name="Profile"
+        options={{
+          drawerLabel: 'My Profile',
+          drawerIcon: ({ color, size }) => (
+            <Icon name="person" size={size} color={color} />
+          ),
+        }}
+      >
+        {(props) => <AcademicProfile {...props} user={user} onLogout={onLogout} />}
       </Drawer.Screen>
     </Drawer.Navigator>
   );
@@ -735,7 +759,7 @@ function AppNavigatorInner() {
     if (!user) return <AuthStack />;
 
     const role = user.role?.toLowerCase();
-    
+
     switch (role) {
       case 'member':
       case 'student':

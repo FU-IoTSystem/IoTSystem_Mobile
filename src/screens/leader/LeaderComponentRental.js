@@ -154,7 +154,7 @@ const LeaderComponentRental = ({ user, navigation }) => {
       } else {
         returnDate = new Date(expectReturnDate);
       }
-      
+
       if (isNaN(returnDate.getTime()) || returnDate <= new Date()) {
         Alert.alert('Error', 'Please enter a valid future date');
         return;
@@ -189,9 +189,9 @@ const LeaderComponentRental = ({ user, navigation }) => {
         depositAmount: depositAmount,
         expectReturnDate: returnDate.toISOString()
       };
-      
+
       const response = await borrowingRequestAPI.createComponentRequest(requestData);
-      
+
       if (response) {
         try {
           await notificationAPI.createNotifications([
@@ -209,12 +209,12 @@ const LeaderComponentRental = ({ user, navigation }) => {
         } catch (notifyError) {
           console.error('Error sending notifications:', notifyError);
         }
-        
+
         const qrCode = response?.qrCode || response?.data?.qrCode || response?.qrCodeUrl;
         const requestId = response?.id || response?.data?.id;
 
         setShowRentModal(false);
-        
+
         if (qrCode) {
           setQrCodeData(qrCode);
           setSubmittedRequest({
@@ -384,8 +384,8 @@ const LeaderComponentRental = ({ user, navigation }) => {
               <View style={styles.emptyState}>
                 <Icon name="extension" size={64} color="#ccc" />
                 <Text style={styles.emptyText}>
-                  {searchText || filterStatus !== 'all' || filterType !== 'all' 
-                    ? 'No components match your filters' 
+                  {searchText || filterStatus !== 'all'
+                    ? 'No components match your filters'
                     : 'No components available'}
                 </Text>
               </View>
