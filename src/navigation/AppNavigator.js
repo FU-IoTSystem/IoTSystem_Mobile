@@ -18,6 +18,7 @@ import MemberWallet from '../screens/member/MemberWallet';
 import MemberGroups from '../screens/member/MemberGroups';
 import MemberNotifications from '../screens/member/MemberNotifications';
 import MemberProfile from '../screens/member/MemberProfile';
+import BorrowTracking from '../screens/member/BorrowTracking';
 
 // Leader Screens
 import LeaderDashboard from '../screens/leader/LeaderDashboard';
@@ -144,6 +145,17 @@ function MemberDrawerInner({ user, onLogout }) {
         }}
       >
         {(props) => <MemberNotifications {...props} onLogout={onLogout} />}
+      </Drawer.Screen>
+      <Drawer.Screen
+        name="BorrowTracking"
+        options={{
+          drawerLabel: 'Borrow Tracking',
+          drawerIcon: ({ color, size }) => (
+            <Icon name="history" size={size} color={color} />
+          ),
+        }}
+      >
+        {(props) => <BorrowTracking {...props} user={user} onLogout={onLogout} />}
       </Drawer.Screen>
       <Drawer.Screen
         name="Profile"
