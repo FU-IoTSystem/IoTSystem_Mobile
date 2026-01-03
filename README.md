@@ -58,6 +58,7 @@ iotsystem_mobile/
     │   ├── components/               # Reusable layout components
     │   │   ├── AdminLayout.js
     │   │   ├── LeaderLayout.js
+    │   │   ├── AcademicLayout.js
     │   │   ├── LecturerLayout.js
     │   │   └── MemberLayout.js
     │   │
@@ -73,6 +74,7 @@ iotsystem_mobile/
     │   │   │   ├── AcademicClasses.js
     │   │   │   ├── AcademicDashboard.js
     │   │   │   ├── AcademicLecturers.js
+    │   │   │   ├── AcademicProfile.js
     │   │   │   ├── AcademicStudentEnrollment.js
     │   │   │   └── AcademicStudents.js
     │   │   │
@@ -88,6 +90,7 @@ iotsystem_mobile/
     │   │   │   ├── AdminPenaltyPolicies.js
     │   │   │   ├── AdminReturnKits.js
     │   │   │   ├── AdminScanQR.js
+    │   │   │   ├── AdminProfile.js
     │   │   │   ├── AdminTransactions.js
     │   │   │   └── AdminUsers.js
     │   │   │
@@ -121,6 +124,7 @@ iotsystem_mobile/
     │   │   │   ├── MemberGroups.js
     │   │   │   ├── MemberNotifications.js
     │   │   │   ├── MemberProfile.js
+    │   │   │   ├── BorrowTracking.js
     │   │   │   └── MemberWallet.js
     │   │   │
     │   │   └── shared/               # Shared screens across roles
