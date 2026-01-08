@@ -56,17 +56,39 @@ const AcademicStudents = ({ user, onLogout }) => {
   const loadStudents = async () => {
     setLoading(true);
     try {
-      const studentsData = await userAPI.getStudents();
-      const formatted = (studentsData || []).map(student => ({
-        id: student.id,
-        name: student.fullName,
-        email: student.email,
-        studentCode: student.studentCode,
-        phoneNumber: student.phoneNumber,
-        createdAt: student.createdAt ? dayjs(student.createdAt).format('DD/MM/YYYY HH:mm') : 'N/A',
-        status: student.status || 'ACTIVE',
-      }));
+      const [studentsData, classesData, assignmentsData] = await Promise.all([
+        userAPI.getStudents(),
+        classesAPI.getAllClasses(),
+        classAssignmentAPI.getAll()
+      ]);
+
+      const formatted = (studentsData || []).map(student => {
+        // Find active class assignment for this student
+        const assignment = assignmentsData.find(a =>
+          a.accountId === student.id &&
+          a.roleName === 'STUDENT' &&
+          classesData.some(c => c.id === a.classId && c.status === true)
+        );
+
+        const classInfo = assignment
+          ? classesData.find(c => c.id === assignment.classId)
+          : null;
+
+        return {
+          id: student.id,
+          name: student.fullName,
+          email: student.email,
+          studentCode: student.studentCode,
+          phoneNumber: student.phoneNumber,
+          createdAt: student.createdAt ? dayjs(student.createdAt).format('DD/MM/YYYY HH:mm') : 'N/A',
+          status: student.status || 'ACTIVE',
+          classCode: classInfo ? classInfo.classCode : null,
+          semester: classInfo ? classInfo.semester : null,
+        };
+      });
       setStudents(formatted);
+      // Update classes state as well since we fetched them
+      setClasses((classesData || []).filter(c => c.status === true));
     } catch (error) {
       console.error('Error loading students:', error);
       Alert.alert('Error', 'Failed to load students');
@@ -234,6 +256,12 @@ const AcademicStudents = ({ user, onLogout }) => {
 
       <View style={styles.studentDetails}>
         <View style={styles.detailRow}>
+          <Text style={styles.detailLabel}>Class:</Text>
+          <Text style={styles.detailValue}>
+            {item.classCode ? `${item.classCode} - ${item.semester}` : 'N/A'}
+          </Text>
+        </View>
+        <View style={styles.detailRow}>
           <Text style={styles.detailLabel}>Student Code:</Text>
           <Text style={styles.detailValue}>{item.studentCode}</Text>
         </View>
@@ -344,24 +372,22 @@ const AcademicStudents = ({ user, onLogout }) => {
               <View style={styles.formGroup}>
                 <Text style={styles.formLabel}>Email *</Text>
                 <TextInput
-                  style={[styles.formInput, editing && styles.formInputDisabled]}
+                  style={styles.formInput}
                   placeholder="Enter email"
                   value={email}
                   onChangeText={setEmail}
                   keyboardType="email-address"
                   autoCapitalize="none"
-                  editable={!editing}
                 />
               </View>
 
               <View style={styles.formGroup}>
                 <Text style={styles.formLabel}>Student Code *</Text>
                 <TextInput
-                  style={[styles.formInput, editing && styles.formInputDisabled]}
+                  style={styles.formInput}
                   placeholder="Enter student code"
                   value={studentCode}
                   onChangeText={setStudentCode}
-                  editable={!editing}
                 />
               </View>
 

@@ -233,7 +233,7 @@ const AcademicClasses = ({ user, onLogout }) => {
     <View style={styles.subjectCard}>
       <View style={styles.subjectHeader}>
         <View style={styles.subjectIcon}>
-          <Icon name="build" size={32} color="#43e97b" />
+          <Icon name="build" size={32} color="#667eea" />
         </View>
         <View style={styles.subjectInfo}>
           <Text style={styles.subjectCode}>{item.classCode}</Text>
@@ -293,7 +293,7 @@ const AcademicClasses = ({ user, onLogout }) => {
           style={styles.menuButton}
           onPress={() => navigation.dispatch(DrawerActions.openDrawer())}
         >
-          <Icon name="menu" size={28} color="#43e97b" />
+          <Icon name="menu" size={28} color="#667eea" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>IOT Subjects</Text>
         <TouchableOpacity
@@ -391,7 +391,7 @@ const AcademicClasses = ({ user, onLogout }) => {
                         {lecturer.fullName || lecturer.email} ({lecturer.email})
                       </Text>
                       {lecturerId === lecturer.id && (
-                        <Icon name="check-circle" size={20} color="#43e97b" />
+                        <Icon name="check-circle" size={20} color="#667eea" />
                       )}
                     </TouchableOpacity>
                   ))}
@@ -404,7 +404,7 @@ const AcademicClasses = ({ user, onLogout }) => {
                   <Switch
                     value={status}
                     onValueChange={setStatus}
-                    trackColor={{ false: '#767577', true: '#43e97b' }}
+                    trackColor={{ false: '#767577', true: '#667eea' }}
                     thumbColor={status ? '#fff' : '#f4f3f4'}
                   />
                 </View>
@@ -501,7 +501,7 @@ const styles = StyleSheet.create({
     color: '#333',
   },
   addButton: {
-    backgroundColor: '#43e97b',
+    backgroundColor: '#667eea',
     width: 48,
     height: 48,
     borderRadius: 24,
@@ -532,7 +532,7 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: '#e8f5e9',
+    backgroundColor: '#f0f4ff',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
@@ -626,7 +626,7 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   emptyButton: {
-    backgroundColor: '#43e97b',
+    backgroundColor: '#667eea',
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 12,
@@ -702,7 +702,7 @@ const styles = StyleSheet.create({
     borderBottomColor: '#e0e0e0',
   },
   selectOptionSelected: {
-    backgroundColor: '#e8f5e9',
+    backgroundColor: '#e3f2fd',
   },
   selectOptionText: {
     fontSize: 14,
@@ -710,7 +710,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   selectOptionTextSelected: {
-    color: '#43e97b',
+    color: '#667eea',
     fontWeight: '600',
   },
   switchRow: {
@@ -747,7 +747,7 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 16,
     borderRadius: 12,
-    backgroundColor: '#43e97b',
+    backgroundColor: '#667eea',
     alignItems: 'center',
   },
   modalSubmitButtonDisabled: {
@@ -763,7 +763,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 8,
     borderRadius: 8,
-    backgroundColor: '#e8f5e9',
+    backgroundColor: '#f0f4ff',
   },
   viewStudentsButtonText: {
     fontSize: 12,

@@ -25,7 +25,7 @@
     "@react-navigation/native": "^7.1.19",
     "@react-navigation/stack": "^7.6.2",
     "dayjs": "^1.11.10",
-    "expo": "~54.0.30",
+    "expo": "~54.0.31",
     "expo-camera": "~17.0.10",
     "react": "^19.1.0",
     "react-native": "^0.81.5",

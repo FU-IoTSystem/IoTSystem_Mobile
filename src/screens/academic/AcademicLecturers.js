@@ -56,18 +56,40 @@ const AcademicLecturers = ({ user, onLogout }) => {
   const loadLecturers = async () => {
     setLoading(true);
     try {
-      const lecturersData = await userAPI.getLecturers();
-      const formatted = (lecturersData || []).map(lecturer => ({
-        id: lecturer.id || lecturer.email,
-        name: lecturer.fullName,
-        email: lecturer.email,
-        phoneNumber: lecturer.phone || '',
-        lecturerCode: lecturer.studentCode || '', // Mapping studentCode as LecturerCode
-        semester: lecturer.semester || '',
-        createdAt: lecturer.createdAt ? dayjs(lecturer.createdAt).format('DD/MM/YYYY HH:mm') : 'N/A',
-        status: lecturer.status || 'ACTIVE',
-      }));
+      const [lecturersData, classesData, assignmentsData] = await Promise.all([
+        userAPI.getLecturers(),
+        classesAPI.getAllClasses(),
+        classAssignmentAPI.getAll()
+      ]);
+
+      const formatted = (lecturersData || []).map(lecturer => {
+        // Find active class assignment for this lecturer
+        const assignment = assignmentsData.find(a =>
+          a.accountId === lecturer.id &&
+          (a.roleName === 'LECTURER' || a.roleName === 'TEACHER') &&
+          classesData.some(c => c.id === a.classId && c.status === true)
+        );
+
+        const classInfo = assignment
+          ? classesData.find(c => c.id === assignment.classId)
+          : null;
+
+        return {
+          id: lecturer.id || lecturer.email,
+          name: lecturer.fullName,
+          email: lecturer.email,
+          phoneNumber: lecturer.phone || '',
+          lecturerCode: lecturer.lecturerCode || lecturer.studentCode || '',
+          semester: lecturer.semester || '',
+          createdAt: lecturer.createdAt ? dayjs(lecturer.createdAt).format('DD/MM/YYYY HH:mm') : 'N/A',
+          status: lecturer.status || 'ACTIVE',
+          classCode: classInfo ? classInfo.classCode : null,
+          classSemester: classInfo ? classInfo.semester : null,
+        };
+      });
       setLecturers(formatted);
+      // Update classes state
+      setClasses((classesData || []).filter(c => c.status === true));
     } catch (error) {
       console.error('Error loading lecturers:', error);
       Alert.alert('Error', 'Failed to load lecturers');
@@ -129,7 +151,7 @@ const AcademicLecturers = ({ user, onLogout }) => {
           fullName: name.trim(),
           phoneNumber: phoneNumber.trim(),
           email: email.trim(),
-          studentCode: lecturerCode.trim(), // Send as studentCode
+          lecturerCode: lecturerCode.trim(),
           semester: semester.trim(),
         });
 
@@ -160,7 +182,7 @@ const AcademicLecturers = ({ user, onLogout }) => {
           name: name.trim(),
           email: email.trim(),
           phoneNumber: phoneNumber.trim(),
-          studentCode: lecturerCode.trim(), // Send as studentCode
+          lecturerCode: lecturerCode.trim(),
           semester: semester.trim(),
         });
 
@@ -226,7 +248,13 @@ const AcademicLecturers = ({ user, onLogout }) => {
 
       <View style={styles.lecturerDetails}>
         <View style={styles.detailRow}>
-          <Text style={styles.detailLabel}>Code:</Text>
+          <Text style={styles.detailLabel}>Class:</Text>
+          <Text style={styles.detailValue}>
+            {item.classCode ? `${item.classCode} - ${item.classSemester}` : 'N/A'}
+          </Text>
+        </View>
+        <View style={styles.detailRow}>
+          <Text style={styles.detailLabel}>Lecturer Code:</Text>
           <Text style={styles.detailValue}>{item.lecturerCode || 'N/A'}</Text>
         </View>
         <View style={styles.detailRow}>
@@ -348,11 +376,10 @@ const AcademicLecturers = ({ user, onLogout }) => {
               <View style={styles.formGroup}>
                 <Text style={styles.formLabel}>Lecturer Code</Text>
                 <TextInput
-                  style={[styles.formInput, editing && styles.formInputDisabled]}
+                  style={styles.formInput}
                   placeholder="Enter lecturer code"
                   value={lecturerCode}
                   onChangeText={setLecturerCode}
-                  editable={!editing}
                 />
               </View>
 

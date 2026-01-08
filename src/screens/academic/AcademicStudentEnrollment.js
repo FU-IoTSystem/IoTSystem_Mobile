@@ -202,21 +202,20 @@ const AcademicStudentEnrollment = ({ user, onLogout }) => {
       <View style={styles.assignmentHeader}>
         <Icon name="person" size={24} color="#667eea" />
         <View style={styles.assignmentInfo}>
-          <Text style={styles.assignmentName}>{item.accountName || item.accountEmail}</Text>
-          <Text style={styles.assignmentEmail}>{item.accountEmail}</Text>
+          <Text style={styles.assignmentName}>{getClassName(item.classId)}</Text>
         </View>
       </View>
       <View style={styles.assignmentDetails}>
         <View style={styles.detailRow}>
-          <Text style={styles.assignmentLabel}>IoT Subject:</Text>
-          <Text style={styles.assignmentValue}>{getClassName(item.classId)}</Text>
-        </View>
-        <View style={styles.detailRow}>
-          <Text style={styles.assignmentLabel}>Lecturer:</Text>
+          <Text style={styles.assignmentLabel}>Lecturer Name:</Text>
           <Text style={styles.assignmentValue}>
-            {item.accountName || item.accountEmail || 'N/A'}
+            {item.accountName || 'N/A'}
             {item.lecturerCode ? ` (${item.lecturerCode})` : ''}
           </Text>
+        </View>
+        <View style={styles.detailRow}>
+          <Text style={styles.assignmentLabel}>Lecturer Email:</Text>
+          <Text style={styles.assignmentValue}>{item.accountEmail || 'N/A'}</Text>
         </View>
         <View style={styles.detailRow}>
           <Text style={styles.assignmentLabel}>Enrollment Date:</Text>
@@ -362,28 +361,71 @@ const AcademicStudentEnrollment = ({ user, onLogout }) => {
             >
               <View style={styles.formGroup}>
                 <Text style={styles.formLabel}>IoT Subject *</Text>
+                {editing ? (
+                  <View style={styles.formValueContainer}>
+                    <Text style={styles.formValue}>{getClassName(selectedClassId)}</Text>
+                  </View>
+                ) : (
+                  <View style={styles.selectContainer}>
+                    <FlatList
+                      data={classes.filter(c => !classAssignments.some(a => a.classId === c.id))}
+                      keyExtractor={(item) => item.id?.toString() || Math.random().toString()}
+                      renderItem={({ item: cls }) => (
+                        <TouchableOpacity
+                          style={[
+                            styles.selectOption,
+                            selectedClassId === cls.id && styles.selectOptionSelected
+                          ]}
+                          onPress={() => {
+                            setSelectedClassId(cls.id);
+                            setSelectedLecturerId(cls.teacherId);
+                          }}
+                        >
+                          <Text style={[
+                            styles.selectOptionText,
+                            selectedClassId === cls.id && styles.selectOptionTextSelected
+                          ]}>
+                            {cls.classCode} - {cls.semester}
+                          </Text>
+                          {selectedClassId === cls.id && (
+                            <Icon name="check-circle" size={20} color="#667eea" />
+                          )}
+                        </TouchableOpacity>
+                      )}
+                      scrollEnabled={true}
+                      nestedScrollEnabled={true}
+                      style={styles.flatListContainer}
+                    />
+                  </View>
+                )}
+              </View>
+
+              <View style={styles.formGroup}>
+                <Text style={styles.formLabel}>Lecturer *</Text>
                 <View style={styles.selectContainer}>
                   <FlatList
-                    data={editing ? classes : classes.filter(c => !classAssignments.some(a => a.classId === c.id))}
+                    data={lecturers}
                     keyExtractor={(item) => item.id?.toString() || Math.random().toString()}
-                    renderItem={({ item: cls }) => (
+                    renderItem={({ item: lecturer }) => (
                       <TouchableOpacity
                         style={[
                           styles.selectOption,
-                          selectedClassId === cls.id && styles.selectOptionSelected
+                          selectedLecturerId === lecturer.id && styles.selectOptionSelected
                         ]}
-                        onPress={() => {
-                          setSelectedClassId(cls.id);
-                          setSelectedLecturerId(cls.teacherId);
-                        }}
+                        onPress={() => setSelectedLecturerId(lecturer.id)}
                       >
-                        <Text style={[
-                          styles.selectOptionText,
-                          selectedClassId === cls.id && styles.selectOptionTextSelected
-                        ]}>
-                          {cls.classCode} - {cls.semester}
-                        </Text>
-                        {selectedClassId === cls.id && (
+                        <View>
+                          <Text style={[
+                            styles.selectOptionText,
+                            selectedLecturerId === lecturer.id && styles.selectOptionTextSelected
+                          ]}>
+                            {lecturer.fullName || lecturer.email}
+                          </Text>
+                          <Text style={{ fontSize: 12, color: '#666', marginTop: 2 }}>
+                            {lecturer.email}
+                          </Text>
+                        </View>
+                        {selectedLecturerId === lecturer.id && (
                           <Icon name="check-circle" size={20} color="#667eea" />
                         )}
                       </TouchableOpacity>
@@ -392,26 +434,6 @@ const AcademicStudentEnrollment = ({ user, onLogout }) => {
                     nestedScrollEnabled={true}
                     style={styles.flatListContainer}
                   />
-                </View>
-              </View>
-
-              <View style={styles.formGroup}>
-                <Text style={styles.formLabel}>Lecturer *</Text>
-                <View style={styles.formValueContainer}>
-                  <Text style={styles.formValue}>
-                    {editing
-                      ? (selectedAssignment?.accountName || selectedAssignment?.accountEmail)
-                      : (lecturers.find(l => l.id === selectedLecturerId)?.fullName ||
-                        lecturers.find(l => l.id === selectedLecturerId)?.email ||
-                        'Select a subject to see lecturer')
-                    }
-                  </Text>
-                  <Text style={styles.formSubValue}>
-                    {editing
-                      ? (selectedAssignment?.accountEmail)
-                      : (lecturers.find(l => l.id === selectedLecturerId)?.email || '')
-                    }
-                  </Text>
                 </View>
               </View>
             </ScrollView>
