@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { MaterialIcons as Icon } from '@expo/vector-icons';
 import LeaderLayout from '../../components/LeaderLayout';
-import { borrowingGroupAPI, studentGroupAPI } from '../../services/api';
+import { borrowingGroupAPI, studentGroupAPI, classesAPI } from '../../services/api';
 
 const GroupManagementScreen = ({ user, navigation }) => {
   const [loading, setLoading] = useState(false);
@@ -36,10 +36,10 @@ const GroupManagementScreen = ({ user, navigation }) => {
       // If no groupId from user info, try to get it from borrowing groups
       if (!groupId && user.id) {
         const borrowingGroups = await borrowingGroupAPI.getByAccountId(user.id);
-        const groupsArray = Array.isArray(borrowingGroups) 
-          ? borrowingGroups 
+        const groupsArray = Array.isArray(borrowingGroups)
+          ? borrowingGroups
           : (borrowingGroups?.data || borrowingGroups?.content || []);
-        
+
         if (groupsArray && groupsArray.length > 0) {
           // Find the group where user is a leader
           const leaderGroup = groupsArray.find(bg => bg.roles === 'LEADER');
@@ -54,21 +54,21 @@ const GroupManagementScreen = ({ user, navigation }) => {
 
       if (groupId) {
         console.log('Loading group info for groupId:', groupId);
-        
+
         // Get borrowing groups for this student group (all members)
         const borrowingGroups = await borrowingGroupAPI.getByStudentGroupId(groupId);
         console.log('Borrowing groups response:', borrowingGroups);
-        
+
         // Get student group details
         const studentGroup = await studentGroupAPI.getById(groupId);
         console.log('Student group response:', studentGroup);
-        
+
         if (studentGroup) {
           // Handle array or object response
-          const groupsArray = Array.isArray(borrowingGroups) 
-            ? borrowingGroups 
+          const groupsArray = Array.isArray(borrowingGroups)
+            ? borrowingGroups
             : (borrowingGroups?.data || borrowingGroups?.content || []);
-          
+
           // Map borrowing groups to members
           const members = (groupsArray || []).map(bg => ({
             id: bg.accountId,
@@ -77,10 +77,26 @@ const GroupManagementScreen = ({ user, navigation }) => {
             role: bg.roles,
             studentCode: bg.studentCode || null,
           }));
-          
+
           // Find leader
           const leaderMember = members.find(member => (member.role || '').toUpperCase() === 'LEADER');
-          
+
+          // Fetch class info if classId exists
+          let classInfo = null;
+          if (studentGroup.classId) {
+            try {
+              // Use getAllClasses to ensure consistent data structure handling
+              const classesResponse = await classesAPI.getAllClasses();
+              const classList = Array.isArray(classesResponse)
+                ? classesResponse
+                : (classesResponse?.data || classesResponse?.content || []);
+
+              classInfo = classList.find(c => c.id === studentGroup.classId);
+            } catch (err) {
+              console.log('Error fetching class info:', err);
+            }
+          }
+
           const groupInfo = {
             id: studentGroup.id,
             name: studentGroup.groupName,
@@ -90,9 +106,11 @@ const GroupManagementScreen = ({ user, navigation }) => {
             lecturer: studentGroup.lecturerEmail || null,
             lecturerName: studentGroup.lecturerName || null,
             classId: studentGroup.classId,
+            classCode: classInfo?.classCode || 'N/A',
+            semester: classInfo?.semester || 'N/A',
             status: studentGroup.status ? 'active' : 'inactive'
           };
-          
+
           console.log('Processed group data:', groupInfo);
           setGroupData(groupInfo);
         } else {
@@ -130,7 +148,7 @@ const GroupManagementScreen = ({ user, navigation }) => {
   if (!groupData) {
     return (
       <LeaderLayout title="Group Management">
-        <ScrollView 
+        <ScrollView
           style={styles.content}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
@@ -148,7 +166,7 @@ const GroupManagementScreen = ({ user, navigation }) => {
 
   return (
     <LeaderLayout title="Group Management">
-      <ScrollView 
+      <ScrollView
         style={styles.content}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
@@ -160,13 +178,13 @@ const GroupManagementScreen = ({ user, navigation }) => {
             <Icon name="group" size={32} color="#667eea" />
             <Text style={styles.groupName}>{groupData.name || 'N/A'}</Text>
           </View>
-          
+
           <View style={styles.groupInfo}>
             <View style={styles.infoRow}>
               <Text style={styles.infoLabel}>Group ID:</Text>
               <Text style={styles.infoValue}>{groupData.id}</Text>
             </View>
-            
+
             <View style={styles.infoRow}>
               <Text style={styles.infoLabel}>Status:</Text>
               <View style={[
@@ -181,14 +199,24 @@ const GroupManagementScreen = ({ user, navigation }) => {
                 </Text>
               </View>
             </View>
-            
+
+            <View style={styles.infoRow}>
+              <Text style={styles.infoLabel}>Class Code:</Text>
+              <Text style={styles.infoValue}>{groupData.classCode}</Text>
+            </View>
+
+            <View style={styles.infoRow}>
+              <Text style={styles.infoLabel}>Semester:</Text>
+              <Text style={styles.infoValue}>{groupData.semester}</Text>
+            </View>
+
             <View style={styles.infoRow}>
               <Text style={styles.infoLabel}>Lecturer:</Text>
               <Text style={styles.infoValue}>
                 {groupData.lecturerName || groupData.lecturer || 'N/A'}
               </Text>
             </View>
-            
+
             <View style={styles.infoRow}>
               <Text style={styles.infoLabel}>Lecturer Email:</Text>
               <Text style={styles.infoValue}>{groupData.lecturer || 'N/A'}</Text>

@@ -2,7 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // API base URL for all platforms
 export const API_BASE_URL = 'https://iot-system-kit.azurewebsites.net';
-// export const API_BASE_URL = 'http://192.168.1.5:8080';
+// export const API_BASE_URL = 'http://192.168.2.56:8080';
 
 // Helper function to get JWT token from AsyncStorage
 const getAuthToken = async () => {
@@ -655,7 +655,8 @@ export const userAPI = {
     const requestData = {
       username: lecturerData.email,
       password: lecturerData.password || '1',
-      studentCode: lecturerData.studentCode || '',
+      studentCode: '',
+      lecturerCode: lecturerData.lecturerCode || lecturerData.studentCode || '',
       roles: 'LECTURER',
       phoneNumber: lecturerData.phoneNumber,
       fullName: lecturerData.name
@@ -696,6 +697,8 @@ export const userAPI = {
           fullName: lecturer.fullName,
           id: lecturer.id,
           phone: lecturer.phone,
+          studentCode: lecturer.studentCode,
+          lecturerCode: lecturer.lecturerCode,
           createdAt: lecturer.createdAt,
           status: lecturer.isActive ? 'ACTIVE' : 'INACTIVE'
         }));
