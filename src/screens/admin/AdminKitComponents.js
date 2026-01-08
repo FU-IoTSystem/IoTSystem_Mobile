@@ -16,7 +16,7 @@ import { useNavigation } from '@react-navigation/native';
 import { MaterialIcons as Icon } from '@expo/vector-icons';
 import { kitComponentAPI } from '../../services/api';
 
-const COMPONENT_TYPE_OPTIONS = ['RED', 'BLACK', 'WHITE'];
+const COMPONENT_TYPE_OPTIONS = ['BOX', 'SET', 'UNIT'];
 
 const AdminKitComponents = ({ onLogout }) => {
   const navigation = useNavigation();
@@ -213,87 +213,81 @@ const AdminKitComponents = ({ onLogout }) => {
     const statusUpper = (item.status || 'UNKNOWN').toUpperCase();
     const isAvailable = statusUpper === 'AVAILABLE';
 
+    // Type color mapping
+    const getTypeColor = (type) => {
+      switch (type) {
+        case 'BOX': return '#faad14';
+        case 'SET': return '#1890ff';
+        case 'UNIT': return '#52c41a';
+        default: return '#722ed1';
+      }
+    };
+    const typeColor = getTypeColor(typeLabel);
+
     return (
       <View style={styles.componentCard}>
-        {/* Image */}
-        {item.imageUrl && item.imageUrl !== 'null' && item.imageUrl !== 'undefined' ? (
-          <Image
-            source={{ uri: item.imageUrl }}
-            style={styles.componentImage}
-            resizeMode="cover"
-          />
-        ) : (
-          <View style={styles.componentImagePlaceholder}>
-            <Icon name="memory" size={32} color="#fff" />
+        {/* Image Area with Overlays */}
+        <View style={styles.imageContainer}>
+          {item.imageUrl && item.imageUrl !== 'null' && item.imageUrl !== 'undefined' ? (
+            <Image
+              source={{ uri: item.imageUrl }}
+              style={styles.componentImage}
+              resizeMode="cover"
+            />
+          ) : (
+            <View style={[styles.componentImagePlaceholder, { backgroundColor: typeColor }]}>
+              <Icon name="memory" size={32} color="#fff" />
+            </View>
+          )}
+
+          {/* Status Overlay (Top Right) */}
+          <View style={[
+            styles.statusOverlay,
+            { backgroundColor: isAvailable ? 'rgba(82, 196, 26, 0.9)' : 'rgba(255, 77, 79, 0.9)' }
+          ]}>
+            <Text style={styles.statusOverlayText}>
+              {isAvailable ? 'AVAIL' : 'UNAVAIL'}
+            </Text>
           </View>
-        )}
+
+          {/* Type Overlay (Bottom Left) */}
+          <View style={[styles.typeOverlay, { backgroundColor: typeColor }]}>
+            <Text style={styles.typeOverlayText}>{typeLabel}</Text>
+          </View>
+        </View>
 
         {/* Content */}
         <View style={styles.componentCardContent}>
-          <View style={styles.componentHeaderRow}>
-            <Text style={styles.componentName} numberOfLines={1}>
-              {item.componentName || item.name || 'Component'}
-            </Text>
-            <View
-              style={[
-                styles.statusChip,
-                { backgroundColor: isAvailable ? '#52c41a15' : '#faad1415' },
-              ]}
-            >
-              <Text
-                style={[
-                  styles.statusChipText,
-                  { color: isAvailable ? '#52c41a' : '#faad14' },
-                ]}
-              >
-                {statusUpper}
+          <Text style={styles.componentName} numberOfLines={2}>
+            {item.componentName || item.name || 'Component'}
+          </Text>
+
+          <Text style={styles.componentPrice}>
+            {(item.pricePerCom || 0).toLocaleString('vi-VN')} đ
+          </Text>
+
+          <View style={styles.componentStats}>
+            <Icon name="inventory" size={14} color="#666" />
+            <Text style={styles.componentStatsText}>
+              <Text style={{ fontWeight: '700', color: '#333' }}>
+                {item.quantityAvailable ?? 0}
               </Text>
-            </View>
-          </View>
-
-          <View style={styles.componentBadge}>
-            <Text style={styles.componentBadgeText}>{typeLabel}</Text>
-          </View>
-
-          <View style={styles.componentDetailsRow}>
-            <Text style={styles.componentDetailText}>
-              Total: {item.quantityTotal ?? item.quantityAvailable ?? 0}
-            </Text>
-            <Text style={[styles.componentDetailText, { color: '#52c41a' }]}>
-              Avail: {item.quantityAvailable ?? 0}
+              /{item.quantityTotal ?? item.quantityAvailable ?? 0} left
             </Text>
           </View>
-
-          {item.pricePerCom > 0 && (
-            <Text style={styles.componentPrice}>
-              {(item.pricePerCom || 0).toLocaleString('vi-VN')} VND
-            </Text>
-          )}
-
-          {item.description ? (
-            <Text style={styles.componentDescription} numberOfLines={1}>
-              {item.description}
-            </Text>
-          ) : null}
 
           <View style={styles.componentActionsRow}>
             <TouchableOpacity
-              style={styles.actionButton}
+              style={[styles.actionIconButton, { backgroundColor: '#e6f7ff' }]}
               onPress={() => openEditModal(item)}
             >
-              <Icon name="edit" size={16} color="#1890ff" />
-              <Text style={[styles.actionButtonText, { color: '#1890ff' }]}>
-                Edit
-              </Text>
+              <Icon name="edit" size={18} color="#1890ff" />
             </TouchableOpacity>
             <TouchableOpacity
-              style={styles.actionButton}
+              style={[styles.actionIconButton, { backgroundColor: '#fff1f0' }]}
               onPress={() => handleDeleteComponent(item)}
             >
-              <Icon name="delete" size={16} color="#ff4d4f" />
-              <Text style={[styles.actionButtonText, { color: '#ff4d4f' }]}>
-                Delete
-              </Text>
+              <Icon name="delete" size={18} color="#ff4d4f" />
             </TouchableOpacity>
           </View>
         </View>
@@ -489,7 +483,7 @@ const AdminKitComponents = ({ onLogout }) => {
                         style={[
                           styles.dropdownOption,
                           formData.componentType === option &&
-                            styles.dropdownOptionSelected,
+                          styles.dropdownOptionSelected,
                         ]}
                         onPress={() => {
                           setFormData((prev) => ({
@@ -504,11 +498,13 @@ const AdminKitComponents = ({ onLogout }) => {
                             styles.typeColorDot,
                             {
                               backgroundColor:
-                                option === 'RED'
-                                  ? '#ff4d4f'
-                                  : option === 'BLACK'
-                                  ? '#000000'
-                                  : '#f0f0f0',
+                                option === 'BOX'
+                                  ? '#faad14'
+                                  : option === 'SET'
+                                    ? '#1890ff'
+                                    : option === 'UNIT'
+                                      ? '#52c41a'
+                                      : '#f0f0f0',
                             },
                           ]}
                         />
@@ -516,7 +512,7 @@ const AdminKitComponents = ({ onLogout }) => {
                           style={[
                             styles.dropdownOptionText,
                             formData.componentType === option &&
-                              styles.dropdownOptionTextSelected,
+                            styles.dropdownOptionTextSelected,
                           ]}
                         >
                           {option}
@@ -771,103 +767,100 @@ const styles = StyleSheet.create({
   componentCard: {
     width: '46%',
     backgroundColor: '#fff',
-    borderRadius: 12,
+    borderRadius: 16,
     overflow: 'hidden',
-    elevation: 2,
+    elevation: 3,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
-    shadowRadius: 2,
-    borderWidth: 1,
-    borderColor: '#f0f0f0',
+    shadowRadius: 4,
+    borderWidth: 0,
+    marginBottom: 0,
+  },
+  imageContainer: {
+    position: 'relative',
+    height: 100,
+    width: '100%',
   },
   componentImage: {
     width: '100%',
-    height: 70,
+    height: '100%',
   },
   componentImagePlaceholder: {
     width: '100%',
-    height: 70,
+    height: '100%',
     backgroundColor: '#667eea',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  componentCardContent: {
+  statusOverlay: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
     paddingHorizontal: 8,
-    paddingVertical: 6,
+    paddingVertical: 4,
+    borderRadius: 12,
+    zIndex: 1,
   },
-  componentHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 4,
+  statusOverlayText: {
+    color: '#fff',
+    fontSize: 9,
+    fontWeight: '800',
+  },
+  typeOverlay: {
+    position: 'absolute',
+    bottom: 8,
+    left: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 4,
+    zIndex: 1,
+  },
+  typeOverlayText: {
+    color: '#fff',
+    fontSize: 9,
+    fontWeight: '700',
+  },
+  componentCardContent: {
+    padding: 12,
   },
   componentName: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: '700',
     color: '#2c3e50',
-  },
-  statusChip: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-    backgroundColor: '#f5f5f5',
-  },
-  statusChipText: {
-    fontSize: 11,
-    fontWeight: '600',
-  },
-  componentBadge: {
-    alignSelf: 'flex-start',
-    backgroundColor: '#722ed115',
-    paddingHorizontal: 6,
-    paddingVertical: 1,
-    borderRadius: 4,
-    marginBottom: 2,
-  },
-  componentBadgeText: {
-    fontSize: 10,
-    color: '#722ed1',
-    fontWeight: '600',
-  },
-  componentDetailsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 4,
-    marginBottom: 2,
-  },
-  componentDetailText: {
-    fontSize: 10,
-    color: '#666',
+    marginBottom: 4,
+    lineHeight: 18,
+    height: 36, // Fixed height for 2 lines
   },
   componentPrice: {
-    fontSize: 11,
+    fontSize: 14,
     color: '#1890ff',
-    fontWeight: '600',
-    marginTop: 4,
-    marginBottom: 2,
-    alignSelf: 'flex-start',
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    backgroundColor: '#e6f4ff',
-    borderRadius: 12,
+    fontWeight: '700',
+    marginBottom: 8,
   },
-  componentDescription: {
-    fontSize: 11,
+  componentStats: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  componentStatsText: {
+    fontSize: 12,
     color: '#666',
-    marginTop: 4,
-    lineHeight: 16,
+    marginLeft: 6,
   },
   componentActionsRow: {
     flexDirection: 'row',
-    justifyContent: 'flex-end',
-    marginTop: 6,
-    gap: 8,
+    justifyContent: 'space-between',
+    gap: 12,
   },
-  actionButton: {
-    flexDirection: 'row',
+  actionIconButton: {
+    flex: 1,
+    height: 36,
+    justifyContent: 'center',
     alignItems: 'center',
+    borderRadius: 8,
   },
+  // Legacy styles kept for reference if needed, but unused in new layout:
   actionButtonText: {
     fontSize: 12,
     marginLeft: 4,
@@ -1025,5 +1018,3 @@ const styles = StyleSheet.create({
 });
 
 export default AdminKitComponents;
-
-

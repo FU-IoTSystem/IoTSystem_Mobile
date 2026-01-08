@@ -16,6 +16,8 @@ import { useNavigation } from '@react-navigation/native';
 import { MaterialIcons as Icon } from '@expo/vector-icons';
 import { kitAPI, kitComponentAPI } from '../../services/api';
 
+const COMPONENT_TYPES = ['BOX', 'SET', 'UNIT'];
+
 const AdminKits = ({ onLogout }) => {
   const navigation = useNavigation();
   const [kits, setKits] = useState([]);
@@ -27,6 +29,7 @@ const AdminKits = ({ onLogout }) => {
   const [editingKit, setEditingKit] = useState(null);
   const [components, setComponents] = useState([]);
   const [editingComponent, setEditingComponent] = useState(null);
+  const [isAddingComponent, setIsAddingComponent] = useState(false);
   const [searchText, setSearchText] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
   const [filterType, setFilterType] = useState('all');
@@ -218,9 +221,11 @@ const AdminKits = ({ onLogout }) => {
 
   const handleAddComponent = () => {
     setEditingComponent(null);
+    setIsAddingComponent(true);
     setComponentFormData({
       componentName: '',
-      componentType: 'RED',
+      componentType: 'UNIT',
+      seriNumber: '',
       quantityTotal: 1,
       quantityAvailable: 1,
       pricePerCom: 0,
@@ -233,9 +238,11 @@ const AdminKits = ({ onLogout }) => {
 
   const handleEditComponent = (component) => {
     setEditingComponent(component);
+    setIsAddingComponent(false);
     setComponentFormData({
       componentName: component.componentName || component.name || '',
-      componentType: component.componentType || 'RED',
+      componentType: component.componentType || 'UNIT',
+      seriNumber: component.seriNumber || '',
       quantityTotal: component.quantityTotal || 1,
       quantityAvailable: component.quantityAvailable || 1,
       pricePerCom: component.pricePerCom || 0,
@@ -277,9 +284,10 @@ const AdminKits = ({ onLogout }) => {
       const updatedComponents = await loadComponents(selectedKit.id);
       setComponents(updatedComponents);
       setEditingComponent(null);
+      setIsAddingComponent(false);
       setComponentFormData({
         componentName: '',
-        componentType: 'RED',
+        componentType: 'UNIT',
         quantityTotal: 1,
         quantityAvailable: 1,
         pricePerCom: 0,
@@ -793,87 +801,175 @@ const AdminKits = ({ onLogout }) => {
               }
             />
 
-            {editingComponent && (
-              <View style={styles.componentForm}>
-                <Text style={styles.formSectionTitle}>Edit Component</Text>
-                <TextInput
-                  style={styles.input}
-                  value={componentFormData.componentName}
-                  onChangeText={(text) => setComponentFormData({
-                    ...componentFormData,
-                    componentName: text
-                  })}
-                  placeholder="Component name"
-                />
-                <View style={styles.formRow}>
-                  <TextInput
-                    style={[styles.input, { flex: 1, marginRight: 8 }]}
-                    value={componentFormData.quantityTotal.toString()}
-                    onChangeText={(text) => setComponentFormData({
-                      ...componentFormData,
-                      quantityTotal: parseInt(text) || 0
-                    })}
-                    keyboardType="numeric"
-                    placeholder="Quantity"
-                  />
-                  <TextInput
-                    style={[styles.input, { flex: 1, marginLeft: 8 }]}
-                    value={componentFormData.pricePerCom.toString()}
-                    onChangeText={(text) => setComponentFormData({
-                      ...componentFormData,
-                      pricePerCom: parseInt(text) || 0
-                    })}
-                    keyboardType="numeric"
-                    placeholder="Price"
-                  />
+            {/* Component Form - Show if editing OR adding */}
+            {(editingComponent || isAddingComponent) && (
+              <View style={styles.componentFormCard}>
+                <View style={styles.componentFormHeader}>
+                  <Text style={styles.componentFormTitle}>
+                    {editingComponent ? 'Edit Component' : 'Add New Component'}
+                  </Text>
+                  <TouchableOpacity
+                    onPress={() => {
+                      setEditingComponent(null);
+                      setIsAddingComponent(false);
+                    }}
+                    style={styles.closeIconBtn}
+                  >
+                    <Icon name="close" size={20} color="#999" />
+                  </TouchableOpacity>
                 </View>
 
-                <View style={styles.formGroup}>
-                  <Text style={styles.label}>Status</Text>
-                  <View style={styles.statusButtons}>
-                    <TouchableOpacity
-                      style={[
-                        styles.statusButton,
-                        componentFormData.status === 'AVAILABLE' && styles.statusButtonActive
-                      ]}
-                      onPress={() => setComponentFormData({ ...componentFormData, status: 'AVAILABLE' })}
-                    >
-                      <Text style={[
-                        styles.statusButtonText,
-                        componentFormData.status === 'AVAILABLE' && styles.statusButtonTextActive
-                      ]}>
-                        Available
-                      </Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[
-                        styles.statusButton,
-                        componentFormData.status === 'UNAVAILABLE' && styles.statusButtonActive
-                      ]}
-                      onPress={() => setComponentFormData({ ...componentFormData, status: 'UNAVAILABLE' })}
-                    >
-                      <Text style={[
-                        styles.statusButtonText,
-                        componentFormData.status === 'UNAVAILABLE' && styles.statusButtonTextActive
-                      ]}>
-                        Unavailable
-                      </Text>
-                    </TouchableOpacity>
+                {/* Name Input */}
+                <View style={styles.inputWrapper}>
+                  <Text style={styles.inputLabel}>Component Name</Text>
+                  <View style={styles.inputContainer}>
+                    <Icon name="label-outline" size={20} color="#999" style={styles.inputIcon} />
+                    <TextInput
+                      style={styles.inputWithIcon}
+                      value={componentFormData.componentName}
+                      onChangeText={(text) => setComponentFormData({
+                        ...componentFormData,
+                        componentName: text
+                      })}
+                      placeholder="e.g. Raspberry Pi 4"
+                      placeholderTextColor="#ccc"
+                    />
                   </View>
                 </View>
 
-                <View style={styles.componentFormActions}>
+                {/* Serial Number Input */}
+                <View style={styles.inputWrapper}>
+                  <Text style={styles.inputLabel}>Serial Number</Text>
+                  <View style={styles.inputContainer}>
+                    <Icon name="qr-code" size={20} color="#999" style={styles.inputIcon} />
+                    <TextInput
+                      style={styles.inputWithIcon}
+                      value={componentFormData.seriNumber}
+                      onChangeText={(text) => setComponentFormData({
+                        ...componentFormData,
+                        seriNumber: text
+                      })}
+                      placeholder="Enter Serial Number"
+                      placeholderTextColor="#ccc"
+                    />
+                  </View>
+                </View>
+
+                {/* Quantity & Price Row */}
+                <View style={styles.formRow}>
+                  <View style={[styles.inputWrapper, { flex: 1, marginRight: 8 }]}>
+                    <Text style={styles.inputLabel}>Total Quantity</Text>
+                    <View style={styles.inputContainer}>
+                      <Icon name="format-list-numbered" size={20} color="#999" style={styles.inputIcon} />
+                      <TextInput
+                        style={styles.inputWithIcon}
+                        value={componentFormData.quantityTotal.toString()}
+                        onChangeText={(text) => setComponentFormData({
+                          ...componentFormData,
+                          quantityTotal: parseInt(text) || 0
+                        })}
+                        keyboardType="numeric"
+                        placeholder="0"
+                        placeholderTextColor="#ccc"
+                      />
+                    </View>
+                  </View>
+                  <View style={[styles.inputWrapper, { flex: 1, marginLeft: 8 }]}>
+                    <Text style={styles.inputLabel}>Price (VND)</Text>
+                    <View style={styles.inputContainer}>
+                      <Icon name="attach-money" size={20} color="#999" style={styles.inputIcon} />
+                      <TextInput
+                        style={styles.inputWithIcon}
+                        value={componentFormData.pricePerCom.toString()}
+                        onChangeText={(text) => setComponentFormData({
+                          ...componentFormData,
+                          pricePerCom: parseInt(text) || 0
+                        })}
+                        keyboardType="numeric"
+                        placeholder="0"
+                        placeholderTextColor="#ccc"
+                      />
+                    </View>
+                  </View>
+                </View>
+
+                {/* Type & Status Row */}
+                <View style={styles.formRow}>
+                  <View style={[styles.inputWrapper, { flex: 1.2, marginRight: 8 }]}>
+                    <Text style={styles.inputLabel}>Type</Text>
+                    <View style={styles.statusToggleContainer}>
+                      {COMPONENT_TYPES.map((type) => (
+                        <TouchableOpacity
+                          key={type}
+                          style={[
+                            styles.statusToggleOption,
+                            componentFormData.componentType === type && styles.statusToggleOptionActive
+                          ]}
+                          onPress={() => setComponentFormData({ ...componentFormData, componentType: type })}
+                        >
+                          <Text style={[
+                            styles.statusToggleText,
+                            componentFormData.componentType === type && styles.statusToggleTextActive
+                          ]}>
+                            {type}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </View>
+
+                  <View style={[styles.inputWrapper, { flex: 1, marginLeft: 8 }]}>
+                    <Text style={styles.inputLabel}>Status</Text>
+                    <View style={styles.statusToggleContainer}>
+                      <TouchableOpacity
+                        style={[
+                          styles.statusToggleOption,
+                          componentFormData.status === 'AVAILABLE' && styles.statusToggleOptionActive
+                        ]}
+                        onPress={() => setComponentFormData({ ...componentFormData, status: 'AVAILABLE' })}
+                      >
+                        <Text style={[
+                          styles.statusToggleText,
+                          componentFormData.status === 'AVAILABLE' && styles.statusToggleTextActive
+                        ]}>
+                          Available
+                        </Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[
+                          styles.statusToggleOption,
+                          componentFormData.status === 'UNAVAILABLE' && styles.statusToggleOptionInactiveActive
+                        ]}
+                        onPress={() => setComponentFormData({ ...componentFormData, status: 'UNAVAILABLE' })}
+                      >
+                        <Text style={[
+                          styles.statusToggleText,
+                          componentFormData.status === 'UNAVAILABLE' && styles.statusToggleTextInactive
+                        ]}>
+                          Unavailable
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                </View>
+
+                <View style={styles.formActions}>
                   <TouchableOpacity
-                    style={[styles.modalButton, styles.cancelButton]}
-                    onPress={() => setEditingComponent(null)}
+                    style={styles.btnSecondary}
+                    onPress={() => {
+                      setEditingComponent(null);
+                      setIsAddingComponent(false);
+                    }}
                   >
-                    <Text style={styles.cancelButtonText}>Cancel</Text>
+                    <Text style={styles.btnSecondaryText}>Cancel</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
-                    style={[styles.modalButton, styles.saveButton]}
+                    style={styles.btnPrimary}
                     onPress={handleSaveComponent}
                   >
-                    <Text style={styles.saveButtonText}>Save</Text>
+                    <Text style={styles.btnPrimaryText}>
+                      {editingComponent ? 'Save Changes' : 'Create Component'}
+                    </Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -1049,6 +1145,11 @@ const AdminKits = ({ onLogout }) => {
                                     <Text style={styles.componentName} numberOfLines={1}>
                                       {component.componentName || component.name || 'N/A'}
                                     </Text>
+                                    {component.seriNumber && (
+                                      <Text style={styles.componentSerial}>
+                                        SN: {component.seriNumber}
+                                      </Text>
+                                    )}
                                     <View style={styles.componentBadge}>
                                       <Text style={styles.componentBadgeText}>
                                         {component.componentType || 'N/A'}
@@ -1647,6 +1748,12 @@ const styles = StyleSheet.create({
     color: '#2c3e50',
     marginBottom: 4,
   },
+  componentSerial: {
+    fontSize: 12,
+    color: '#666',
+    marginBottom: 4,
+    fontStyle: 'italic',
+  },
   componentDetails: {
     fontSize: 12,
     color: '#999',
@@ -1833,13 +1940,152 @@ const styles = StyleSheet.create({
     color: '#666',
     fontWeight: '600',
   },
-  closeButton: {
-    backgroundColor: '#667eea',
-  },
   closeButtonText: {
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
+  },
+  // New Component Form Styles
+  componentFormCard: {
+    padding: 20,
+    backgroundColor: '#fff',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#e8e8e8',
+    marginTop: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+    marginHorizontal: 4,
+  },
+  componentFormHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  componentFormTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1a1a1a',
+  },
+  closeIconBtn: {
+    padding: 4,
+  },
+  inputWrapper: {
+    marginBottom: 16,
+  },
+  inputLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#595959',
+    marginBottom: 8,
+    marginLeft: 2,
+  },
+  inputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#d9d9d9',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    height: 48,
+  },
+  inputIcon: {
+    marginRight: 10,
+  },
+  inputWithIcon: {
+    flex: 1,
+    fontSize: 15,
+    color: '#262626',
+    height: '100%',
+  },
+  statusToggleContainer: {
+    flexDirection: 'row',
+    backgroundColor: '#f5f5f5',
+    borderRadius: 8,
+    padding: 4,
+    height: 48,
+  },
+  statusToggleOption: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 6,
+  },
+  statusToggleOptionActive: {
+    backgroundColor: '#fff',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  statusToggleOptionInactiveActive: {
+    backgroundColor: '#fff',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  statusToggleText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#8c8c8c',
+  },
+  statusToggleTextActive: {
+    color: '#52c41a',
+  },
+  statusToggleTextInactive: {
+    color: '#ff4d4f',
+  },
+  formActions: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 8,
+    paddingTop: 20,
+    borderTopWidth: 1,
+    borderTopColor: '#f0f0f0',
+  },
+  btnSecondary: {
+    flex: 1,
+    height: 48,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#d9d9d9',
+    borderRadius: 8,
+  },
+  btnSecondaryText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#595959',
+  },
+  btnPrimary: {
+    flex: 2,
+    height: 48,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#667eea',
+    borderRadius: 8,
+    shadowColor: '#667eea',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  btnPrimaryText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#fff',
   },
 });
 
