@@ -12,12 +12,12 @@ import {
 } from 'react-native';
 import { MaterialIcons as Icon } from '@expo/vector-icons';
 import { useNavigation, useRoute } from '@react-navigation/native';
-import { 
-  penaltiesAPI, 
-  penaltyDetailAPI, 
-  penaltyPoliciesAPI, 
-  walletAPI, 
-  borrowingRequestAPI 
+import {
+  penaltiesAPI,
+  penaltyDetailAPI,
+  penaltyPoliciesAPI,
+  walletAPI,
+  borrowingRequestAPI
 } from '../../services/api';
 import dayjs from 'dayjs';
 
@@ -66,14 +66,14 @@ const PenaltyPaymentScreen = ({ user }) => {
     try {
       setLoading(true);
       const response = await penaltiesAPI.getPenByAccount();
-      
+
       let penaltiesData = [];
       if (Array.isArray(response)) {
         penaltiesData = response;
       } else if (response && response.data && Array.isArray(response.data)) {
         penaltiesData = response.data;
       }
-      
+
       // Map penalties and extract kitName from nested structure
       const mappedPenalties = await Promise.all(
         penaltiesData.map(async (penalty) => {
@@ -82,7 +82,7 @@ const PenaltyPaymentScreen = ({ user }) => {
           const kit = borrowRequest?.kit || {};
           let kitName = kit.kitName || kit.name || penalty.kitName || null;
           let kitType = kit.type || penalty.kitType || penalty.kit_type || null;
-          
+
           // Only load borrowRequest if kitName not found in nested structure
           // This avoids unnecessary API calls when data is already available
           if ((!kitName || !kitType) && (penalty.borrowRequestId || borrowRequest.id)) {
@@ -100,7 +100,7 @@ const PenaltyPaymentScreen = ({ user }) => {
               console.error(`Error loading borrow request for penalty ${penalty.id}:`, error);
             }
           }
-          
+
           // Determine penalty type from policy or penalty details
           let penaltyType = penalty.type || null;
           if (!penaltyType) {
@@ -117,7 +117,7 @@ const PenaltyPaymentScreen = ({ user }) => {
               }
             }
           }
-          
+
           return {
             id: penalty.id,
             penaltyId: penalty.id,
@@ -133,7 +133,7 @@ const PenaltyPaymentScreen = ({ user }) => {
           };
         })
       );
-      
+
       const pendingPenalties = mappedPenalties.filter(p => p.status === 'pending');
       setPenalties(pendingPenalties);
     } catch (error) {
@@ -152,7 +152,7 @@ const PenaltyPaymentScreen = ({ user }) => {
 
     try {
       const response = await penaltyDetailAPI.findByPenaltyId(penaltyId);
-      
+
       let detailsData = [];
       if (Array.isArray(response)) {
         detailsData = response;
@@ -161,7 +161,7 @@ const PenaltyPaymentScreen = ({ user }) => {
       } else if (response && response.id) {
         detailsData = [response];
       }
-      
+
       if (detailsData.length > 0) {
         const detailsWithPolicies = await Promise.all(
           detailsData.map(async (detail) => {
@@ -174,13 +174,13 @@ const PenaltyPaymentScreen = ({ user }) => {
                 console.error(`Error loading policy for detail ${detail.id}:`, error);
               }
             }
-            
+
             return { ...detail, policy: policyData };
           })
         );
-        
+
         setPenaltyDetails(detailsWithPolicies);
-        
+
         // Update penalty type based on policy if found
         if (detailsWithPolicies.length > 0) {
           const firstDetail = detailsWithPolicies[0];
@@ -194,7 +194,7 @@ const PenaltyPaymentScreen = ({ user }) => {
             } else if (policyName.toLowerCase().includes('overdue')) {
               newType = 'overdue';
             }
-            
+
             if (newType !== 'other' && selectedPenalty && selectedPenalty.penaltyType === 'other') {
               setSelectedPenalty(prev => ({
                 ...prev,
@@ -217,12 +217,12 @@ const PenaltyPaymentScreen = ({ user }) => {
       setBorrowRequest(null);
       return;
     }
-    
+
     try {
       const response = await borrowingRequestAPI.getById(borrowRequestId);
       const requestData = response?.data || response;
       setBorrowRequest(requestData);
-      
+
       // Update kitName and kitType in selectedPenalty if not set or is 'N/A'
       if (selectedPenalty) {
         const updates = {};
@@ -274,8 +274,8 @@ const PenaltyPaymentScreen = ({ user }) => {
         `You need ${(selectedPenalty.amount - walletBalance).toLocaleString('vi-VN')} VND more to pay this penalty. Please top up your wallet first.`,
         [
           { text: 'Cancel', style: 'cancel' },
-          { 
-            text: 'Top Up', 
+          {
+            text: 'Top Up',
             onPress: () => navigation.navigate('TopUp')
           }
         ]
@@ -291,18 +291,18 @@ const PenaltyPaymentScreen = ({ user }) => {
     try {
       // Process payment
       await penaltiesAPI.confirmPenaltyPayment(selectedPenalty.id);
-      
+
       // Reload wallet balance to get the updated balance from server
       const updatedWalletResponse = await walletAPI.getMyWallet();
       const updatedWalletData = updatedWalletResponse?.data || updatedWalletResponse || {};
       const updatedBalance = updatedWalletData.balance || 0;
-      
+
       // Update wallet balance state
       setWalletBalance(updatedBalance);
-      
+
       // Reload penalties list
       await loadPenalties();
-      
+
       // Set payment result with actual remaining balance from server
       setPaymentResult({
         success: true,
@@ -312,7 +312,7 @@ const PenaltyPaymentScreen = ({ user }) => {
         remainingBalance: updatedBalance,
         previousBalance: walletBalance
       });
-      
+
       setCurrentStep(2);
       setShowSuccess(true);
       Alert.alert('Success', 'Thanh toán penalty thành công!');
@@ -429,7 +429,7 @@ const PenaltyPaymentScreen = ({ user }) => {
   const renderPenaltyItem = ({ item }) => {
     const isInsufficient = item.amount > walletBalance;
     const typeColor = getPenaltyTypeColor(item.penaltyType);
-    
+
     return (
       <TouchableOpacity
         style={[
@@ -441,13 +441,13 @@ const PenaltyPaymentScreen = ({ user }) => {
       >
         <View style={styles.penaltyCardContent}>
           <View style={[styles.penaltyIconContainer, { backgroundColor: `${typeColor}15` }]}>
-            <Icon 
-              name={getPenaltyTypeIcon(item.penaltyType)} 
-              size={28} 
-              color={typeColor} 
+            <Icon
+              name={getPenaltyTypeIcon(item.penaltyType)}
+              size={28}
+              color={typeColor}
             />
           </View>
-          
+
           <View style={styles.penaltyMainInfo}>
             <Text style={styles.penaltyKitName} numberOfLines={1}>
               {item.kitName}
@@ -466,7 +466,7 @@ const PenaltyPaymentScreen = ({ user }) => {
               </View>
             </View>
           </View>
-          
+
           <View style={styles.penaltyAmountContainer}>
             <Text style={[
               styles.amountText,
@@ -517,8 +517,8 @@ const PenaltyPaymentScreen = ({ user }) => {
           <Text style={styles.emptyText}>
             You don't have any pending penalty fees to pay at the moment.
           </Text>
-          <TouchableOpacity 
-            style={styles.emptyButton} 
+          <TouchableOpacity
+            style={styles.emptyButton}
             onPress={() => navigation.goBack()}
             activeOpacity={0.7}
           >
@@ -537,8 +537,8 @@ const PenaltyPaymentScreen = ({ user }) => {
     const sufficient = isBalanceSufficient();
 
     return (
-      <ScrollView 
-        style={styles.content} 
+      <ScrollView
+        style={styles.content}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
@@ -553,10 +553,10 @@ const PenaltyPaymentScreen = ({ user }) => {
         <View style={styles.summaryCard}>
           <View style={styles.summaryHeader}>
             <View style={[styles.summaryIconContainer, { backgroundColor: `${typeColor}15` }]}>
-              <Icon 
-                name={getPenaltyTypeIcon(selectedPenalty.penaltyType)} 
-                size={32} 
-                color={typeColor} 
+              <Icon
+                name={getPenaltyTypeIcon(selectedPenalty.penaltyType)}
+                size={32}
+                color={typeColor}
               />
             </View>
             <View style={styles.summaryHeaderText}>
@@ -568,9 +568,9 @@ const PenaltyPaymentScreen = ({ user }) => {
               </View>
             </View>
           </View>
-          
+
           <View style={styles.summaryDivider} />
-          
+
           <View style={styles.summaryAmountContainer}>
             <Text style={styles.summaryAmountLabel}>Total Amount</Text>
             <Text style={styles.summaryAmountValue}>
@@ -587,9 +587,9 @@ const PenaltyPaymentScreen = ({ user }) => {
           </View>
           <View style={styles.infoCard}>
             <InfoRow label="Rental ID" value={selectedPenalty.rentalId} />
-            <InfoRow 
-              label="Due Date" 
-              value={dayjs(selectedPenalty.dueDate).format('DD/MM/YYYY HH:mm')} 
+            <InfoRow
+              label="Due Date"
+              value={dayjs(selectedPenalty.dueDate).format('DD/MM/YYYY HH:mm')}
             />
             <InfoRow label="Reason" value={selectedPenalty.reason} />
           </View>
@@ -607,7 +607,7 @@ const PenaltyPaymentScreen = ({ user }) => {
                 <View key={detail.id || index} style={styles.detailItem}>
                   <View style={styles.detailItemHeader}>
                     <Text style={styles.detailItemTitle}>
-                      Detail {index + 1}
+                      Detail {index + 1} {detail.quantity && detail.quantity > 1 ? `(x${detail.quantity})` : ''}
                     </Text>
                     <Text style={styles.detailItemAmount}>
                       {detail.amount ? detail.amount.toLocaleString('vi-VN') : 0} VND
@@ -653,9 +653,9 @@ const PenaltyPaymentScreen = ({ user }) => {
               <InfoRow label="Request ID" value={borrowRequest.id || 'N/A'} />
               {borrowRequest.kit && (
                 <>
-                  <InfoRow 
-                    label="Kit Name" 
-                    value={borrowRequest.kit.kitName || borrowRequest.kitName || 'N/A'} 
+                  <InfoRow
+                    label="Kit Name"
+                    value={borrowRequest.kit.kitName || borrowRequest.kitName || 'N/A'}
                   />
                   {borrowRequest.kit.type && (
                     <InfoRow label="Kit Type" value={borrowRequest.kit.type} />
@@ -688,10 +688,10 @@ const PenaltyPaymentScreen = ({ user }) => {
           ]}>
             <View style={styles.walletCardContent}>
               <View style={styles.walletIconContainer}>
-                <Icon 
-                  name="account-balance-wallet" 
-                  size={40} 
-                  color={sufficient ? '#52c41a' : '#ff4d4f'} 
+                <Icon
+                  name="account-balance-wallet"
+                  size={40}
+                  color={sufficient ? '#52c41a' : '#ff4d4f'}
                 />
               </View>
               <View style={styles.walletInfo}>
@@ -706,10 +706,10 @@ const PenaltyPaymentScreen = ({ user }) => {
                   styles.walletStatusBadge,
                   sufficient ? styles.walletStatusSufficient : styles.walletStatusInsufficient
                 ]}>
-                  <Icon 
-                    name={sufficient ? 'check-circle' : 'error'} 
-                    size={14} 
-                    color={sufficient ? '#52c41a' : '#ff4d4f'} 
+                  <Icon
+                    name={sufficient ? 'check-circle' : 'error'}
+                    size={14}
+                    color={sufficient ? '#52c41a' : '#ff4d4f'}
                   />
                   <Text style={[
                     styles.walletStatusText,
@@ -731,7 +731,7 @@ const PenaltyPaymentScreen = ({ user }) => {
                     You need {(selectedPenalty.amount - walletBalance).toLocaleString('vi-VN')} VND more
                   </Text>
                 </View>
-                <TouchableOpacity 
+                <TouchableOpacity
                   style={styles.topUpButton}
                   onPress={() => navigation.navigate('TopUp')}
                   activeOpacity={0.7}
@@ -786,7 +786,7 @@ const PenaltyPaymentScreen = ({ user }) => {
           </Text>{' '}
           has been paid successfully.
         </Text>
-        
+
         {paymentResult && (
           <View style={styles.paymentInfoCard}>
             <View style={styles.paymentInfoHeader}>
@@ -795,9 +795,9 @@ const PenaltyPaymentScreen = ({ user }) => {
             </View>
             <View style={styles.paymentInfoDivider} />
             <InfoRow label="Payment ID" value={paymentResult.paymentId} />
-            <InfoRow 
-              label="Amount Paid" 
-              value={`${paymentResult.amount?.toLocaleString('vi-VN')} VND`} 
+            <InfoRow
+              label="Amount Paid"
+              value={`${paymentResult.amount?.toLocaleString('vi-VN')} VND`}
             />
             {paymentResult.previousBalance !== undefined && (
               <View style={styles.balanceChangeRow}>
@@ -829,9 +829,9 @@ const PenaltyPaymentScreen = ({ user }) => {
             </View>
           </View>
         )}
-        
-        <TouchableOpacity 
-          style={styles.successButton} 
+
+        <TouchableOpacity
+          style={styles.successButton}
           onPress={handleComplete}
           activeOpacity={0.7}
         >
@@ -878,8 +878,8 @@ const PenaltyPaymentScreen = ({ user }) => {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity 
-          onPress={() => currentStep === 0 ? navigation.goBack() : setCurrentStep(0)} 
+        <TouchableOpacity
+          onPress={() => currentStep === 0 ? navigation.goBack() : setCurrentStep(0)}
           style={styles.headerBackButton}
           activeOpacity={0.7}
         >
@@ -890,7 +890,7 @@ const PenaltyPaymentScreen = ({ user }) => {
       </View>
 
       {currentStep < 2 && renderStepIndicator()}
-      
+
       {getStepContent()}
 
       {/* Confirmation Modal */}

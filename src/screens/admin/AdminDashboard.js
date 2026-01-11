@@ -11,11 +11,11 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import { MaterialIcons as Icon } from '@expo/vector-icons';
 import AdminLayout from '../../components/AdminLayout';
-import { 
-  kitAPI, 
-  borrowingRequestAPI, 
-  walletTransactionAPI, 
-  userAPI 
+import {
+  kitAPI,
+  borrowingRequestAPI,
+  walletTransactionAPI,
+  userAPI
 } from '../../services/api';
 
 const AdminDashboard = ({ user, onLogout }) => {
@@ -25,7 +25,8 @@ const AdminDashboard = ({ user, onLogout }) => {
     totalUsers: 0,
     availableKits: 0,
     pendingApprovals: 0,
-    monthlyRevenue: 0,
+    pendingApprovals: 0,
+    kitsInUse: 0,
   });
   const [kits, setKits] = useState([]);
   const [rentalRequests, setRentalRequests] = useState([]);
@@ -45,12 +46,13 @@ const AdminDashboard = ({ user, onLogout }) => {
       let loadedUsers = [];
       let loadedRentalRequests = [];
       let loadedTransactions = [];
+      let loadedApprovedRequests = [];
 
       // Load kits
       try {
         const kitsResponse = await kitAPI.getAllKits();
-        loadedKits = Array.isArray(kitsResponse) 
-          ? kitsResponse 
+        loadedKits = Array.isArray(kitsResponse)
+          ? kitsResponse
           : (kitsResponse?.data || []);
         setKits(loadedKits);
       } catch (error) {
@@ -70,19 +72,29 @@ const AdminDashboard = ({ user, onLogout }) => {
       // Load rental requests
       try {
         const rentalResponse = await borrowingRequestAPI.getAll();
-        loadedRentalRequests = Array.isArray(rentalResponse) 
-          ? rentalResponse 
+        loadedRentalRequests = Array.isArray(rentalResponse)
+          ? rentalResponse
           : (rentalResponse?.data || []);
         setRentalRequests(loadedRentalRequests);
       } catch (error) {
         console.error('Error loading rental requests:', error);
       }
 
+      // Load approved requests (for Kit In Use)
+      try {
+        const approvedResponse = await borrowingRequestAPI.getApproved();
+        loadedApprovedRequests = Array.isArray(approvedResponse)
+          ? approvedResponse
+          : (approvedResponse?.data || []);
+      } catch (error) {
+        console.error('Error loading approved requests:', error);
+      }
+
       // Load transactions
       try {
         const transactionsResponse = await walletTransactionAPI.getAll();
-        loadedTransactions = Array.isArray(transactionsResponse) 
-          ? transactionsResponse 
+        loadedTransactions = Array.isArray(transactionsResponse)
+          ? transactionsResponse
           : (transactionsResponse?.data || []);
         setTransactions(loadedTransactions);
       } catch (error) {
@@ -95,22 +107,18 @@ const AdminDashboard = ({ user, onLogout }) => {
         req => req.status === 'PENDING' || req.status === 'PENDING_APPROVAL'
       ).length;
 
-      const currentMonth = new Date().getMonth();
-      const currentYear = new Date().getFullYear();
-      const monthlyRevenue = loadedTransactions
-        .filter(txn => {
-          const txnDate = new Date(txn.createdAt || txn.transactionDate);
-          return txnDate.getMonth() === currentMonth && 
-                 txnDate.getFullYear() === currentYear &&
-                 (txn.type === 'RENTAL_FEE' || txn.type === 'PENALTY_PAYMENT');
-        })
-        .reduce((sum, txn) => sum + (txn.amount || 0), 0);
+
+      // Calculate Kits In Use
+      // Based on AdminReturnKits.js: use getApproved() and check requestType
+      const kitsInUseCount = loadedApprovedRequests.filter(req =>
+        req.requestType !== 'BORROW_COMPONENT' // Count only Kit requests (BORROW_KIT or undefined/null defaults to Kit)
+      ).length;
 
       const stats = {
         totalUsers: loadedUsers.length,
         availableKits: availableKitsCount,
         pendingApprovals: pendingRequestsCount,
-        monthlyRevenue: monthlyRevenue,
+        kitsInUse: kitsInUseCount,
       };
       console.log('AdminDashboard: Stats calculated:', stats);
       setSystemStats(stats);
@@ -163,9 +171,9 @@ const AdminDashboard = ({ user, onLogout }) => {
   };
 
   console.log('AdminDashboard: Rendering with stats:', systemStats);
-  
+
   return (
-    <AdminLayout 
+    <AdminLayout
       title="Admin Dashboard"
       rightAction={{
         icon: 'logout',
@@ -202,11 +210,11 @@ const AdminDashboard = ({ user, onLogout }) => {
             suffix=" requests"
           />
           <StatCard
-            title="Monthly Revenue"
-            value={systemStats.monthlyRevenue}
-            icon="attach-money"
+            title="Kit In Use"
+            value={systemStats.kitsInUse}
+            icon="inventory"
             color="#722ed1"
-            suffix=" VND"
+            suffix=" kits"
           />
         </View>
 
@@ -214,7 +222,7 @@ const AdminDashboard = ({ user, onLogout }) => {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Quick Actions</Text>
           <View style={styles.actionsGrid}>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.actionCard}
               onPress={() => navigation.navigate('Kits')}
               activeOpacity={0.7}
@@ -222,7 +230,7 @@ const AdminDashboard = ({ user, onLogout }) => {
               <Icon name="add-circle-outline" size={32} color="#667eea" />
               <Text style={styles.actionText}>Add Kit</Text>
             </TouchableOpacity>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.actionCard}
               onPress={() => navigation.navigate('Users')}
               activeOpacity={0.7}
@@ -230,7 +238,7 @@ const AdminDashboard = ({ user, onLogout }) => {
               <Icon name="person-add" size={32} color="#667eea" />
               <Text style={styles.actionText}>Add User</Text>
             </TouchableOpacity>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.actionCard}
               onPress={() => navigation.navigate('ScanQR')}
               activeOpacity={0.7}
@@ -238,7 +246,7 @@ const AdminDashboard = ({ user, onLogout }) => {
               <Icon name="qr-code-scanner" size={32} color="#667eea" />
               <Text style={styles.actionText}>Scan QR</Text>
             </TouchableOpacity>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.actionCard}
               onPress={() => navigation.navigate('Approvals')}
               activeOpacity={0.7}
@@ -246,7 +254,7 @@ const AdminDashboard = ({ user, onLogout }) => {
               <Icon name="check-circle" size={32} color="#667eea" />
               <Text style={styles.actionText}>Approvals</Text>
             </TouchableOpacity>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.actionCard}
               onPress={() => navigation.navigate('LogHistory')}
               activeOpacity={0.7}

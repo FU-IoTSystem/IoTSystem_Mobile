@@ -27,6 +27,7 @@
     "dayjs": "^1.11.10",
     "expo": "~54.0.31",
     "expo-camera": "~17.0.10",
+    "expo-image-picker": "~17.0.10",
     "react": "^19.1.0",
     "react-native": "^0.81.5",
     "react-native-gesture-handler": "~2.28.0",

@@ -13,7 +13,13 @@ import {
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { MaterialIcons as Icon } from '@expo/vector-icons';
 import AdminLayout from '../../components/AdminLayout';
-import { borrowingRequestAPI, notificationAPI } from '../../services/api';
+import {
+  borrowingRequestAPI,
+  notificationAPI,
+  borrowingGroupAPI,
+  studentGroupAPI,
+  classesAPI
+} from '../../services/api';
 
 const AdminApprovals = ({ onLogout }) => {
   const navigation = useNavigation();
@@ -33,17 +39,17 @@ const AdminApprovals = ({ onLogout }) => {
   useEffect(() => {
     const requestId = route.params?.requestId;
     // Only process if we have a requestId, haven't processed it yet, and requests are loaded
-    if (requestId && 
-        requestId !== processedRequestIdRef.current && 
-        rentalRequests.length > 0 && 
-        !loading) {
+    if (requestId &&
+      requestId !== processedRequestIdRef.current &&
+      rentalRequests.length > 0 &&
+      !loading) {
       processedRequestIdRef.current = requestId;
-      
-      const request = rentalRequests.find(req => 
-        req.id?.toString() === requestId.toString() || 
+
+      const request = rentalRequests.find(req =>
+        req.id?.toString() === requestId.toString() ||
         req.id === requestId
       );
-      
+
       if (request) {
         setSelectedRequest(request);
         setDetailModalVisible(true);
@@ -80,10 +86,41 @@ const AdminApprovals = ({ onLogout }) => {
     setLoading(true);
     try {
       const rentalResponse = await borrowingRequestAPI.getAll();
-      const rentalData = Array.isArray(rentalResponse) 
-        ? rentalResponse 
+      const rawData = Array.isArray(rentalResponse)
+        ? rentalResponse
         : (rentalResponse?.data || []);
-      setRentalRequests(rentalData);
+
+      // Process requests to resolving component names
+      const processedData = await Promise.all(rawData.map(async (request) => {
+        let displayKitName = request.kit?.kitName || request.kitName;
+        let displayComponentIds = 'N/A';
+
+        // If it looks like a component rental or name is missing, try to fetch components
+        if (request.requestType === 'BORROW_COMPONENT' || !displayKitName) {
+          if (request.borrowingRequestComponents && request.borrowingRequestComponents.length > 0) {
+            displayKitName = request.borrowingRequestComponents.map(c => c.componentName).join(', ');
+            displayComponentIds = request.borrowingRequestComponents.map(c => c.componentId || c.id || 'N/A').join(', ');
+          } else {
+            try {
+              const comps = await borrowingRequestAPI.getRequestComponents(request.id);
+              if (comps && comps.length > 0) {
+                displayKitName = comps.map(c => c.componentName).join(', ');
+                displayComponentIds = comps.map(c => c.componentId || c.id || 'N/A').join(', ');
+              }
+            } catch (err) {
+              console.log('Error fetching components for request ' + request.id, err);
+            }
+          }
+        }
+
+        return {
+          ...request,
+          kitName: displayKitName || request.componentName || 'N/A',
+          componentIds: displayComponentIds
+        };
+      }));
+
+      setRentalRequests(processedData);
     } catch (error) {
       console.error('Error loading rental requests:', error);
       Alert.alert('Error', 'Failed to load rental requests');
@@ -92,11 +129,61 @@ const AdminApprovals = ({ onLogout }) => {
     }
   };
 
+  const fetchStudentGroupInfo = async (userId) => {
+    if (!userId) return null;
+
+    try {
+      const groups = await borrowingGroupAPI.getByAccountId(userId);
+      if (groups && groups.length > 0) {
+        // Use the most recent group or the first one
+        const activeGroup = groups.find(bg => bg.isActive !== false) || groups[0];
+
+        if (activeGroup) {
+          let groupName = activeGroup.studentGroupName || activeGroup.groupName || 'N/A';
+          let classCode = activeGroup.classCode || 'N/A';
+          let semester = activeGroup.semester || 'N/A';
+
+          // If we have studentGroupId, fetch details from studentGroupAPI to get Class info
+          if (activeGroup.studentGroupId) {
+            try {
+              const studentGroup = await studentGroupAPI.getById(activeGroup.studentGroupId);
+              if (studentGroup) {
+                groupName = studentGroup.groupName || studentGroup.name || groupName;
+
+                if (studentGroup.classId) {
+                  const classes = await classesAPI.getAllClasses();
+                  const classList = Array.isArray(classes) ? classes : (classes?.data || []);
+                  const classData = classList.find(c => c.id === studentGroup.classId);
+
+                  if (classData) {
+                    classCode = classData.classCode || classCode;
+                    semester = classData.semester || semester;
+                  }
+                }
+              }
+            } catch (sgError) {
+              console.log('Error fetching student group details:', sgError);
+            }
+          }
+
+          return {
+            groupName,
+            classCode,
+            semester
+          };
+        }
+      }
+    } catch (error) {
+      console.log('Error fetching group info:', error);
+    }
+    return null;
+  };
+
   const handleApproval = async (requestId, action) => {
     try {
       const request = rentalRequests.find(req => req.id === requestId);
       const newStatus = action === 'approve' ? 'APPROVED' : 'REJECTED';
-      
+
       const updateData = {
         status: newStatus,
         note: action === 'reject' ? 'Request rejected by admin' : 'Request approved by admin',
@@ -105,7 +192,7 @@ const AdminApprovals = ({ onLogout }) => {
       await borrowingRequestAPI.update(requestId, updateData);
 
       // Update local state
-      setRentalRequests(prev => prev.map(req => 
+      setRentalRequests(prev => prev.map(req =>
         req.id === requestId ? { ...req, status: newStatus } : req
       ));
 
@@ -115,7 +202,7 @@ const AdminApprovals = ({ onLogout }) => {
           await notificationAPI.createNotifications([
             {
               subType: action === 'approve' ? 'RENTAL_SUCCESS' : 'RENTAL_REJECTED',
-              title: action === 'approve' 
+              title: action === 'approve'
                 ? 'Yêu cầu thuê kit được chấp nhận'
                 : 'Yêu cầu thuê kit bị từ chối',
               message: action === 'approve'
@@ -131,8 +218,8 @@ const AdminApprovals = ({ onLogout }) => {
 
       Alert.alert(
         'Success',
-        action === 'approve' 
-          ? 'Request approved successfully' 
+        action === 'approve'
+          ? 'Request approved successfully'
           : 'Request rejected successfully'
       );
     } catch (error) {
@@ -141,12 +228,23 @@ const AdminApprovals = ({ onLogout }) => {
     }
   };
 
-  const handleViewDetails = (request) => {
-    setSelectedRequest(request);
+  const handleViewDetails = async (request) => {
+    let groupInfo = null;
+
+    // Check if user is student and fetch group info
+    const isStudent = request.requestedBy?.roles?.includes('STUDENT') || !request.requestedBy?.roles?.includes('LECTURER'); // Default to student if not lecturer
+    if (isStudent && request.requestedBy?.id) {
+      groupInfo = await fetchStudentGroupInfo(request.requestedBy.id);
+    }
+
+    setSelectedRequest({
+      ...request,
+      groupInfo
+    });
     setDetailModalVisible(true);
   };
 
-  const filteredRequests = statusFilter === 'all' 
+  const filteredRequests = statusFilter === 'all'
     ? rentalRequests
     : rentalRequests.filter(req => req.status === statusFilter);
 
@@ -237,7 +335,7 @@ const AdminApprovals = ({ onLogout }) => {
           <Icon name="visibility" size={18} color="#1890ff" />
           <Text style={[styles.actionButtonText, { color: '#1890ff' }]}>Details</Text>
         </TouchableOpacity>
-        
+
         {item.status === 'PENDING' || item.status === 'PENDING_APPROVAL' ? (
           <>
             <TouchableOpacity
@@ -285,7 +383,7 @@ const AdminApprovals = ({ onLogout }) => {
   };
 
   return (
-    <AdminLayout 
+    <AdminLayout
       title="Rental Approvals"
       rightAction={{
         icon: 'logout',
@@ -329,8 +427,8 @@ const AdminApprovals = ({ onLogout }) => {
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Request Details</Text>
-              <TouchableOpacity onPress={() => setDetailModalVisible(false)}>
-                <Icon name="close" size={24} color="#666" />
+              <TouchableOpacity onPress={() => setDetailModalVisible(false)} style={styles.modalCloseBtn}>
+                <Icon name="close" size={24} color="#fff" />
               </TouchableOpacity>
             </View>
 
@@ -339,77 +437,111 @@ const AdminApprovals = ({ onLogout }) => {
                 <View style={styles.detailSection}>
                   <Text style={styles.sectionTitle}>Request Information</Text>
                   <DetailRow label="Request ID" value={`#${selectedRequest.id}`} />
-                  <DetailRow 
-                    label="Status" 
+                  <DetailRow
+                    label="Status"
                     value={selectedRequest.status || 'PENDING'}
                     valueColor={getStatusColor(selectedRequest.status)}
                   />
-                  <DetailRow 
-                    label="Request Type" 
-                    value={selectedRequest.requestType || 'BORROW_KIT'} 
+                  <DetailRow
+                    label="Request Type"
+                    value={selectedRequest.requestType || 'BORROW_KIT'}
                   />
-                  <DetailRow 
-                    label="Created Date" 
+                  <DetailRow
+                    label="Created Date"
                     value={
-                      selectedRequest.createdAt 
+                      selectedRequest.createdAt
                         ? new Date(selectedRequest.createdAt).toLocaleString('vi-VN')
                         : selectedRequest.createdDate
                           ? new Date(selectedRequest.createdDate).toLocaleString('vi-VN')
                           : selectedRequest.dateCreated
                             ? new Date(selectedRequest.dateCreated).toLocaleString('vi-VN')
                             : 'N/A'
-                    } 
+                    }
                   />
                 </View>
 
                 <View style={styles.detailSection}>
                   <Text style={styles.sectionTitle}>User Information</Text>
-                  <DetailRow 
-                    label="Name" 
-                    value={selectedRequest.requestedBy?.fullName || 'N/A'} 
+                  <DetailRow
+                    label="Name"
+                    value={selectedRequest.requestedBy?.fullName || 'N/A'}
                   />
-                  <DetailRow 
-                    label="Email" 
-                    value={selectedRequest.requestedBy?.email || 'N/A'} 
+                  <DetailRow
+                    label="Email"
+                    value={selectedRequest.requestedBy?.email || 'N/A'}
                   />
                   {selectedRequest.requestedBy?.phone && (
-                    <DetailRow 
-                      label="Phone" 
-                      value={selectedRequest.requestedBy.phone} 
+                    <DetailRow
+                      label="Phone"
+                      value={selectedRequest.requestedBy.phone}
                     />
+                  )}
+                  {selectedRequest.groupInfo && (
+                    <>
+                      <DetailRow
+                        label="Group"
+                        value={selectedRequest.groupInfo.groupName}
+                      />
+                      <DetailRow
+                        label="Class"
+                        value={selectedRequest.groupInfo.classCode}
+                      />
+                      <DetailRow
+                        label="Semester"
+                        value={selectedRequest.groupInfo.semester}
+                      />
+                    </>
                   )}
                 </View>
 
-                <View style={styles.detailSection}>
-                  <Text style={styles.sectionTitle}>Kit Information</Text>
-                  <DetailRow 
-                    label="Kit Name" 
-                    value={selectedRequest.kit?.kitName || selectedRequest.kitName || 'N/A'} 
-                  />
-                  <DetailRow 
-                    label="Kit Type" 
-                    value={selectedRequest.kit?.type || 'N/A'} 
-                  />
-                </View>
+                {selectedRequest.requestType === 'BORROW_COMPONENT' ? (
+                  <View style={styles.detailSection}>
+                    <Text style={styles.sectionTitle}>Component Information</Text>
+                    <DetailRow
+                      label="Component Name"
+                      value={selectedRequest.kitName || 'N/A'}
+                    />
+                    <DetailRow
+                      label="Component ID"
+                      value={selectedRequest.componentIds || 'N/A'}
+                    />
+                  </View>
+                ) : (
+                  <View style={styles.detailSection}>
+                    <Text style={styles.sectionTitle}>Kit Information</Text>
+                    <DetailRow
+                      label="Kit Name"
+                      value={selectedRequest.kit?.kitName || selectedRequest.kitName || 'N/A'}
+                    />
+                    <DetailRow
+                      label="Kit ID"
+                      value={selectedRequest.kit?.id || selectedRequest.kitId || 'N/A'}
+                    />
+                    <DetailRow
+                      label="Kit Type"
+                      value={selectedRequest.kit?.type || 'N/A'}
+                    />
+                  </View>
+                )}
 
                 <View style={styles.detailSection}>
                   <Text style={styles.sectionTitle}>Rental Details</Text>
                   {selectedRequest.depositAmount && (
-                    <DetailRow 
-                      label="Deposit Amount" 
-                      value={`${selectedRequest.depositAmount.toLocaleString('vi-VN')} VND`} 
+                    <DetailRow
+                      label="Deposit Amount"
+                      value={`${selectedRequest.depositAmount.toLocaleString('vi-VN')} VND`}
                     />
                   )}
                   {selectedRequest.expectReturnDate && (
-                    <DetailRow 
-                      label="Expected Return Date" 
-                      value={new Date(selectedRequest.expectReturnDate).toLocaleDateString('vi-VN')} 
+                    <DetailRow
+                      label="Expected Return Date"
+                      value={new Date(selectedRequest.expectReturnDate).toLocaleDateString('vi-VN')}
                     />
                   )}
                   {selectedRequest.reason && (
-                    <DetailRow 
-                      label="Reason" 
-                      value={selectedRequest.reason} 
+                    <DetailRow
+                      label="Reason"
+                      value={selectedRequest.reason}
                     />
                   )}
                 </View>
@@ -582,53 +714,69 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    maxHeight: '90%',
+    height: '90%',
+    width: '100%',
   },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
+    padding: 20,
+    backgroundColor: '#1890ff',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
   },
   modalTitle: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#2c3e50',
+    color: '#fff',
+  },
+  modalCloseBtn: {
+    padding: 4,
   },
   modalBody: {
-    padding: 16,
+    padding: 20,
+    backgroundColor: '#f5f7fa',
   },
   detailSection: {
-    marginBottom: 24,
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
   },
   sectionTitle: {
     fontSize: 16,
-    fontWeight: 'bold',
-    color: '#2c3e50',
-    marginBottom: 12,
+    fontWeight: '700',
+    color: '#1890ff',
+    marginBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+    paddingBottom: 8,
   },
   detailRowItem: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 8,
-    paddingBottom: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
+    marginBottom: 12,
+    paddingBottom: 4,
   },
   detailLabel: {
     fontSize: 14,
-    color: '#666',
-    fontWeight: '600',
+    color: '#8c8c8c',
+    fontWeight: '500',
     flex: 1,
   },
   detailValue: {
     fontSize: 14,
-    color: '#2c3e50',
+    color: '#262626',
     flex: 2,
     textAlign: 'right',
+    fontWeight: '400',
   },
   modalFooter: {
     flexDirection: 'row',

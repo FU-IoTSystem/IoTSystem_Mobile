@@ -10,7 +10,9 @@ import {
   FlatList,
   Modal,
   TextInput,
+  Image,
 } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
 import { useNavigation } from '@react-navigation/native';
 import { MaterialIcons as Icon } from '@expo/vector-icons';
 import AdminLayout from '../../components/AdminLayout';
@@ -31,11 +33,13 @@ const AdminReturnKits = ({ onLogout, route }) => {
   const [inspectionLoading, setInspectionLoading] = useState(false);
   const [kits, setKits] = useState([]);
   const [users, setUsers] = useState([]);
+  const [lecturers, setLecturers] = useState([]);
 
   useEffect(() => {
     loadRefundRequests();
     loadKits();
     loadUsers();
+    loadLecturers();
   }, []);
 
   // Handle auto-open request when navigated from QR scan
@@ -86,6 +90,15 @@ const AdminReturnKits = ({ onLogout, route }) => {
     }
   };
 
+  const loadLecturers = async () => {
+    try {
+      const data = await userAPI.getLecturers();
+      setLecturers(data || []);
+    } catch (error) {
+      console.error('Error loading lecturers:', error);
+    }
+  };
+
   const loadRefundRequests = async () => {
     setLoading(true);
     try {
@@ -93,19 +106,41 @@ const AdminReturnKits = ({ onLogout, route }) => {
       const approvedResponse = await borrowingRequestAPI.getApproved();
 
       // Transform approved requests to refund request format
-      const refundRequestsData = approvedResponse.map(request => ({
-        id: request.id,
-        rentalId: request.id,
-        kitName: request.kit?.kitName || request.kitName || 'N/A',
-        kitId: request.kit?.id || request.kitId,
-        userEmail: request.requestedBy?.email || request.userEmail || 'N/A',
-        userName: request.requestedBy?.fullName || request.userName || request.userEmail?.split('@')[0] || 'Unknown',
-        status: request.status || 'APPROVED',
-        approvedDate: request.approvedDate || request.createdAt,
-        expectReturnDate: request.expectReturnDate,
-        depositAmount: request.depositAmount || 0,
-        requestType: request.requestType || 'BORROW_KIT',
-        raw: request
+      const refundRequestsData = await Promise.all(approvedResponse.map(async (request) => {
+        let displayKitName = request.kit?.kitName || request.kitName;
+
+        // If it looks like a component rental or name is missing, try to fetch components
+        if (request.requestType === 'BORROW_COMPONENT' || !displayKitName) {
+          // Try to get from existing property first
+          if (request.borrowingRequestComponents && request.borrowingRequestComponents.length > 0) {
+            displayKitName = request.borrowingRequestComponents.map(c => c.componentName).join(', ');
+          } else {
+            // Fetch from API
+            try {
+              const comps = await borrowingRequestAPI.getRequestComponents(request.id);
+              if (comps && comps.length > 0) {
+                displayKitName = comps.map(c => c.componentName).join(', ');
+              }
+            } catch (err) {
+              console.log('Error fetching components for request ' + request.id, err);
+            }
+          }
+        }
+
+        return {
+          id: request.id,
+          rentalId: request.id,
+          kitName: displayKitName || request.componentName || 'N/A',
+          kitId: request.kit?.id || request.kitId,
+          userEmail: request.requestedBy?.email || request.userEmail || 'N/A',
+          userName: request.requestedBy?.fullName || request.userName || request.userEmail?.split('@')[0] || 'Unknown',
+          status: request.status || 'APPROVED',
+          approvedDate: request.approvedDate || request.createdAt,
+          expectReturnDate: request.expectReturnDate,
+          depositAmount: request.depositAmount || 0,
+          requestType: request.requestType || 'BORROW_KIT',
+          raw: request
+        };
       }));
 
       setRefundRequests(refundRequestsData);
@@ -176,15 +211,32 @@ const AdminReturnKits = ({ onLogout, route }) => {
     setLoading(true); // temporary loading indicator for details
     try {
       const groupInfo = await fetchStudentGroupInfo(item.requestedBy?.id || item.userId, item.userEmail);
+
+      const isLecturer =
+        String(item.raw?.requestedBy?.roles || '').toUpperCase().includes('LECTURER') ||
+        String(users.find(u => u.email === item.userEmail)?.roles || '').toUpperCase().includes('LECTURER') ||
+        lecturers.some(l => l.email === item.userEmail);
+
       setSelectedRequest({
         ...item,
-        groupInfo
+        groupInfo,
+        userRole: isLecturer ? 'LECTURER' : (item.userRole || 'STUDENT'),
+        isLecturer
       });
       setDetailModalVisible(true);
     } catch (error) {
       console.error('Error opening detail:', error);
       // Fallback to showing what we have
-      setSelectedRequest(item);
+      const isLecturer =
+        String(item.raw?.requestedBy?.roles || '').toUpperCase().includes('LECTURER') ||
+        String(users.find(u => u.email === item.userEmail)?.roles || '').toUpperCase().includes('LECTURER') ||
+        lecturers.some(l => l.email === item.userEmail);
+
+      setSelectedRequest({
+        ...item,
+        userRole: isLecturer ? 'LECTURER' : 'STUDENT',
+        isLecturer
+      });
       setDetailModalVisible(true);
     } finally {
       setLoading(false);
@@ -265,9 +317,16 @@ const AdminReturnKits = ({ onLogout, route }) => {
     // Fetch group/class info using helper
     const groupInfo = await fetchStudentGroupInfo(refundRequest.requestedBy?.id || refundRequest.userId, refundRequest.userEmail);
 
+    const isLecturer =
+      String(refundRequest.raw?.requestedBy?.roles || '').toUpperCase().includes('LECTURER') ||
+      String(users.find(u => u.email === refundRequest.userEmail)?.roles || '').toUpperCase().includes('LECTURER') ||
+      lecturers.some(l => l.email === refundRequest.userEmail);
+
     setSelectedRental({
       ...rentalObject,
-      groupInfo: groupInfo
+      groupInfo: groupInfo,
+      userRole: isLecturer ? 'LECTURER' : 'STUDENT',
+      isLecturer
     });
     setSelectedKit(kitToUse);
     setDamageAssessment(refundRequest.damageAssessment || {});
@@ -275,14 +334,19 @@ const AdminReturnKits = ({ onLogout, route }) => {
     setInspectionModalVisible(true);
   };
 
-  const handleComponentDamage = (componentName, isDamaged, componentPrice = 0, quantity = 1) => {
+  const handleComponentDamage = (componentName, isDamaged, componentPrice = 0, quantity = 1, imageUri = undefined) => {
     setDamageAssessment(prev => {
+      const currentData = prev[componentName] || {};
+      // Use new imageUri if provided, otherwise keep existing
+      const finalImageUri = imageUri !== undefined ? imageUri : currentData.imageUri;
+
       const newAssessment = {
         ...prev,
         [componentName]: {
           damaged: isDamaged,
           quantity: isDamaged ? quantity : 0,
-          value: isDamaged ? (componentPrice * quantity) : 0
+          value: isDamaged ? (componentPrice * quantity) : 0,
+          imageUri: isDamaged ? finalImageUri : null
         }
       };
 
@@ -297,6 +361,24 @@ const AdminReturnKits = ({ onLogout, route }) => {
       setFineAmount(totalFine);
       return newAssessment;
     });
+  };
+
+  const pickImage = async (componentName, componentPrice, currentQty) => {
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        handleComponentDamage(componentName, true, componentPrice, currentQty, result.assets[0].uri);
+      }
+    } catch (error) {
+      console.error('Error picking image:', error);
+      Alert.alert('Error', 'Failed to pick image');
+    }
   };
 
   const submitKitInspection = async () => {
@@ -330,6 +412,7 @@ const AdminReturnKits = ({ onLogout, route }) => {
               .map(([componentName, component]) => ({
                 penaltyId: penaltyId,
                 amount: component.value || 0,
+                quantity: component.quantity || 1,
                 description: `Damage to ${componentName}`,
                 kitComponentId: selectedKit?.components?.find(c =>
                   c.componentName === componentName || c.name === componentName
@@ -609,32 +692,40 @@ const AdminReturnKits = ({ onLogout, route }) => {
                       </Text>
                     </View>
                   </View>
-                  <View style={styles.detailsRow}>
-                    <Text style={styles.detailsLabel}>Kit/Component:</Text>
-                    <Text style={styles.detailsValue}>{selectedRequest.kitName}</Text>
-                  </View>
-                  <View style={styles.detailsRow}>
-                    <Text style={styles.detailsLabel}>Kit ID:</Text>
-                    <Text style={styles.detailsValue}>{selectedRequest.kitId || 'N/A'}</Text>
-                  </View>
-                  <View style={styles.detailsRow}>
-                    <Text style={styles.detailsLabel}>Group:</Text>
-                    <Text style={styles.detailsValue}>
-                      {selectedRequest.groupInfo?.groupName || 'N/A'}
-                    </Text>
-                  </View>
-                  <View style={styles.detailsRow}>
-                    <Text style={styles.detailsLabel}>Class:</Text>
-                    <Text style={styles.detailsValue}>
-                      {selectedRequest.groupInfo?.classCode || 'N/A'}
-                    </Text>
-                  </View>
-                  <View style={styles.detailsRow}>
-                    <Text style={styles.detailsLabel}>Semester:</Text>
-                    <Text style={styles.detailsValue}>
-                      {selectedRequest.groupInfo?.semester || 'N/A'}
-                    </Text>
-                  </View>
+                  {selectedRequest.requestType !== 'BORROW_COMPONENT' && (
+                    <>
+                      <View style={styles.detailsRow}>
+                        <Text style={styles.detailsLabel}>Kit/Component:</Text>
+                        <Text style={styles.detailsValue}>{selectedRequest.kitName}</Text>
+                      </View>
+                      <View style={styles.detailsRow}>
+                        <Text style={styles.detailsLabel}>Kit ID:</Text>
+                        <Text style={styles.detailsValue}>{selectedRequest.kitId || 'N/A'}</Text>
+                      </View>
+                    </>
+                  )}
+                  {!selectedRequest.isLecturer && (
+                    <>
+                      <View style={styles.detailsRow}>
+                        <Text style={styles.detailsLabel}>Group:</Text>
+                        <Text style={styles.detailsValue}>
+                          {selectedRequest.groupInfo?.groupName || 'N/A'}
+                        </Text>
+                      </View>
+                      <View style={styles.detailsRow}>
+                        <Text style={styles.detailsLabel}>Class:</Text>
+                        <Text style={styles.detailsValue}>
+                          {selectedRequest.groupInfo?.classCode || 'N/A'}
+                        </Text>
+                      </View>
+                      <View style={styles.detailsRow}>
+                        <Text style={styles.detailsLabel}>Semester:</Text>
+                        <Text style={styles.detailsValue}>
+                          {selectedRequest.groupInfo?.semester || 'N/A'}
+                        </Text>
+                      </View>
+                    </>
+                  )}
                   <View style={styles.detailsRow}>
                     <Text style={styles.detailsLabel}>Reason:</Text>
                     <Text style={styles.detailsValue}>
@@ -754,24 +845,28 @@ const AdminReturnKits = ({ onLogout, route }) => {
                   </View>
 
                   {/* Group & Class Info */}
-                  <View style={styles.detailsRow}>
-                    <Text style={styles.detailsLabel}>Group:</Text>
-                    <Text style={styles.detailsValue}>
-                      {selectedRental.groupInfo?.groupName || selectedRental.raw?.groupName || selectedRental.raw?.group?.groupName || 'N/A'}
-                    </Text>
-                  </View>
-                  <View style={styles.detailsRow}>
-                    <Text style={styles.detailsLabel}>Class:</Text>
-                    <Text style={styles.detailsValue}>
-                      {selectedRental.groupInfo?.classCode || selectedRental.raw?.classCode || selectedRental.raw?.class?.classCode || 'N/A'}
-                    </Text>
-                  </View>
-                  <View style={styles.detailsRow}>
-                    <Text style={styles.detailsLabel}>Semester:</Text>
-                    <Text style={styles.detailsValue}>
-                      {selectedRental.groupInfo?.semester || selectedRental.raw?.semester || selectedRental.raw?.class?.semester || 'N/A'}
-                    </Text>
-                  </View>
+                  {!selectedRental.isLecturer && (
+                    <>
+                      <View style={styles.detailsRow}>
+                        <Text style={styles.detailsLabel}>Group:</Text>
+                        <Text style={styles.detailsValue}>
+                          {selectedRental.groupInfo?.groupName || selectedRental.raw?.groupName || selectedRental.raw?.group?.groupName || 'N/A'}
+                        </Text>
+                      </View>
+                      <View style={styles.detailsRow}>
+                        <Text style={styles.detailsLabel}>Class:</Text>
+                        <Text style={styles.detailsValue}>
+                          {selectedRental.groupInfo?.classCode || selectedRental.raw?.classCode || selectedRental.raw?.class?.classCode || 'N/A'}
+                        </Text>
+                      </View>
+                      <View style={styles.detailsRow}>
+                        <Text style={styles.detailsLabel}>Semester:</Text>
+                        <Text style={styles.detailsValue}>
+                          {selectedRental.groupInfo?.semester || selectedRental.raw?.semester || selectedRental.raw?.class?.semester || 'N/A'}
+                        </Text>
+                      </View>
+                    </>
+                  )}
 
                   {/* Dates */}
                   <View style={styles.detailsRow}>
@@ -852,20 +947,49 @@ const AdminReturnKits = ({ onLogout, route }) => {
                           </View>
 
                           <View style={styles.damageControls}>
-                            <TouchableOpacity
-                              style={[
-                                styles.damageButton,
-                                isDamaged && styles.damageButtonActive
-                              ]}
-                              onPress={() => handleComponentDamage(componentName, !isDamaged, componentPrice, 1)}
-                            >
-                              <Text style={[
-                                styles.damageButtonText,
-                                isDamaged && styles.damageButtonTextActive
-                              ]}>
-                                {isDamaged ? 'Damaged' : 'OK'}
-                              </Text>
-                            </TouchableOpacity>
+                            <View style={styles.actionColumn}>
+                              <TouchableOpacity
+                                style={[
+                                  styles.damageButton,
+                                  isDamaged && styles.damageButtonActive
+                                ]}
+                                onPress={() => handleComponentDamage(componentName, !isDamaged, componentPrice, 1)}
+                              >
+                                <Text style={[
+                                  styles.damageButtonText,
+                                  isDamaged && styles.damageButtonTextActive
+                                ]}>
+                                  {isDamaged ? 'Damaged' : 'OK'}
+                                </Text>
+                              </TouchableOpacity>
+
+                              {isDamaged && (
+                                <View style={styles.imageUploadContainer}>
+                                  {damageAssessment[componentName]?.imageUri ? (
+                                    <View style={styles.previewContainer}>
+                                      <Image
+                                        source={{ uri: damageAssessment[componentName].imageUri }}
+                                        style={styles.previewImage}
+                                      />
+                                      <TouchableOpacity
+                                        style={styles.removeImageButton}
+                                        onPress={() => handleComponentDamage(componentName, true, componentPrice, damageAssessment[componentName]?.quantity || 1, null)}
+                                      >
+                                        <Icon name="close" size={16} color="#fff" />
+                                      </TouchableOpacity>
+                                    </View>
+                                  ) : (
+                                    <TouchableOpacity
+                                      style={styles.uploadButton}
+                                      onPress={() => pickImage(componentName, componentPrice, damageAssessment[componentName]?.quantity || 1)}
+                                    >
+                                      <Icon name="camera-alt" size={20} color="#666" />
+                                    </TouchableOpacity>
+                                  )}
+                                </View>
+                              )}
+                            </View>
+
                             {isDamaged && (
                               <View style={styles.damageInputContainer}>
                                 <Text style={styles.damageLabel}>Qty:</Text>
@@ -917,7 +1041,8 @@ const AdminReturnKits = ({ onLogout, route }) => {
                   </View>
                 )}
               </ScrollView>
-            )}
+            )
+            }
 
             <View style={styles.modalFooter}>
               <TouchableOpacity
@@ -1310,6 +1435,42 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
+  },
+  actionColumn: {
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: 8,
+  },
+  imageUploadContainer: {
+    // No specific margin needed as parent gap handles it
+  },
+  uploadButton: {
+    padding: 8,
+    backgroundColor: '#f5f5f5',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+  },
+  previewContainer: {
+    position: 'relative',
+    width: 40,
+    height: 40,
+  },
+  previewImage: {
+    width: 40,
+    height: 40,
+    borderRadius: 4,
+  },
+  removeImageButton: {
+    position: 'absolute',
+    top: -6,
+    right: -6,
+    backgroundColor: '#ff4d4f',
+    borderRadius: 10,
+    width: 18,
+    height: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });
 
