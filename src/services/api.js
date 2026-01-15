@@ -2,7 +2,6 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // API base URL for all platforms
 export const API_BASE_URL = 'https://iot-system-kit.azurewebsites.net';
-// export const API_BASE_URL = 'http://192.168.2.56:8080';
 
 // Helper function to get JWT token from AsyncStorage
 const getAuthToken = async () => {
@@ -559,6 +558,9 @@ export const kitComponentHistoryAPI = {
       method: 'POST',
       body: JSON.stringify(payload),
     });
+  },
+  getGlobal: async () => {
+    return apiRequest('/api/kit-component-history/global');
   }
 };
 
@@ -813,6 +815,38 @@ export const penaltyDetailAPI = {
 
   findByPoliciesId: async (policiesId) => {
     return apiRequest(`/api/penalty-details/policies/${policiesId}`);
+  },
+
+  uploadImage: async (imageUri) => {
+    try {
+      const formData = new FormData();
+      formData.append('file', {
+        uri: imageUri,
+        type: 'image/jpeg',
+        name: `damage_evidence_${Date.now()}.jpg`
+      });
+
+      const token = await getAuthToken();
+      const response = await fetch(`${API_BASE_URL}/api/penalty-details/upload-image`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+        body: formData
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || 'Image upload failed');
+      }
+
+      const result = await response.json();
+      // Return the imageUrl from the response data
+      return result.data?.imageUrl || result.imageUrl || null;
+    } catch (error) {
+      console.error('Error uploading image:', error);
+      throw error;
+    }
   }
 };
 
@@ -894,6 +928,27 @@ export const damageReportAPI = {
   }
 };
 
+// Class Assignment API
+export const classAssignmentAPI = {
+  getAll: async () => {
+    const response = await apiRequest('/api/class-assignments');
+    return extractArrayFromPayload(response);
+  },
+
+  create: async (assignmentData) => {
+    return apiRequest('/api/class-assignments', {
+      method: 'POST',
+      body: JSON.stringify(assignmentData),
+    });
+  },
+
+  delete: async (id) => {
+    return apiRequest(`/api/class-assignments/${id}`, {
+      method: 'DELETE',
+    });
+  },
+};
+
 // Notification API
 export const notificationAPI = {
   getMyNotifications: async () => {
@@ -950,27 +1005,6 @@ export const qrCodeAPI = {
       },
     });
     return response.data;
-  },
-};
-
-// Class Assignment API
-export const classAssignmentAPI = {
-  getAll: async () => {
-    const response = await apiRequest('/api/class-assignments');
-    return Array.isArray(response) ? response : (response?.data || []);
-  },
-
-  create: async (assignmentData) => {
-    return apiRequest('/api/class-assignments', {
-      method: 'POST',
-      body: JSON.stringify(assignmentData),
-    });
-  },
-
-  delete: async (id) => {
-    return apiRequest(`/api/class-assignments/${id}`, {
-      method: 'DELETE',
-    });
   },
 };
 

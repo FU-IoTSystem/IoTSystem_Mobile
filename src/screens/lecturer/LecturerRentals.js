@@ -29,13 +29,13 @@ const LecturerRentals = ({ user, navigation }) => {
       console.warn('User or user.id is missing');
       return;
     }
-    
+
     setLoading(true);
     try {
       console.log('Loading borrow requests for lecturer:', user.id);
       const borrowRequests = await borrowingRequestAPI.getByUser(user.id);
       console.log('Borrow requests raw data:', borrowRequests);
-      
+
       const mappedBorrowStatus = (Array.isArray(borrowRequests) ? borrowRequests : []).map((request) => {
         const borrowDate = request.borrowDate || request.startDate || request.createdAt;
         const dueDate = request.dueDate || request.expectReturnDate;
@@ -129,7 +129,7 @@ const LecturerRentals = ({ user, navigation }) => {
   };
 
   const renderRentalItem = ({ item }) => (
-    <TouchableOpacity 
+    <TouchableOpacity
       style={styles.rentalCard}
       onPress={() => handleViewDetail(item)}
     >
@@ -362,19 +362,19 @@ const LecturerRentals = ({ user, navigation }) => {
         </View>
       ) : (
         <FlatList
-        data={borrowStatus}
-        renderItem={renderRentalItem}
-        keyExtractor={(item) => item.id?.toString() || Math.random().toString()}
-        contentContainerStyle={styles.listContainer}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-        }
-        ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <Icon name="shopping-cart" size={64} color="#ccc" />
-            <Text style={styles.emptyText}>No rentals found</Text>
-          </View>
-        }
+          data={borrowStatus}
+          renderItem={renderRentalItem}
+          keyExtractor={(item) => item.id?.toString() || Math.random().toString()}
+          contentContainerStyle={styles.listContainer}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          }
+          ListEmptyComponent={
+            <View style={styles.emptyContainer}>
+              <Icon name="shopping-cart" size={64} color="#ccc" />
+              <Text style={styles.emptyText}>No rentals found</Text>
+            </View>
+          }
         />
       )}
       {renderDetailModal()}

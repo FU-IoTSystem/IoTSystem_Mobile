@@ -36,6 +36,11 @@ const LecturerKitRental = ({ user }) => {
   const [filterType, setFilterType] = useState('all');
   const [statusFilterModalVisible, setStatusFilterModalVisible] = useState(false);
   const [typeFilterModalVisible, setTypeFilterModalVisible] = useState(false);
+  const [showDetailModal, setShowDetailModal] = useState(false);
+  const [selectedKit, setSelectedKit] = useState(null);
+  const [components, setComponents] = useState([]);
+  const [componentPage, setComponentPage] = useState(1);
+  const componentPageSize = 6;
 
   // Helper to safely dismiss keyboard
   const dismissKeyboard = () => {
@@ -97,11 +102,42 @@ const LecturerKitRental = ({ user }) => {
     loadWallet();
   }, []);
 
+  const loadComponents = async (kitId) => {
+    try {
+      const kitResponse = await kitAPI.getKitById(kitId);
+      const kitData = kitResponse?.data || kitResponse;
+      return kitData?.components || [];
+    } catch (error) {
+      console.error('Error loading components:', error);
+      return [];
+    }
+  };
+
+  const formatDateTime = (dateTimeString) => {
+    if (!dateTimeString) return 'N/A';
+    return new Date(dateTimeString).toLocaleString('vi-VN');
+  };
+
+  const handleViewDetail = async (kit) => {
+    try {
+      setSelectedKit(kit);
+      setComponentPage(1);
+      setShowDetailModal(true);
+      // Load components in background
+      const kitComponents = await loadComponents(kit.id);
+      setComponents(kitComponents);
+    } catch (error) {
+      console.error('Error in handleViewDetail:', error);
+      Alert.alert('Error', 'Failed to load kit details');
+    }
+  };
+
   const handleRent = (kit) => {
     setRentingKit(kit);
     setExpectReturnDate('');
     setReason('');
     setShowRentModal(true);
+    setShowDetailModal(false);
   };
 
   const handleConfirmRent = async () => {
@@ -257,8 +293,7 @@ const LecturerKitRental = ({ user }) => {
   const renderKitItem = ({ item }) => (
     <TouchableOpacity
       style={styles.kitCard}
-      onPress={() => handleRent(item)}
-      disabled={item.quantityAvailable === 0}
+      onPress={() => handleViewDetail(item)}
       activeOpacity={0.8}
     >
       <View style={styles.kitImageContainer}>
@@ -349,6 +384,261 @@ const LecturerKitRental = ({ user }) => {
       </View>
     </TouchableOpacity>
   );
+
+  const renderDetailModal = () => {
+    if (!showDetailModal || !selectedKit) return null;
+
+    return (
+      <Modal
+        visible={showDetailModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => {
+          setShowDetailModal(false);
+          setSelectedKit(null);
+          setComponentPage(1);
+        }}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <View style={styles.modalTitleContainer}>
+                <Icon name="info" size={24} color="#1890ff" />
+                <Text style={styles.modalTitle}>Kit Details</Text>
+              </View>
+              <TouchableOpacity onPress={() => {
+                setShowDetailModal(false);
+                setSelectedKit(null);
+                setComponentPage(1);
+              }}>
+                <Icon name="close" size={24} color="#666" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false}>
+              {/* Kit Image */}
+              {selectedKit.imageUrl && selectedKit.imageUrl !== 'null' && selectedKit.imageUrl !== 'undefined' ? (
+                <View style={styles.detailsImageContainer}>
+                  <Image
+                    source={{ uri: selectedKit.imageUrl }}
+                    style={styles.detailsImage}
+                    resizeMode="cover"
+                  />
+                </View>
+              ) : null}
+
+              {/* Kit Information */}
+              <View style={styles.detailsSection}>
+                <View style={styles.detailsRow}>
+                  <Text style={styles.detailsLabel}>Kit ID:</Text>
+                  <Text style={styles.detailsValue}>#{selectedKit.id}</Text>
+                </View>
+                <View style={styles.detailsRow}>
+                  <Text style={styles.detailsLabel}>Kit Name:</Text>
+                  <Text style={[styles.detailsValue, styles.detailsValueBold]}>
+                    {selectedKit.kitName || selectedKit.name || 'N/A'}
+                  </Text>
+                </View>
+                <View style={styles.detailsRow}>
+                  <Text style={styles.detailsLabel}>Type:</Text>
+                  <View style={[
+                    styles.badge,
+                    { backgroundColor: selectedKit.type === 'LECTURER_KIT' ? '#ff4d4f15' : '#1890ff15' }
+                  ]}>
+                    <Text style={[
+                      styles.badgeText,
+                      { color: selectedKit.type === 'LECTURER_KIT' ? '#ff4d4f' : '#1890ff' }
+                    ]}>
+                      {selectedKit.type || 'STUDENT_KIT'}
+                    </Text>
+                  </View>
+                </View>
+                <View style={styles.detailsRow}>
+                  <Text style={styles.detailsLabel}>Status:</Text>
+                  <View style={[
+                    styles.badge,
+                    { backgroundColor: selectedKit.status === 'AVAILABLE' ? '#52c41a15' : '#faad1415' }
+                  ]}>
+                    <Text style={[
+                      styles.badgeText,
+                      { color: selectedKit.status === 'AVAILABLE' ? '#52c41a' : '#faad14' }
+                    ]}>
+                      {selectedKit.status || 'AVAILABLE'}
+                    </Text>
+                  </View>
+                </View>
+                <View style={styles.detailsRow}>
+                  <Text style={styles.detailsLabel}>Total Quantity:</Text>
+                  <Text style={[styles.detailsValue, { color: '#1890ff' }]}>
+                    {selectedKit.quantityTotal || 0}
+                  </Text>
+                </View>
+                <View style={styles.detailsRow}>
+                  <Text style={styles.detailsLabel}>Available Quantity:</Text>
+                  <Text style={[styles.detailsValue, { color: '#52c41a' }]}>
+                    {selectedKit.quantityAvailable || 0}
+                  </Text>
+                </View>
+                <View style={styles.detailsRow}>
+                  <Text style={styles.detailsLabel}>In Use Quantity:</Text>
+                  <Text style={[styles.detailsValue, { color: '#faad14' }]}>
+                    {(selectedKit.quantityTotal || 0) - (selectedKit.quantityAvailable || 0)}
+                  </Text>
+                </View>
+                <View style={styles.detailsRow}>
+                  <Text style={styles.detailsLabel}>Deposit Amount:</Text>
+                  <Text style={[styles.detailsValue, { color: '#faad14', fontWeight: 'bold' }]}>
+                    {selectedKit.amount?.toLocaleString() || '0'} VND
+                  </Text>
+                </View>
+                <View style={styles.detailsRow}>
+                  <Text style={styles.detailsLabel}>Total Components:</Text>
+                  <Text style={styles.detailsValue}>
+                    {components.length || 0} components
+                  </Text>
+                </View>
+                {selectedKit.description && (
+                  <View style={styles.detailsRow}>
+                    <Text style={styles.detailsLabel}>Description:</Text>
+                    <Text style={styles.detailsValue}>
+                      {selectedKit.description}
+                    </Text>
+                  </View>
+                )}
+                {selectedKit.createdAt && (
+                  <View style={styles.detailsRow}>
+                    <Text style={styles.detailsLabel}>Created At:</Text>
+                    <Text style={[styles.detailsValue, styles.detailsValueSmall]}>
+                      {formatDateTime(selectedKit.createdAt)}
+                    </Text>
+                  </View>
+                )}
+                {selectedKit.updatedAt && (
+                  <View style={styles.detailsRow}>
+                    <Text style={styles.detailsLabel}>Updated At:</Text>
+                    <Text style={[styles.detailsValue, styles.detailsValueSmall]}>
+                      {formatDateTime(selectedKit.updatedAt)}
+                    </Text>
+                  </View>
+                )}
+              </View>
+
+              {/* Components Section */}
+              <View style={styles.componentsSection}>
+                <View style={styles.sectionHeader}>
+                  <Icon name="extension" size={20} color="#1890ff" />
+                  <Text style={styles.sectionTitle}>
+                    Components ({components.length || 0})
+                  </Text>
+                </View>
+
+                {components.length > 0 ? (
+                  <>
+                    {(() => {
+                      const startIndex = (componentPage - 1) * componentPageSize;
+                      const endIndex = startIndex + componentPageSize;
+                      const currentComponents = components.slice(startIndex, endIndex);
+                      const totalPages = Math.ceil(components.length / componentPageSize);
+
+                      return (
+                        <>
+                          <View style={styles.componentsGrid}>
+                            {currentComponents.map((component, index) => (
+                              <View key={component.id || index} style={styles.componentCard}>
+                                {component.imageUrl && component.imageUrl !== 'null' ? (
+                                  <Image
+                                    source={{ uri: component.imageUrl }}
+                                    style={styles.componentImage}
+                                    resizeMode="cover"
+                                  />
+                                ) : (
+                                  <View style={styles.componentImagePlaceholder}>
+                                    <Icon name="extension" size={32} color="#fff" />
+                                  </View>
+                                )}
+                                <View style={styles.componentCardContent}>
+                                  <Text style={styles.componentName} numberOfLines={1}>
+                                    {component.componentName || component.name || 'N/A'}
+                                  </Text>
+                                  {component.seriNumber && (
+                                    <Text style={styles.componentSerial}>
+                                      SN: {component.seriNumber}
+                                    </Text>
+                                  )}
+                                  <View style={styles.componentBadge}>
+                                    <Text style={styles.componentBadgeText}>
+                                      {component.componentType || 'N/A'}
+                                    </Text>
+                                  </View>
+                                  <View style={styles.componentDetails}>
+                                    <Text style={styles.componentDetailText}>
+                                      Total: {component.quantityTotal || 0}
+                                    </Text>
+                                    <Text style={[styles.componentDetailText, { color: '#52c41a' }]}>
+                                      Available: {component.quantityAvailable || 0}
+                                    </Text>
+                                  </View>
+                                  {component.pricePerCom > 0 && (
+                                    <Text style={styles.componentPrice}>
+                                      {component.pricePerCom.toLocaleString('vi-VN')} VND
+                                    </Text>
+                                  )}
+                                </View>
+                              </View>
+                            ))}
+                          </View>
+
+                          {totalPages > 1 && (
+                            <View style={styles.paginationContainer}>
+                              <TouchableOpacity
+                                style={[styles.paginationButton, componentPage === 1 && styles.paginationButtonDisabled]}
+                                onPress={() => setComponentPage(Math.max(1, componentPage - 1))}
+                                disabled={componentPage === 1}
+                              >
+                                <Icon name="chevron-left" size={20} color={componentPage === 1 ? "#ccc" : "#667eea"} />
+                              </TouchableOpacity>
+                              <Text style={styles.paginationText}>
+                                Page {componentPage} of {totalPages}
+                              </Text>
+                              <TouchableOpacity
+                                style={[styles.paginationButton, componentPage === totalPages && styles.paginationButtonDisabled]}
+                                onPress={() => setComponentPage(Math.min(totalPages, componentPage + 1))}
+                                disabled={componentPage === totalPages}
+                              >
+                                <Icon name="chevron-right" size={20} color={componentPage === totalPages ? "#ccc" : "#667eea"} />
+                              </TouchableOpacity>
+                            </View>
+                          )}
+                        </>
+                      );
+                    })()}
+                  </>
+                ) : (
+                  <View style={styles.emptyComponents}>
+                    <Icon name="extension" size={48} color="#ccc" />
+                    <Text style={styles.emptyComponentsText}>No components available</Text>
+                  </View>
+                )}
+              </View>
+            </ScrollView>
+
+            <View style={styles.modalFooter}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.saveButton]}
+                onPress={() => handleRent(selectedKit)}
+                disabled={selectedKit.quantityAvailable === 0}
+              >
+                <Icon name="shopping-cart" size={20} color="#fff" style={{ marginRight: 8 }} />
+                <Text style={styles.saveButtonText}>
+                  {selectedKit.quantityAvailable === 0 ? 'Sold Out' : 'Rent This Kit'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+    );
+  };
 
   const renderRentModal = () => {
     if (!showRentModal || !rentingKit) return null;
@@ -465,9 +755,9 @@ const LecturerKitRental = ({ user }) => {
                   {
                     opacity:
                       hasEnoughBalance &&
-                      reason.trim() !== '' &&
-                      expectReturnDate.trim() !== '' &&
-                      !submitting
+                        reason.trim() !== '' &&
+                        expectReturnDate.trim() !== '' &&
+                        !submitting
                         ? 1
                         : 0.5,
                   },
@@ -546,7 +836,7 @@ const LecturerKitRental = ({ user }) => {
                       />
                     );
                   }
-                  
+
                   // Check if it's already a data URI
                   if (typeof qrCodeData === 'string' && qrCodeData.startsWith('data:image')) {
                     return (
@@ -557,13 +847,13 @@ const LecturerKitRental = ({ user }) => {
                       />
                     );
                   }
-                  
+
                   // Check if it's a base64 string - try to display as image
                   // Base64 strings are typically longer than 100 chars and contain only base64 characters
-                  if (typeof qrCodeData === 'string' && qrCodeData.length > 50 && 
-                      qrCodeData.match(/^[A-Za-z0-9+/=]+$/) && 
-                      !qrCodeData.includes(' ') && 
-                      !qrCodeData.includes('\n')) {
+                  if (typeof qrCodeData === 'string' && qrCodeData.length > 50 &&
+                    qrCodeData.match(/^[A-Za-z0-9+/=]+$/) &&
+                    !qrCodeData.includes(' ') &&
+                    !qrCodeData.includes('\n')) {
                     // Convert base64 to data URI (assume PNG format for QR codes)
                     const base64Uri = `data:image/png;base64,${qrCodeData}`;
                     return (
@@ -574,7 +864,7 @@ const LecturerKitRental = ({ user }) => {
                       />
                     );
                   }
-                  
+
                   // Fallback: show as text (should not happen for valid QR codes)
                   return (
                     <View style={styles.qrCodePlaceholder}>
@@ -663,8 +953,8 @@ const LecturerKitRental = ({ user }) => {
                 {filterType === 'all'
                   ? 'All Types'
                   : filterType === 'STUDENT_KIT'
-                  ? 'Student Kit'
-                  : 'Lecturer Kit'}
+                    ? 'Student Kit'
+                    : 'Lecturer Kit'}
               </Text>
               <Icon name="arrow-drop-down" size={20} color="#666" />
             </TouchableOpacity>
@@ -788,8 +1078,8 @@ const LecturerKitRental = ({ user }) => {
                   {type === 'all'
                     ? 'All Types'
                     : type === 'STUDENT_KIT'
-                    ? 'Student Kit'
-                    : 'Lecturer Kit'}
+                      ? 'Student Kit'
+                      : 'Lecturer Kit'}
                 </Text>
                 {filterType === type && (
                   <Icon name="check" size={20} color="#667eea" />
@@ -800,6 +1090,7 @@ const LecturerKitRental = ({ user }) => {
         </TouchableOpacity>
       </Modal>
 
+      {renderDetailModal()}
       {renderRentModal()}
       {renderQRCodeModal()}
     </LecturerLayout>
@@ -1186,6 +1477,207 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#666',
     marginBottom: 8,
+  },
+  modalTitleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  detailsImageContainer: {
+    width: '100%',
+    height: 200,
+    backgroundColor: '#f5f5f5',
+    borderRadius: 8,
+    overflow: 'hidden',
+    marginBottom: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#eee',
+  },
+  detailsImage: {
+    width: '100%',
+    height: '100%',
+  },
+  detailsSection: {
+    backgroundColor: '#fff',
+    borderRadius: 8,
+    padding: 16,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#eee',
+  },
+  detailsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  detailsLabel: {
+    fontSize: 14,
+    color: '#666',
+    fontWeight: '500',
+    flex: 1,
+  },
+  detailsValue: {
+    flex: 1,
+    fontSize: 14,
+    color: '#333',
+    textAlign: 'right',
+  },
+  detailsValueBold: {
+    fontWeight: 'bold',
+    color: '#2c3e50',
+    fontSize: 15,
+  },
+  detailsValueSmall: {
+    fontSize: 13,
+    color: '#666',
+  },
+  componentsSection: {
+    backgroundColor: '#fff',
+    borderRadius: 8,
+    padding: 16,
+    marginTop: 16,
+    borderWidth: 1,
+    borderColor: '#eee',
+    minHeight: 300,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
+    paddingBottom: 12,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#2c3e50',
+    marginLeft: 8,
+  },
+  componentsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+  },
+  componentCard: {
+    width: '48%',
+    backgroundColor: '#f9f9f9',
+    borderRadius: 8,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#eee',
+    overflow: 'hidden',
+  },
+  componentImage: {
+    width: '100%',
+    height: 100,
+    backgroundColor: '#eee',
+  },
+  componentImagePlaceholder: {
+    width: '100%',
+    height: 100,
+    backgroundColor: '#e6f7ff',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  componentCardContent: {
+    padding: 10,
+  },
+  componentName: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 4,
+  },
+  componentSerial: {
+    fontSize: 11,
+    color: '#666',
+    marginBottom: 4,
+  },
+  componentBadge: {
+    alignSelf: 'flex-start',
+    backgroundColor: 'rgba(24, 144, 255, 0.1)',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    marginBottom: 6,
+  },
+  componentBadgeText: {
+    fontSize: 10,
+    color: '#1890ff',
+  },
+  componentDetails: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 4,
+  },
+  componentDetailText: {
+    fontSize: 11,
+    color: '#666',
+  },
+  componentPrice: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: '#faad14',
+    textAlign: 'right',
+    marginTop: 4,
+  },
+  emptyComponents: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 30,
+    backgroundColor: '#f9f9f9',
+    borderRadius: 8,
+    marginTop: 20,
+  },
+  emptyComponentsText: {
+    color: '#999',
+    marginTop: 10,
+    fontSize: 14,
+  },
+  paginationContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 16,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#eee',
+  },
+  paginationButton: {
+    padding: 8,
+  },
+  paginationButtonDisabled: {
+    opacity: 0.5,
+  },
+  paginationText: {
+    fontSize: 14,
+    color: '#666',
+    marginHorizontal: 12,
+  },
+  modalFooter: {
+    padding: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#eee',
+    backgroundColor: '#fff',
+  },
+  modalButton: {
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+  },
+  saveButton: {
+    backgroundColor: '#667eea',
+  },
+  saveButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
   },
 });
 

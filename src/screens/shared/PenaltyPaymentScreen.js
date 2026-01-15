@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   Modal,
   FlatList,
+  Image,
 } from 'react-native';
 import { MaterialIcons as Icon } from '@expo/vector-icons';
 import { useNavigation, useRoute } from '@react-navigation/native';
@@ -289,6 +290,10 @@ const PenaltyPaymentScreen = ({ user }) => {
     setShowConfirmation(false);
     setLoading(true);
     try {
+      // Capture state before payment
+      const balanceBeforePayment = walletBalance;
+      const rentalAmount = borrowRequest?.depositAmount || 0;
+
       // Process payment
       await penaltiesAPI.confirmPenaltyPayment(selectedPenalty.id);
 
@@ -310,7 +315,8 @@ const PenaltyPaymentScreen = ({ user }) => {
         penaltyId: selectedPenalty.id,
         amount: selectedPenalty.amount,
         remainingBalance: updatedBalance,
-        previousBalance: walletBalance
+        balanceBeforePayment: balanceBeforePayment,
+        rentalAmount: rentalAmount
       });
 
       setCurrentStep(2);
@@ -618,6 +624,20 @@ const PenaltyPaymentScreen = ({ user }) => {
                       {detail.description}
                     </Text>
                   )}
+                  {detail.imageUrl && (
+                    <Image
+                      source={{
+                        uri: (detail.imageUrl.startsWith('http') || detail.imageUrl.startsWith('data:') || detail.imageUrl.startsWith('file://'))
+                          ? detail.imageUrl
+                          : detail.imageUrl.startsWith('/')
+                            ? `file://${detail.imageUrl}`
+                            : detail.imageUrl
+                      }}
+                      style={styles.detailImage}
+                      resizeMode="cover"
+                      onError={(e) => console.log('Error loading image:', e.nativeEvent.error)}
+                    />
+                  )}
                   {detail.policy && (
                     <View style={styles.policyCard}>
                       <View style={styles.policyHeader}>
@@ -771,7 +791,7 @@ const PenaltyPaymentScreen = ({ user }) => {
   };
 
   const renderSuccess = () => (
-    <View style={styles.content}>
+    <ScrollView style={styles.content} contentContainerStyle={{ paddingBottom: 40 }}>
       <View style={styles.successContainer}>
         <View style={styles.successIconContainer}>
           <View style={styles.successIconBackground}>
@@ -794,52 +814,91 @@ const PenaltyPaymentScreen = ({ user }) => {
               <Text style={styles.paymentInfoTitle}>Payment Receipt</Text>
             </View>
             <View style={styles.paymentInfoDivider} />
-            <InfoRow label="Payment ID" value={paymentResult.paymentId} />
-            <InfoRow
-              label="Amount Paid"
-              value={`${paymentResult.amount?.toLocaleString('vi-VN')} VND`}
-            />
-            {paymentResult.previousBalance !== undefined && (
-              <View style={styles.balanceChangeRow}>
-                <View style={styles.balanceChangeItem}>
-                  <Text style={styles.balanceChangeLabel}>Previous Balance</Text>
-                  <Text style={styles.balanceChangeValue}>
-                    {paymentResult.previousBalance?.toLocaleString('vi-VN')} VND
-                  </Text>
-                </View>
-                <Icon name="arrow-downward" size={20} color="#ff4d4f" />
-                <View style={styles.balanceChangeItem}>
-                  <Text style={styles.balanceChangeLabel}>Amount Deducted</Text>
-                  <Text style={[styles.balanceChangeValue, styles.balanceChangeDeducted]}>
-                    -{paymentResult.amount?.toLocaleString('vi-VN')} VND
-                  </Text>
-                </View>
-              </View>
-            )}
-            <View style={styles.remainingBalanceRow}>
-              <View style={styles.remainingBalanceIcon}>
-                <Icon name="account-balance-wallet" size={24} color="#52c41a" />
-              </View>
-              <View style={styles.remainingBalanceContent}>
-                <Text style={styles.remainingBalanceLabel}>Remaining Balance</Text>
-                <Text style={styles.remainingBalanceValue}>
-                  {paymentResult.remainingBalance?.toLocaleString('vi-VN')} VND
-                </Text>
-              </View>
+
+            <View style={styles.balanceChangeRow}>
+              <Text style={styles.balanceChangeLabel}>Payment ID</Text>
+              <Text style={styles.balanceChangeValue}>{paymentResult.paymentId}</Text>
+            </View>
+
+            <View style={styles.paymentInfoDivider} />
+
+            {/* Total Amount Before Paid Penalty */}
+            <View style={styles.balanceChangeRow}>
+              <Text style={styles.balanceChangeLabel}>Total Amount Before Paid Penalty</Text>
+              <Text style={styles.balanceChangeValue}>
+                {(paymentResult.balanceBeforePayment || 0).toLocaleString('vi-VN')} VND
+              </Text>
+            </View>
+
+            {/* Rental Amount */}
+            <View style={styles.balanceChangeRow}>
+              <Text style={styles.balanceChangeLabel}>Rental Amount</Text>
+              <Text style={styles.balanceChangeValue}>
+                {(paymentResult.rentalAmount || 0).toLocaleString('vi-VN')} VND
+              </Text>
+            </View>
+
+            {/* Penalty Amount */}
+            <View style={styles.balanceChangeRow}>
+              <Text style={styles.balanceChangeLabel}>Penalty Amount</Text>
+              <Text style={[styles.balanceChangeValue, { color: '#ff4d4f' }]}>
+                -{(paymentResult.amount || 0).toLocaleString('vi-VN')} VND
+              </Text>
+            </View>
+
+            {/* Refund Amount */}
+            <View style={styles.balanceChangeRow}>
+              <Text style={styles.balanceChangeLabel}>Refund Amount</Text>
+              <Text
+                style={[
+                  styles.balanceChangeValue,
+                  {
+                    color:
+                      (paymentResult.rentalAmount || 0) - (paymentResult.amount || 0) >= 0
+                        ? '#52c41a'
+                        : '#ff4d4f',
+                  },
+                ]}
+              >
+                {((paymentResult.rentalAmount || 0) - (paymentResult.amount || 0)).toLocaleString(
+                  'vi-VN'
+                )}{' '}
+                VND
+              </Text>
+            </View>
+
+            <View style={styles.paymentInfoDivider} />
+
+            {/* Total Balance After Paid */}
+            <View style={styles.balanceChangeRow}>
+              <Text style={[styles.balanceChangeLabel, { fontWeight: 'bold', fontSize: 13 }]}>
+                Total Balance After Paid
+              </Text>
+              <Text
+                style={[
+                  styles.balanceChangeValue,
+                  { color: '#52c41a', fontWeight: 'bold', fontSize: 14 },
+                ]}
+              >
+                {(paymentResult.remainingBalance || 0).toLocaleString('vi-VN')} VND
+              </Text>
+            </View>
+
+            {/* Total Balance in Wallet */}
+            <View style={styles.balanceChangeRow}>
+              <Text style={styles.balanceChangeLabel}>Total Balance in Wallet</Text>
+              <Text style={styles.balanceChangeValue}>
+                {(paymentResult.remainingBalance || 0).toLocaleString('vi-VN')} VND
+              </Text>
             </View>
           </View>
         )}
 
-        <TouchableOpacity
-          style={styles.successButton}
-          onPress={handleComplete}
-          activeOpacity={0.7}
-        >
-          <Icon name="home" size={20} color="#fff" />
-          <Text style={styles.successButtonText}>Back to Wallet</Text>
+        <TouchableOpacity style={styles.successButton} onPress={handleComplete}>
+          <Text style={styles.successButtonText}>Back to Portal</Text>
         </TouchableOpacity>
       </View>
-    </View>
+    </ScrollView>
   );
 
   const InfoRow = ({ label, value }) => (
@@ -1285,6 +1344,20 @@ const styles = StyleSheet.create({
     color: '#666',
     flex: 1,
   },
+  paymentInfoValue: {
+    fontSize: 14,
+    color: '#2c3e50',
+    fontWeight: '500',
+    flex: 2,
+    textAlign: 'right',
+  },
+  detailImage: {
+    width: '100%',
+    height: 200,
+    borderRadius: 8,
+    marginTop: 8,
+    backgroundColor: '#f0f0f0',
+  },
   infoValue: {
     fontSize: 14,
     fontWeight: '600',
@@ -1578,11 +1651,16 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#666',
     marginBottom: 4,
+    flex: 1,
+    flexWrap: 'wrap',
   },
   balanceChangeValue: {
     fontSize: 14,
     fontWeight: '600',
     color: '#2c3e50',
+    flexShrink: 0, // Prevent value from shrinking
+    maxWidth: '40%', // Ensure it doesn't take too much space
+    textAlign: 'right',
   },
   balanceChangeDeducted: {
     color: '#ff4d4f',
