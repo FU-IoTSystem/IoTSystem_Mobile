@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { MaterialIcons as Icon } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
-import { userAPI, classesAPI } from '../../services/api';
+import { userAPI, classesAPI, classAssignmentAPI } from '../../services/api';
 import AcademicLayout from '../../components/AcademicLayout';
 
 const AcademicDashboard = ({ user, onLogout }) => {
@@ -20,7 +20,8 @@ const AcademicDashboard = ({ user, onLogout }) => {
     totalStudents: 0,
     totalLecturers: 0,
     activeIotSubjects: 0,
-    totalKits: 0,
+    activeSemesters: 0,
+    unassignedStudents: 0,
   });
 
   useEffect(() => {
@@ -38,15 +39,49 @@ const AcademicDashboard = ({ user, onLogout }) => {
       const lecturers = await userAPI.getLecturers();
       const totalLecturers = lecturers?.length || 0;
 
-      // Load IOT subjects
+      // Load IOT subjects (classes)
       const classes = await classesAPI.getAllClasses();
-      const activeIotSubjects = classes?.filter(c => c.status)?.length || 0;
+      // Filter active classes
+      const activeClasses = classes?.filter(c =>
+        c.status === 'Active' || c.status === 'ACTIVE' || c.status === true
+      ) || [];
+
+      // Count active classes
+      const activeIotSubjects = activeClasses.length;
+
+      // Count unique active semesters
+      const uniqueSemesters = new Set(
+        activeClasses
+          .map(c => c.semester)
+          .filter(semester => semester) // Remove null/undefined
+      );
+      const activeSemesters = uniqueSemesters.size;
+
+      // Load class assignments to calculate unassigned students
+      const classAssignments = await classAssignmentAPI.getAll();
+
+      // Get student IDs from class assignments
+      const assignedStudentIds = new Set(
+        classAssignments
+          .filter(assignment => {
+            const roleName = assignment.roleName || assignment.role || '';
+            const roleUpper = roleName.toUpperCase();
+            return roleUpper === 'STUDENT' || roleUpper === 'STUDENT_ROLE';
+          })
+          .map(assignment => assignment.accountId?.toString())
+      );
+
+      // Count unassigned students
+      const unassignedStudents = students.filter(student =>
+        !assignedStudentIds.has(student.id?.toString())
+      ).length;
 
       setStats({
         totalStudents,
         totalLecturers,
         activeIotSubjects,
-        totalKits: 0, // Kits are managed by admin
+        activeSemesters,
+        unassignedStudents,
       });
     } catch (error) {
       console.error('Error loading dashboard data:', error);
@@ -106,9 +141,9 @@ const AcademicDashboard = ({ user, onLogout }) => {
         <View style={styles.statsContainer}>
           <View style={[styles.statCard, styles.statCardPrimary]}>
             <Icon name="book" size={32} color="#fff" />
-            <Text style={styles.statLabel}>Active Semesters</Text>
-            <Text style={styles.statValue}>0</Text>
-            <Text style={styles.statSubtext}>0 total semesters</Text>
+            <Text style={styles.statLabel}>Active Class/Semester</Text>
+            <Text style={styles.statValue}>{stats.activeIotSubjects}</Text>
+            <Text style={styles.statSubtext}>{stats.activeSemesters} active semester</Text>
           </View>
 
           <View style={[styles.statCard, styles.statCardSecondary]}>
@@ -124,28 +159,9 @@ const AcademicDashboard = ({ user, onLogout }) => {
           </View>
 
           <View style={[styles.statCard, styles.statCardQuaternary]}>
-            <Icon name="build" size={28} color="#fff" />
-            <Text style={styles.statSmallLabel}>Active IoT Subjects</Text>
-            <Text style={styles.statSmallValue}>{stats.activeIotSubjects}</Text>
-          </View>
-        </View>
-
-        {/* System Overview */}
-        <View style={styles.section}>
-          <View style={styles.overviewCard}>
-            <Text style={styles.overviewTitle}>System Overview</Text>
-            <View style={styles.overviewRow}>
-              <Text style={styles.overviewLabel}>Students:</Text>
-              <Text style={styles.overviewValue}>{stats.totalStudents}</Text>
-            </View>
-            <View style={styles.overviewRow}>
-              <Text style={styles.overviewLabel}>Lecturers:</Text>
-              <Text style={styles.overviewValue}>{stats.totalLecturers}</Text>
-            </View>
-            <View style={styles.overviewRow}>
-              <Text style={styles.overviewLabel}>Active IoT Subjects:</Text>
-              <Text style={styles.overviewValue}>{stats.activeIotSubjects}</Text>
-            </View>
+            <Icon name="person-add" size={28} color="#fff" />
+            <Text style={styles.statSmallLabel}>Unassigned Students</Text>
+            <Text style={styles.statSmallValue}>{stats.unassignedStudents}</Text>
           </View>
         </View>
       </ScrollView>
@@ -209,7 +225,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#4facfe',
   },
   statCardQuaternary: {
-    backgroundColor: '#43e97b',
+    backgroundColor: '#fa8c16',
   },
   statLabel: {
     fontSize: 14,
