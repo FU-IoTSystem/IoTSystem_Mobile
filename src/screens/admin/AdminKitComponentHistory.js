@@ -38,7 +38,11 @@ const AdminKitComponentHistory = ({ onLogout }) => {
       const kitsData = Array.isArray(kitsResponse)
         ? kitsResponse
         : kitsResponse?.data || [];
-      setKits(Array.isArray(kitsData) ? kitsData : []);
+      const actualKits = Array.isArray(kitsData) ? kitsData : [];
+
+      // Add "Without Kit" option
+      const globalOption = { id: 'global', kitName: 'Without Kit', name: 'Without Kit' };
+      setKits([globalOption, ...actualKits]);
     } catch (error) {
       console.error('Error loading kits for history:', error);
     } finally {
@@ -64,7 +68,12 @@ const AdminKitComponentHistory = ({ onLogout }) => {
     }
     setLoading(true);
     try {
-      const response = await kitComponentHistoryAPI.getByKit(kitId);
+      let response;
+      if (kitId === 'global') {
+        response = await kitComponentHistoryAPI.getGlobal();
+      } else {
+        response = await kitComponentHistoryAPI.getByKit(kitId);
+      }
       const data = Array.isArray(response) ? response : response?.data || [];
       setHistory(Array.isArray(data) ? data : []);
     } catch (error) {
@@ -222,10 +231,18 @@ const AdminKitComponentHistory = ({ onLogout }) => {
               </Text>
             </View>
           </View>
-          {item.note ? (
-            <Text style={styles.historyNote} numberOfLines={2}>
-              {item.note}
-            </Text>
+          {(item.imgUrl || item.penaltyDetailImageUrl) ? (
+            <Image
+              source={{ uri: item.imgUrl || item.penaltyDetailImageUrl }}
+              style={{
+                width: '100%',
+                height: 150,
+                borderRadius: 8,
+                marginTop: 8,
+                backgroundColor: '#f0f0f0',
+              }}
+              resizeMode="cover"
+            />
           ) : null}
         </View>
       </TouchableOpacity>
@@ -345,7 +362,7 @@ const AdminKitComponentHistory = ({ onLogout }) => {
                 {selectedKitId
                   ? searchText
                     ? 'No history matches your search'
-                    : 'No history for this kit yet'
+                    : selectedKitId === 'global' ? 'No history found without kit assignment' : 'No history for this kit yet'
                   : 'Select a kit to view history'}
               </Text>
             </View>
@@ -406,17 +423,11 @@ const AdminKitComponentHistory = ({ onLogout }) => {
                     {selectedHistory.newStatus || 'N/A'}
                   </Text>
                 </View>
-                <View style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>Note</Text>
-                  <Text style={styles.detailValue}>
-                    {selectedHistory.note || 'N/A'}
-                  </Text>
-                </View>
-                {selectedHistory.penaltyDetailImageUrl && (
+                {(selectedHistory.imgUrl || selectedHistory.penaltyDetailImageUrl) && (
                   <View style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>Damage Image</Text>
+                    <Text style={styles.detailLabel}>Evidence Image</Text>
                     <Image
-                      source={{ uri: selectedHistory.penaltyDetailImageUrl }}
+                      source={{ uri: selectedHistory.imgUrl || selectedHistory.penaltyDetailImageUrl }}
                       style={styles.detailImage}
                       resizeMode="contain"
                     />
@@ -698,5 +709,3 @@ const styles = StyleSheet.create({
 });
 
 export default AdminKitComponentHistory;
-
-

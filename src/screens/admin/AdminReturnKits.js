@@ -16,7 +16,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { useNavigation } from '@react-navigation/native';
 import { MaterialIcons as Icon } from '@expo/vector-icons';
 import AdminLayout from '../../components/AdminLayout';
-import { borrowingRequestAPI, kitAPI, penaltiesAPI, penaltyDetailAPI, notificationAPI, userAPI, borrowingGroupAPI, studentGroupAPI, classesAPI } from '../../services/api';
+import { borrowingRequestAPI, kitAPI, penaltiesAPI, penaltyDetailAPI, penaltyPoliciesAPI, notificationAPI, userAPI, borrowingGroupAPI, studentGroupAPI, classesAPI, kitComponentHistoryAPI } from '../../services/api';
 
 const AdminReturnKits = ({ onLogout, route }) => {
   const navigation = useNavigation();
@@ -108,18 +108,21 @@ const AdminReturnKits = ({ onLogout, route }) => {
       // Transform approved requests to refund request format
       const refundRequestsData = await Promise.all(approvedResponse.map(async (request) => {
         let displayKitName = request.kit?.kitName || request.kitName;
+        let displayComponentIds = 'N/A';
 
         // If it looks like a component rental or name is missing, try to fetch components
         if (request.requestType === 'BORROW_COMPONENT' || !displayKitName) {
           // Try to get from existing property first
           if (request.borrowingRequestComponents && request.borrowingRequestComponents.length > 0) {
             displayKitName = request.borrowingRequestComponents.map(c => c.componentName).join(', ');
+            displayComponentIds = request.borrowingRequestComponents.map(c => c.id || c.componentId || 'N/A').join(', ');
           } else {
             // Fetch from API
             try {
               const comps = await borrowingRequestAPI.getRequestComponents(request.id);
               if (comps && comps.length > 0) {
                 displayKitName = comps.map(c => c.componentName).join(', ');
+                displayComponentIds = comps.map(c => c.id || c.componentId || 'N/A').join(', ');
               }
             } catch (err) {
               console.log('Error fetching components for request ' + request.id, err);
@@ -139,6 +142,7 @@ const AdminReturnKits = ({ onLogout, route }) => {
           expectReturnDate: request.expectReturnDate,
           depositAmount: request.depositAmount || 0,
           requestType: request.requestType || 'BORROW_KIT',
+          componentIds: displayComponentIds,
           raw: request
         };
       }));
@@ -223,6 +227,53 @@ const AdminReturnKits = ({ onLogout, route }) => {
         userRole: isLecturer ? 'LECTURER' : (item.userRole || 'STUDENT'),
         isLecturer
       });
+
+      // Try to find any existing penalties for this request (e.g. Late fees or previous damages)
+      try {
+        const finesResponse = await penaltiesAPI.getUnresolved();
+        const fines = Array.isArray(finesResponse) ? finesResponse : (finesResponse?.data || []);
+
+        // Find penalty for this borrowing request
+        const relatedPenalty = fines.find(p =>
+          p.borrowRequestId === item.id ||
+          p.request?.id === item.id ||
+          p.rentalId === item.id
+        );
+
+        if (relatedPenalty) {
+          const detailsResponse = await penaltyDetailAPI.findByPenaltyId(relatedPenalty.id);
+          let detailsData = [];
+          if (Array.isArray(detailsResponse)) {
+            detailsData = detailsResponse;
+          } else if (detailsResponse && detailsResponse.data && Array.isArray(detailsResponse.data)) {
+            detailsData = detailsResponse.data;
+          } else if (detailsResponse && detailsResponse.id) {
+            detailsData = [detailsResponse];
+          }
+
+          // Enrich with policies
+          const detailsWithPolicies = await Promise.all(
+            detailsData.map(async (detail) => {
+              if (detail.policiesId) {
+                try {
+                  const policyResponse = await penaltyPoliciesAPI.getById(detail.policiesId);
+                  const policyData = policyResponse?.data || policyResponse;
+                  return { ...detail, policy: policyData };
+                } catch { return detail; }
+              }
+              return detail;
+            })
+          );
+
+          setSelectedRequest(prev => ({ ...prev, penaltyDetails: detailsData, penaltyInfo: relatedPenalty }));
+        } else {
+          setSelectedRequest(prev => ({ ...prev, penaltyDetails: [], penaltyInfo: null }));
+        }
+
+      } catch (err) {
+        console.log('Error fetching penalties for request:', err);
+      }
+
       setDetailModalVisible(true);
     } catch (error) {
       console.error('Error opening detail:', error);
@@ -295,12 +346,15 @@ const AdminReturnKits = ({ onLogout, route }) => {
             return actualComp ? {
               ...actualComp,
               rentedQuantity: rc.quantity,
-              componentName: rc.componentName
+              componentName: rc.componentName,
+              pricePerCom: actualComp.pricePerCom || rc.pricePerCom || rc.price || 0
             } : {
               componentName: rc.componentName,
               name: rc.componentName,
               quantity: rc.quantity,
-              rentedQuantity: rc.quantity
+              rentedQuantity: rc.quantity,
+              pricePerCom: rc.pricePerCom || rc.price || 0,
+              id: rc.kitComponentsId
             };
           });
 
@@ -407,20 +461,91 @@ const AdminReturnKits = ({ onLogout, route }) => {
 
           if (penaltyId) {
             // Create penalty details for each damaged component
-            const penaltyDetails = Object.entries(damageAssessment)
-              .filter(([_, component]) => component && component.damaged)
-              .map(([componentName, component]) => ({
-                penaltyId: penaltyId,
-                amount: component.value || 0,
-                quantity: component.quantity || 1,
-                description: `Damage to ${componentName}`,
-                kitComponentId: selectedKit?.components?.find(c =>
-                  c.componentName === componentName || c.name === componentName
-                )?.id || null
-              }));
+            // Upload images first, then create penalty details with server URLs
+            const penaltyDetails = await Promise.all(
+              Object.entries(damageAssessment)
+                .filter(([_, component]) => component && component.damaged)
+                .map(async ([componentName, component]) => {
+                  let serverImageUrl = null;
+
+                  // Upload image if exists
+                  if (component.imageUri) {
+                    try {
+                      console.log('Uploading image for component:', componentName);
+                      serverImageUrl = await penaltyDetailAPI.uploadImage(component.imageUri);
+                      console.log('Image uploaded successfully, URL:', serverImageUrl);
+                    } catch (uploadError) {
+                      console.error('Failed to upload image for', componentName, uploadError);
+                      // Continue without image if upload fails
+                    }
+                  }
+
+                  return {
+                    penaltyId: penaltyId,
+                    amount: component.value || 0,
+                    quantity: component.quantity || 1,
+                    description: `Damage to ${componentName}`,
+                    imageUrl: serverImageUrl, // Use server URL instead of local path
+                    kitComponentId: selectedKit?.components?.find(c =>
+                      c.componentName === componentName || c.name === componentName
+                    )?.id || null
+                  };
+                })
+            );
 
             if (penaltyDetails.length > 0) {
-              await penaltyDetailAPI.createMultiple(penaltyDetails);
+              const penaltyDetailsResponse = await penaltyDetailAPI.createMultiple(penaltyDetails);
+
+              // Map created details to find their IDs
+              const createdDetails = Array.isArray(penaltyDetailsResponse?.data)
+                ? penaltyDetailsResponse.data
+                : (Array.isArray(penaltyDetailsResponse) ? penaltyDetailsResponse : []);
+
+              const componentPenaltyMap = {};
+              createdDetails.forEach((detail) => {
+                if (detail?.description?.startsWith('Damage to ')) {
+                  const compName = detail.description.replace('Damage to ', '').trim();
+                  componentPenaltyMap[compName] = detail.id;
+                }
+              });
+
+              // Log component history for damages
+              // Create a map of component names to their uploaded image URLs
+              const componentImageMap = {};
+              penaltyDetails.forEach((detail) => {
+                if (detail.description?.startsWith('Damage to ')) {
+                  const compName = detail.description.replace('Damage to ', '').trim();
+                  componentImageMap[compName] = detail.imageUrl;
+                }
+              });
+
+              const components = selectedKit?.components || [];
+              const historyPayloads = components
+                .map((comp) => {
+                  const compName = comp.componentName || comp.name;
+                  const assessment = damageAssessment[compName];
+                  if (!assessment?.damaged) return null;
+
+                  return {
+                    kitId: (selectedKit?.id && selectedKit.id !== 'virtual-kit-context' && String(selectedKit.id).length === 36) ? selectedKit.id : null,
+                    componentId: comp.id,
+                    action: 'DAMAGED',
+                    oldStatus: comp.status || 'UNKNOWN',
+                    newStatus: 'DAMAGED',
+                    imgUrl: componentImageMap[compName] || null, // Use server URL from penalty detail
+                    penaltyDetailId: componentPenaltyMap[compName] || null,
+                  };
+                })
+                .filter(Boolean);
+
+              if (historyPayloads.length > 0) {
+                try {
+                  await Promise.all(historyPayloads.map((payload) => kitComponentHistoryAPI.create(payload)));
+                  console.log('Mobile: Kit component history created:', historyPayloads.length);
+                } catch (historyError) {
+                  console.error('Mobile: Error creating kit component history:', historyError);
+                }
+              }
             }
 
             penaltyCreated = true;
@@ -585,7 +710,7 @@ const AdminReturnKits = ({ onLogout, route }) => {
           onPress={() => openKitInspection(item)}
         >
           <Icon name="check-circle" size={18} color="#52c41a" />
-          <Text style={[styles.actionButtonText, { color: '#52c41a' }]}>Checkin Kit</Text>
+          <Text style={[styles.actionButtonText, { color: '#52c41a' }]}>Checkin</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -665,104 +790,145 @@ const AdminReturnKits = ({ onLogout, route }) => {
 
             {selectedRequest && (
               <ScrollView style={styles.modalBody}>
-                <View style={styles.detailsSection}>
-                  <View style={styles.detailsRow}>
-                    <Text style={styles.detailsLabel}>Request ID:</Text>
-                    <Text style={styles.detailsValue}>#{selectedRequest.id}</Text>
-                  </View>
-                  <View style={styles.detailsRow}>
-                    <Text style={styles.detailsLabel}>User Name:</Text>
-                    <Text style={styles.detailsValue}>{selectedRequest.userName}</Text>
-                  </View>
-                  <View style={styles.detailsRow}>
-                    <Text style={styles.detailsLabel}>User Email:</Text>
-                    <Text style={styles.detailsValue}>{selectedRequest.userEmail}</Text>
-                  </View>
-                  <View style={styles.detailsRow}>
-                    <Text style={styles.detailsLabel}>Type:</Text>
-                    <View style={[
-                      styles.badge,
-                      { backgroundColor: selectedRequest.requestType === 'BORROW_COMPONENT' ? '#faad1415' : '#1890ff15' }
-                    ]}>
-                      <Text style={[
-                        styles.badgeText,
-                        { color: selectedRequest.requestType === 'BORROW_COMPONENT' ? '#faad14' : '#1890ff' }
-                      ]}>
-                        {selectedRequest.requestType === 'BORROW_COMPONENT' ? 'Component' : 'Full Kit'}
-                      </Text>
-                    </View>
-                  </View>
-                  {selectedRequest.requestType !== 'BORROW_COMPONENT' && (
-                    <>
-                      <View style={styles.detailsRow}>
-                        <Text style={styles.detailsLabel}>Kit/Component:</Text>
-                        <Text style={styles.detailsValue}>{selectedRequest.kitName}</Text>
-                      </View>
-                      <View style={styles.detailsRow}>
-                        <Text style={styles.detailsLabel}>Kit ID:</Text>
-                        <Text style={styles.detailsValue}>{selectedRequest.kitId || 'N/A'}</Text>
-                      </View>
-                    </>
-                  )}
+                <View style={styles.detailSection}>
+                  <Text style={styles.detailSectionTitle}>Request Information</Text>
+                  <DetailRow label="Request ID" value={`#${selectedRequest.id}`} />
+                  <DetailRow
+                    label="Status"
+                    value={selectedRequest.status || 'APPROVED'}
+                    valueColor={getStatusColor(selectedRequest.status)}
+                  />
+                  <DetailRow
+                    label="Request Type"
+                    value={selectedRequest.requestType || 'BORROW_KIT'}
+                  />
+                  <DetailRow
+                    label="Borrow Date"
+                    value={formatDateTime(selectedRequest.approvedDate)}
+                  />
+                </View>
+
+                <View style={styles.detailSection}>
+                  <Text style={styles.detailSectionTitle}>User Information</Text>
+                  <DetailRow
+                    label="Name"
+                    value={selectedRequest.userName || 'N/A'}
+                  />
+                  <DetailRow
+                    label="Email"
+                    value={selectedRequest.userEmail || 'N/A'}
+                  />
                   {!selectedRequest.isLecturer && (
                     <>
-                      <View style={styles.detailsRow}>
-                        <Text style={styles.detailsLabel}>Group:</Text>
-                        <Text style={styles.detailsValue}>
-                          {selectedRequest.groupInfo?.groupName || 'N/A'}
-                        </Text>
-                      </View>
-                      <View style={styles.detailsRow}>
-                        <Text style={styles.detailsLabel}>Class:</Text>
-                        <Text style={styles.detailsValue}>
-                          {selectedRequest.groupInfo?.classCode || 'N/A'}
-                        </Text>
-                      </View>
-                      <View style={styles.detailsRow}>
-                        <Text style={styles.detailsLabel}>Semester:</Text>
-                        <Text style={styles.detailsValue}>
-                          {selectedRequest.groupInfo?.semester || 'N/A'}
-                        </Text>
-                      </View>
+                      <DetailRow
+                        label="Group"
+                        value={selectedRequest.groupInfo?.groupName || 'N/A'}
+                      />
+                      <DetailRow
+                        label="Class"
+                        value={selectedRequest.groupInfo?.classCode || 'N/A'}
+                      />
+                      <DetailRow
+                        label="Semester"
+                        value={selectedRequest.groupInfo?.semester || 'N/A'}
+                      />
                     </>
                   )}
-                  <View style={styles.detailsRow}>
-                    <Text style={styles.detailsLabel}>Reason:</Text>
-                    <Text style={styles.detailsValue}>
-                      {(selectedRequest.raw?.borrowReason || selectedRequest.raw?.reason)
-                        ? (selectedRequest.raw?.borrowReason || selectedRequest.raw?.reason)
-                        : (selectedRequest.requestType === 'BORROW_COMPONENT' ? 'Component Rental' : 'N/A')}
-                    </Text>
+                </View>
+
+                {selectedRequest.requestType === 'BORROW_COMPONENT' ? (
+                  <View style={styles.detailSection}>
+                    <Text style={styles.detailSectionTitle}>Component Information</Text>
+                    <DetailRow
+                      label="Component Name"
+                      value={selectedRequest.kitName || 'N/A'}
+                    />
+                    <DetailRow
+                      label="Component ID"
+                      value={selectedRequest.componentIds || 'N/A'}
+                    />
                   </View>
-                  <View style={styles.detailsRow}>
-                    <Text style={styles.detailsLabel}>Borrow Date:</Text>
-                    <Text style={styles.detailsValue}>{formatDateTime(selectedRequest.approvedDate)}</Text>
+                ) : (
+                  <View style={styles.detailSection}>
+                    <Text style={styles.detailSectionTitle}>Kit Information</Text>
+                    <DetailRow
+                      label="Kit Name"
+                      value={selectedRequest.kitName || 'N/A'}
+                    />
+                    <DetailRow
+                      label="Kit ID"
+                      value={selectedRequest.kitId || 'N/A'}
+                    />
                   </View>
-                  <View style={styles.detailsRow}>
-                    <Text style={styles.detailsLabel}>Expected Return:</Text>
-                    <Text style={styles.detailsValue}>{formatDateTime(selectedRequest.expectReturnDate)}</Text>
-                  </View>
-                  <View style={styles.detailsRow}>
-                    <Text style={styles.detailsLabel}>Deposit Amount:</Text>
-                    <Text style={[styles.detailsValue, { color: '#52c41a', fontWeight: 'bold' }]}>
-                      {selectedRequest.depositAmount?.toLocaleString('vi-VN') || 0} VND
-                    </Text>
-                  </View>
-                  <View style={styles.detailsRow}>
-                    <Text style={styles.detailsLabel}>Status:</Text>
-                    <View style={[
-                      styles.badge,
-                      { backgroundColor: `${getStatusColor(selectedRequest.status)}15` }
-                    ]}>
-                      <Text style={[
-                        styles.badgeText,
-                        { color: getStatusColor(selectedRequest.status) }
-                      ]}>
-                        {selectedRequest.status || 'APPROVED'}
-                      </Text>
+                )}
+
+                <View style={styles.detailSection}>
+                  <Text style={styles.detailSectionTitle}>Rental Details</Text>
+                  {selectedRequest.depositAmount ? (
+                    <DetailRow
+                      label="Deposit Amount"
+                      value={`${selectedRequest.depositAmount.toLocaleString('vi-VN')} VND`}
+                    />
+                  ) : null}
+                  <DetailRow
+                    label="Expected Return"
+                    value={formatDateTime(selectedRequest.expectReturnDate)}
+                  />
+                  {(selectedRequest.raw?.borrowReason || selectedRequest.raw?.reason) && (
+                    <DetailRow
+                      label="Reason"
+                      value={selectedRequest.raw?.borrowReason || selectedRequest.raw?.reason}
+                    />
+                  )}
+                </View>
+
+                {selectedRequest.penaltyDetails && selectedRequest.penaltyDetails.length > 0 && (
+                  <View style={styles.detailSection}>
+                    <Text style={styles.detailSectionTitle}>Penalty Details</Text>
+                    <DetailRow
+                      label="Penalty Status"
+                      value={selectedRequest.penaltyInfo?.resolved ? 'PAID' : 'PENDING'}
+                      valueColor={selectedRequest.penaltyInfo?.resolved ? '#52c41a' : '#faad14'}
+                    />
+                    <DetailRow
+                      label="Total Fine"
+                      value={`${(selectedRequest.penaltyInfo?.totalAmount || 0).toLocaleString('vi-VN')} VND`}
+                      valueColor="#cf1322"
+                    />
+                    <View style={{ marginTop: 8 }}>
+                      {selectedRequest.penaltyDetails.map((detail, index) => {
+                        const imageUri = detail.imageUrl ? (
+                          (detail.imageUrl.startsWith('http') || detail.imageUrl.startsWith('data:') || detail.imageUrl.startsWith('file://'))
+                            ? detail.imageUrl
+                            : detail.imageUrl.startsWith('/')
+                              ? `file://${detail.imageUrl}`
+                              : detail.imageUrl
+                        ) : null;
+
+                        return (
+                          <View key={detail.id || index} style={styles.damageItem}>
+                            <View style={{ flex: 1 }}>
+                              <Text style={styles.damageComponent}>
+                                {detail.description || 'Penalty'}
+                              </Text>
+                              <Text style={{ fontSize: 12, color: '#666' }}>
+                                {detail.quantity > 1 ? `Qty: ${detail.quantity} ` : ''}
+                                {detail.amount ? `Amount: ${detail.amount.toLocaleString('vi-VN')} VND` : ''}
+                              </Text>
+                            </View>
+                            {imageUri && (
+                              <Image
+                                source={{ uri: imageUri }}
+                                style={{ width: 60, height: 60, borderRadius: 4, marginLeft: 8, backgroundColor: '#eee' }}
+                                resizeMode="cover"
+                              />
+                            )}
+                          </View>
+                        );
+                      })}
                     </View>
                   </View>
-                </View>
+                )}
               </ScrollView>
             )}
 
@@ -937,13 +1103,11 @@ const AdminReturnKits = ({ onLogout, route }) => {
                           <View style={styles.componentInfo}>
                             <Text style={styles.componentName}>{componentName}</Text>
                             <Text style={styles.componentDetails}>
-                              Type: {component.componentType || 'N/A'} | Qty: {component.rentedQuantity || component.quantityTotal || 0}
+                              Qty: {component.rentedQuantity || component.quantityTotal || 0}
                             </Text>
-                            {componentPrice > 0 && (
-                              <Text style={[styles.componentDetails, { color: '#1890ff', marginTop: 4 }]}>
-                                Price: {componentPrice.toLocaleString('vi-VN')} VND
-                              </Text>
-                            )}
+                            <Text style={[styles.componentDetails, { color: '#1890ff', marginTop: 4 }]}>
+                              Price: {componentPrice.toLocaleString('vi-VN')} VND
+                            </Text>
                           </View>
 
                           <View style={styles.damageControls}>
@@ -1472,6 +1636,55 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  detailSection: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+  },
+  detailSectionTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#1890ff',
+    marginBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+    paddingBottom: 8,
+  },
+  detailRowItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 12,
+    paddingBottom: 4,
+  },
+  detailLabel: {
+    fontSize: 14,
+    color: '#8c8c8c',
+    fontWeight: '500',
+    flex: 1,
+  },
+  detailValue: {
+    fontSize: 14,
+    color: '#262626',
+    flex: 2,
+    textAlign: 'right',
+    fontWeight: '400',
+  },
 });
+
+const DetailRow = ({ label, value, valueColor }) => (
+  <View style={styles.detailRowItem}>
+    <Text style={styles.detailLabel}>{label}:</Text>
+    <Text style={[styles.detailValue, valueColor && { color: valueColor }]}>
+      {value || 'N/A'}
+    </Text>
+  </View>
+);
 
 export default AdminReturnKits;

@@ -17,6 +17,7 @@ import { MaterialIcons as Icon } from '@expo/vector-icons';
 import { kitComponentAPI } from '../../services/api';
 
 const COMPONENT_TYPE_OPTIONS = ['BOX', 'SET', 'UNIT'];
+const STATUS_OPTIONS = ['AVAILABLE', 'IN_USE', 'MAINTENANCE', 'DAMAGED'];
 
 const AdminKitComponents = ({ onLogout }) => {
   const navigation = useNavigation();
@@ -27,9 +28,11 @@ const AdminKitComponents = ({ onLogout }) => {
   const [statusFilter, setStatusFilter] = useState('all');
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [typeDropdownVisible, setTypeDropdownVisible] = useState(false);
+  const [statusDropdownVisible, setStatusDropdownVisible] = useState(false);
   const [editingComponent, setEditingComponent] = useState(null);
   const [formData, setFormData] = useState({
     componentName: '',
+    seriNumber: '',
     componentType: '',
     quantityTotal: 1,
     quantityAvailable: 1,
@@ -96,8 +99,10 @@ const AdminKitComponents = ({ onLogout }) => {
   const openAddModal = () => {
     setEditingComponent(null);
     setTypeDropdownVisible(false);
+    setStatusDropdownVisible(false);
     setFormData({
       componentName: '',
+      seriNumber: '',
       componentType: COMPONENT_TYPE_OPTIONS[0],
       quantityTotal: 1,
       quantityAvailable: 1,
@@ -113,8 +118,10 @@ const AdminKitComponents = ({ onLogout }) => {
   const openEditModal = (component) => {
     setEditingComponent(component);
     setTypeDropdownVisible(false);
+    setStatusDropdownVisible(false);
     setFormData({
       componentName: component.componentName || component.name || '',
+      seriNumber: component.seriNumber || '',
       componentType:
         component.componentType ||
         component.type ||
@@ -141,6 +148,7 @@ const AdminKitComponents = ({ onLogout }) => {
       const payload = {
         kitId: null,
         componentName: formData.componentName,
+        seriNumber: formData.seriNumber,
         componentType: formData.componentType,
         description: formData.description || '',
         quantityTotal: formData.quantityTotal,
@@ -451,6 +459,17 @@ const AdminKitComponents = ({ onLogout }) => {
                 />
               </View>
               <View style={styles.formRow}>
+                <Text style={styles.formLabel}>Seri Number</Text>
+                <TextInput
+                  style={styles.formInput}
+                  value={formData.seriNumber}
+                  onChangeText={(text) =>
+                    setFormData((prev) => ({ ...prev, seriNumber: text }))
+                  }
+                  placeholder="Serial Number"
+                />
+              </View>
+              <View style={styles.formRow}>
                 <Text style={styles.formLabel}>Type</Text>
                 <TouchableOpacity
                   style={styles.formSelect}
@@ -569,14 +588,60 @@ const AdminKitComponents = ({ onLogout }) => {
               </View>
               <View style={styles.formRow}>
                 <Text style={styles.formLabel}>Status</Text>
-                <TextInput
-                  style={styles.formInput}
-                  value={formData.status}
-                  onChangeText={(text) =>
-                    setFormData((prev) => ({ ...prev, status: text }))
+                <TouchableOpacity
+                  style={styles.formSelect}
+                  onPress={() =>
+                    setStatusDropdownVisible((prevVisible) => !prevVisible)
                   }
-                  placeholder="Status (e.g. AVAILABLE)"
-                />
+                >
+                  <Text
+                    style={
+                      formData.status
+                        ? styles.formSelectText
+                        : styles.formSelectPlaceholder
+                    }
+                  >
+                    {formData.status || 'Select status'}
+                  </Text>
+                  <Icon
+                    name={
+                      statusDropdownVisible ? 'keyboard-arrow-up' : 'keyboard-arrow-down'
+                    }
+                    size={20}
+                    color="#666"
+                  />
+                </TouchableOpacity>
+                {statusDropdownVisible && (
+                  <View style={styles.dropdownOptions}>
+                    {STATUS_OPTIONS.map((option) => (
+                      <TouchableOpacity
+                        key={option}
+                        style={[
+                          styles.dropdownOption,
+                          formData.status === option &&
+                          styles.dropdownOptionSelected,
+                        ]}
+                        onPress={() => {
+                          setFormData((prev) => ({
+                            ...prev,
+                            status: option,
+                          }));
+                          setStatusDropdownVisible(false);
+                        }}
+                      >
+                        <Text
+                          style={[
+                            styles.dropdownOptionText,
+                            formData.status === option &&
+                            styles.dropdownOptionTextSelected,
+                          ]}
+                        >
+                          {option}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                )}
               </View>
               <View style={styles.formRow}>
                 <Text style={styles.formLabel}>Image URL</Text>

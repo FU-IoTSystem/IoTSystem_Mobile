@@ -9,6 +9,7 @@ import {
   Alert,
   FlatList,
   Modal,
+  Image,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { MaterialIcons as Icon } from '@expo/vector-icons';
@@ -36,30 +37,30 @@ const AdminFines = ({ onLogout }) => {
       // Note: Backend only has endpoint for unresolved fines (getAllByResolved-F)
       const response = await penaltiesAPI.getUnresolved();
       console.log('Unresolved penalties response:', response);
-      const data = Array.isArray(response) 
-        ? response 
+      const data = Array.isArray(response)
+        ? response
         : (response?.data || []);
-      
+
       // Map penalties to fine format - matching AdminPortal.js structure
       const mappedFines = data.map(p => {
         // Extract account information
         const account = p.account || {};
         const borrowRequest = p.request || p.borrowRequest || {};
         const kit = borrowRequest?.kit || {};
-        
+
         // Get student/account email and name
         const accountEmail = account.email || p.accountEmail || 'N/A';
         const accountName = account.fullName || account.name || accountEmail;
-        
+
         // Get borrow request information
         const borrowRequestId = borrowRequest.id || p.borrowRequestId || 'N/A';
         const kitName = kit.kitName || kit.name || 'N/A';
-        
+
         // For group leader, check if borrow request has requestedBy info
         const requestedBy = borrowRequest.requestedBy || {};
         const leaderEmail = requestedBy.email || accountEmail;
         const leaderName = requestedBy.fullName || requestedBy.name || leaderEmail;
-        
+
         return {
           id: p.id,
           kitId: borrowRequestId,
@@ -68,11 +69,11 @@ const AdminFines = ({ onLogout }) => {
           studentName: accountName,
           leaderEmail: leaderEmail,
           leaderName: leaderName,
-          fineAmount: (p.totalAmount !== undefined && p.totalAmount !== null) 
-            ? Number(p.totalAmount) 
+          fineAmount: (p.totalAmount !== undefined && p.totalAmount !== null)
+            ? Number(p.totalAmount)
             : (p.total_ammount !== undefined && p.total_ammount !== null)
-            ? Number(p.total_ammount)
-            : 0,
+              ? Number(p.total_ammount)
+              : 0,
           createdAt: p.takeEffectDate || p.take_effect_date || p.createdAt || new Date().toISOString(),
           dueDate: p.dueDate || p.createdAt || new Date().toISOString(),
           status: p.resolved ? 'paid' : 'pending',
@@ -80,14 +81,14 @@ const AdminFines = ({ onLogout }) => {
           penalty: p,
         };
       });
-      
+
       // Sort by createdAt descending (newest first)
       const sortedFines = mappedFines.sort((a, b) => {
         const dateA = a.createdAt ? new Date(a.createdAt) : new Date(0);
         const dateB = b.createdAt ? new Date(b.createdAt) : new Date(0);
         return dateB - dateA; // Descending order (newest first)
       });
-      
+
       setFines(sortedFines);
     } catch (error) {
       console.error('Error loading fines:', error);
@@ -114,7 +115,7 @@ const AdminFines = ({ onLogout }) => {
     setPenaltyDetails([]); // Clear while loading
     try {
       const response = await penaltyDetailAPI.findByPenaltyId(penaltyId);
-      
+
       let detailsData = [];
       if (Array.isArray(response)) {
         detailsData = response;
@@ -123,7 +124,7 @@ const AdminFines = ({ onLogout }) => {
       } else if (response && response.id) {
         detailsData = [response];
       }
-      
+
       // Fetch penalty policy info for each detail
       if (detailsData.length > 0) {
         const detailsWithPolicies = await Promise.all(
@@ -246,7 +247,7 @@ const AdminFines = ({ onLogout }) => {
   };
 
   return (
-    <AdminLayout 
+    <AdminLayout
       title="Fine Management"
       rightAction={{
         icon: 'logout',
@@ -296,27 +297,27 @@ const AdminFines = ({ onLogout }) => {
                 <View style={styles.detailSection}>
                   <Text style={styles.sectionTitle}>Fine Information</Text>
                   <DetailRow label="Fine ID" value={`#${selectedFine.id}`} />
-                  <DetailRow 
-                    label="Status" 
+                  <DetailRow
+                    label="Status"
                     value={selectedFine.status?.toUpperCase() || 'PENDING'}
                     valueColor={getStatusColor(selectedFine.status)}
                   />
-                  <DetailRow 
-                    label="Fine Amount" 
+                  <DetailRow
+                    label="Fine Amount"
                     value={`${selectedFine.fineAmount.toLocaleString('vi-VN')} VND`}
                     valueColor="#cf1322"
                   />
-                  <DetailRow 
-                    label="Created Date" 
-                    value={selectedFine.createdAt 
+                  <DetailRow
+                    label="Created Date"
+                    value={selectedFine.createdAt
                       ? dayjs(selectedFine.createdAt).format('DD/MM/YYYY HH:mm')
-                      : 'N/A'} 
+                      : 'N/A'}
                   />
-                  <DetailRow 
-                    label="Due Date" 
-                    value={selectedFine.dueDate 
+                  <DetailRow
+                    label="Due Date"
+                    value={selectedFine.dueDate
                       ? dayjs(selectedFine.dueDate).format('DD/MM/YYYY HH:mm')
-                      : 'N/A'} 
+                      : 'N/A'}
                   />
                 </View>
 
@@ -326,30 +327,63 @@ const AdminFines = ({ onLogout }) => {
                   </View>
                 ) : penaltyDetails && penaltyDetails.length > 0 ? (
                   <View style={styles.detailSection}>
-                    <Text style={styles.sectionTitle}>Policies</Text>
-                    {penaltyDetails.map((detail, index) => (
-                      detail.policy ? (
+                    <Text style={styles.sectionTitle}>Penalty Details</Text>
+                    {penaltyDetails.map((detail, index) => {
+                      const imageUri = detail.imageUrl ? (
+                        (detail.imageUrl.startsWith('http') || detail.imageUrl.startsWith('data:') || detail.imageUrl.startsWith('file://'))
+                          ? detail.imageUrl
+                          : detail.imageUrl.startsWith('/')
+                            ? `file://${detail.imageUrl}`
+                            : detail.imageUrl
+                      ) : null;
+
+                      // Display logic: 
+                      // 1. If policy exists, show policy name/desc
+                      // 2. If no policy, show description (for manual/damage penalties)
+                      const title = detail.policy
+                        ? (detail.policy.policyName || detail.policy.name || 'Policy Violation')
+                        : (detail.description || 'Penalty Detail');
+
+                      const description = detail.policy
+                        ? detail.policy.description
+                        : (detail.quantity && detail.quantity > 1 ? `Quantity: ${detail.quantity}` : null);
+
+                      return (
                         <View key={detail.id || index} style={styles.policyItem}>
-                          <Text style={styles.policyName}>
-                            {detail.policy.policyName || detail.policy.name || 'Policy'}
-                          </Text>
-                          {detail.policy.description && (
+                          <Text style={styles.policyName}>{title}</Text>
+
+                          {description && (
                             <Text style={styles.policyDescription}>
-                              {detail.policy.description}
+                              {description}
                             </Text>
                           )}
-                          {detail.policy.amount && (
-                            <Text style={styles.policyAmount}>
-                              {Number(detail.policy.amount).toLocaleString('vi-VN')} VND
+
+                          {/* If it's a damage penalty without policy but has description, show it as description too if distinct */}
+                          {!detail.policy && detail.description && detail.description !== title && (
+                            <Text style={styles.policyDescription}>
+                              {detail.description}
                             </Text>
                           )}
+
+                          {imageUri && (
+                            <Image
+                              source={{ uri: imageUri }}
+                              style={styles.detailImage}
+                              resizeMode="cover"
+                              onError={(e) => console.log('Error loading image:', e.nativeEvent.error)}
+                            />
+                          )}
+
+                          <Text style={styles.policyAmount}>
+                            {detail.amount ? Number(detail.amount).toLocaleString('vi-VN') : 0} VND
+                          </Text>
                         </View>
-                      ) : null
-                    ))}
+                      );
+                    })}
                   </View>
                 ) : (
                   <View style={styles.detailSection}>
-                    <Text style={styles.noPoliciesText}>No policies found</Text>
+                    <Text style={styles.noPoliciesText}>No penalty details found</Text>
                   </View>
                 )}
 
@@ -385,7 +419,7 @@ const AdminFines = ({ onLogout }) => {
           </View>
         </View>
       </Modal>
-    </AdminLayout>
+    </AdminLayout >
   );
 };
 
@@ -622,6 +656,14 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#999',
     fontStyle: 'italic',
+  },
+  detailImage: {
+    width: '100%',
+    height: 150,
+    borderRadius: 8,
+    marginTop: 8,
+    marginBottom: 8,
+    backgroundColor: '#e6e6e6',
   },
 });
 

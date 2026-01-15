@@ -23,8 +23,8 @@ const AdminDashboard = ({ user, onLogout }) => {
   const [loading, setLoading] = useState(false);
   const [systemStats, setSystemStats] = useState({
     totalUsers: 0,
-    availableKits: 0,
-    pendingApprovals: 0,
+    availableStudentKits: 0,
+    availableLecturerKits: 0,
     pendingApprovals: 0,
     kitsInUse: 0,
   });
@@ -102,7 +102,13 @@ const AdminDashboard = ({ user, onLogout }) => {
       }
 
       // Calculate stats using loaded data directly
-      const availableKitsCount = loadedKits.filter(kit => kit.status === 'AVAILABLE').length;
+      const availableStudentKitsCount = loadedKits.filter(
+        kit => kit.status === 'AVAILABLE' && kit.type === 'STUDENT_KIT'
+      ).length;
+      const availableLecturerKitsCount = loadedKits.filter(
+        kit => kit.status === 'AVAILABLE' && kit.type === 'LECTURER_KIT'
+      ).length;
+
       const pendingRequestsCount = loadedRentalRequests.filter(
         req => req.status === 'PENDING' || req.status === 'PENDING_APPROVAL'
       ).length;
@@ -116,7 +122,8 @@ const AdminDashboard = ({ user, onLogout }) => {
 
       const stats = {
         totalUsers: loadedUsers.length,
-        availableKits: availableKitsCount,
+        availableStudentKits: availableStudentKitsCount,
+        availableLecturerKits: availableLecturerKitsCount,
         pendingApprovals: pendingRequestsCount,
         kitsInUse: kitsInUseCount,
       };
@@ -196,10 +203,17 @@ const AdminDashboard = ({ user, onLogout }) => {
             suffix=" users"
           />
           <StatCard
-            title="Available Kits"
-            value={systemStats.availableKits}
-            icon="build"
+            title="Available Student Kits"
+            value={systemStats.availableStudentKits}
+            icon="school"
             color="#52c41a"
+            suffix=" kits"
+          />
+          <StatCard
+            title="Available Lecturer Kits"
+            value={systemStats.availableLecturerKits}
+            icon="history-edu"
+            color="#13c2c2"
             suffix=" kits"
           />
           <StatCard
@@ -210,14 +224,13 @@ const AdminDashboard = ({ user, onLogout }) => {
             suffix=" requests"
           />
           <StatCard
-            title="Kit In Use"
+            title="Ongoing Borrow Requests"
             value={systemStats.kitsInUse}
             icon="inventory"
             color="#722ed1"
-            suffix=" kits"
+            suffix=" requests"
           />
         </View>
-
         {/* Quick Actions */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Quick Actions</Text>

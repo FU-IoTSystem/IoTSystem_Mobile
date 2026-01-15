@@ -13,11 +13,11 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { MaterialIcons as Icon } from '@expo/vector-icons';
-import { 
-  studentGroupAPI, 
-  borrowingGroupAPI, 
+import {
+  studentGroupAPI,
+  borrowingGroupAPI,
   userAPI,
-  classesAPI 
+  classesAPI
 } from '../../services/api';
 
 const AdminGroups = ({ onLogout }) => {
@@ -43,6 +43,9 @@ const AdminGroups = ({ onLogout }) => {
     classId: '',
     lecturer: '',
   });
+  const [adjustMemberModalVisible, setAdjustMemberModalVisible] = useState(false);
+  const [selectedGroupForAdjust, setSelectedGroupForAdjust] = useState(null);
+  const [detailedMembers, setDetailedMembers] = useState([]);
 
   useEffect(() => {
     loadGroups();
@@ -54,32 +57,32 @@ const AdminGroups = ({ onLogout }) => {
     setLoading(true);
     try {
       const studentGroups = await studentGroupAPI.getAll();
-      
+
       // Get all borrowing groups for each student group
       const groupsWithMembers = await Promise.all(
         studentGroups.map(async (group) => {
           try {
             const borrowingGroups = await borrowingGroupAPI.getByStudentGroupId(group.id);
-            
+
             // Map borrowing groups to members list
             const members = borrowingGroups.map(bg => ({
               id: bg.accountId,
               name: bg.accountName,
               email: bg.accountEmail,
               role: bg.roles,
-              isLeader: bg.isLeader === true || bg.isLeader === 'true'
+              isLeader: (bg.roles || '').toUpperCase() === 'LEADER'
             }));
 
-            // Find leader (check isLeader field)
-            const leader = borrowingGroups.find(bg => bg.isLeader === true || bg.isLeader === 'true');
-            
+            // Find leader (check roles field for 'LEADER')
+            const leader = borrowingGroups.find(bg => (bg.roles || '').toUpperCase() === 'LEADER');
+
             return {
               id: group.id,
               groupName: group.groupName || group.name,
               classId: group.classId,
               lecturer: group.lecturerEmail || null,
               lecturerName: group.lecturerName,
-              leader: leader ? leader.accountEmail : null,
+              leader: leader ? (leader.accountName || leader.accountEmail) : null,
               members: members.map(m => m.email),
               status: group.status,
               lecturerId: group.accountId
@@ -141,21 +144,21 @@ const AdminGroups = ({ onLogout }) => {
       const groupName = (group.groupName || '').toLowerCase();
       const leader = (group.leader || '').toLowerCase();
       const lecturer = (group.lecturerName || group.lecturer || '').toLowerCase();
-      
-      if (!groupName.includes(searchLower) && 
-          !leader.includes(searchLower) && 
-          !lecturer.includes(searchLower)) {
+
+      if (!groupName.includes(searchLower) &&
+        !leader.includes(searchLower) &&
+        !lecturer.includes(searchLower)) {
         return false;
       }
     }
-    
+
     // Filter by class
     if (classFilter !== 'all') {
       if (group.classId !== classFilter) {
         return false;
       }
     }
-    
+
     // Filter by status
     if (statusFilter !== 'all') {
       const groupStatus = group.status ? 'active' : 'inactive';
@@ -163,7 +166,7 @@ const AdminGroups = ({ onLogout }) => {
         return false;
       }
     }
-    
+
     return true;
   });
 
@@ -173,11 +176,11 @@ const AdminGroups = ({ onLogout }) => {
   const handleAddStudentToGroup = async (groupRecord) => {
     setSelectedGroupRecord(groupRecord);
     setLoading(true);
-    
+
     try {
       const allStudents = await userAPI.getStudents();
       const allBorrowingGroups = await borrowingGroupAPI.getAll();
-      
+
       // Filter available students (not in any group)
       const availableStudents = allStudents.filter(student => {
         const isInAnyGroup = allBorrowingGroups.some(bg => {
@@ -187,7 +190,7 @@ const AdminGroups = ({ onLogout }) => {
         });
         return !isInAnyGroup;
       });
-      
+
       if (availableStudents.length === 0) {
         Alert.alert('No Available Students', 'All students are already assigned to groups');
         setLoading(false);
@@ -203,13 +206,13 @@ const AdminGroups = ({ onLogout }) => {
       const maxStudents = 4;
       const availableCount = availableStudents.length;
       const numberOfStudentsToAdd = Math.min(maxStudents, Math.max(minStudents, availableCount));
-      
+
       if (availableCount < minStudents) {
         Alert.alert('Insufficient Students', `Only ${availableCount} student(s) available. Need at least ${minStudents}.`);
         setLoading(false);
         return;
       }
-      
+
       const shuffledStudents = [...availableStudents].sort(() => 0.5 - Math.random());
       const selectedStudents = shuffledStudents.slice(0, numberOfStudentsToAdd);
 
@@ -226,12 +229,12 @@ const AdminGroups = ({ onLogout }) => {
 
   const handleConfirmAddStudents = async () => {
     setLoading(true);
-    
+
     try {
       for (let i = 0; i < studentsToAdd.length; i++) {
         const student = studentsToAdd[i];
         const role = (isFirstMember && i === 0) ? 'LEADER' : 'MEMBER';
-        
+
         const borrowingGroupData = {
           studentGroupId: selectedGroupRecord.id,
           accountId: student.id,
@@ -243,7 +246,7 @@ const AdminGroups = ({ onLogout }) => {
 
       // Refresh group data
       await loadGroups();
-      
+
       Alert.alert('Success', `Successfully added ${studentsToAdd.length} students to the group`);
       setAddStudentModalVisible(false);
       setSelectedGroupRecord(null);
@@ -254,6 +257,113 @@ const AdminGroups = ({ onLogout }) => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleOpenAdjustMemberModal = async (group) => {
+    setSelectedGroupForAdjust(group);
+    setLoading(true);
+
+    try {
+      // Load detailed member information
+      const borrowingGroups = await borrowingGroupAPI.getByStudentGroupId(group.id);
+
+      const membersWithDetails = borrowingGroups.map(bg => ({
+        accountId: bg.accountId,
+        name: bg.accountName,
+        email: bg.accountEmail,
+        role: bg.roles,
+        isLeader: (bg.roles || '').toUpperCase() === 'LEADER'
+      }));
+
+      setDetailedMembers(membersWithDetails);
+      setAdjustMemberModalVisible(true);
+    } catch (error) {
+      console.error('Error loading member details:', error);
+      Alert.alert('Error', 'Failed to load member details');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRemoveMember = async (accountId, memberName) => {
+    Alert.alert(
+      'Remove Member',
+      `Are you sure you want to remove ${memberName} from this group?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Remove',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await borrowingGroupAPI.removeMemberFromGroup(selectedGroupForAdjust.id, accountId);
+
+              // Refresh member list
+              const borrowingGroups = await borrowingGroupAPI.getByStudentGroupId(selectedGroupForAdjust.id);
+              const membersWithDetails = borrowingGroups.map(bg => ({
+                accountId: bg.accountId,
+                name: bg.accountName,
+                email: bg.accountEmail,
+                role: bg.roles,
+                isLeader: (bg.roles || '').toUpperCase() === 'LEADER'
+              }));
+              setDetailedMembers(membersWithDetails);
+
+              // Refresh groups list
+              await loadGroups();
+
+              Alert.alert('Success', 'Member removed successfully');
+            } catch (error) {
+              console.error('Error removing member:', error);
+              Alert.alert('Error', error.response?.data?.message || error.message || 'Failed to remove member');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handlePromoteToLeader = async (accountId, memberName) => {
+    Alert.alert(
+      'Promote to Leader',
+      `Are you sure you want to promote ${memberName} to group leader?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Promote',
+          onPress: async () => {
+            try {
+              const borrowingGroupData = {
+                studentGroupId: selectedGroupForAdjust.id,
+                accountId: accountId,
+                roles: 'LEADER'
+              };
+
+              await borrowingGroupAPI.promoteToLeader(borrowingGroupData);
+
+              // Refresh member list
+              const borrowingGroups = await borrowingGroupAPI.getByStudentGroupId(selectedGroupForAdjust.id);
+              const membersWithDetails = borrowingGroups.map(bg => ({
+                accountId: bg.accountId,
+                name: bg.accountName,
+                email: bg.accountEmail,
+                role: bg.roles,
+                isLeader: (bg.roles || '').toUpperCase() === 'LEADER'
+              }));
+              setDetailedMembers(membersWithDetails);
+
+              // Refresh groups list
+              await loadGroups();
+
+              Alert.alert('Success', `${memberName} is now the group leader`);
+            } catch (error) {
+              console.error('Error promoting member:', error);
+              Alert.alert('Error', error.response?.data?.message || error.message || 'Failed to promote member');
+            }
+          },
+        },
+      ]
+    );
   };
 
   const handleDeleteGroup = async (groupId) => {
@@ -296,7 +406,7 @@ const AdminGroups = ({ onLogout }) => {
         status: true,
         roles: null
       };
-      
+
       await studentGroupAPI.create(groupData);
       await loadGroups();
       Alert.alert('Success', 'Group created successfully');
@@ -382,6 +492,13 @@ const AdminGroups = ({ onLogout }) => {
           >
             <Icon name="person-add" size={20} color="#52c41a" />
             <Text style={styles.actionButtonText}>Add Student</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.actionButton}
+            onPress={() => handleOpenAdjustMemberModal(item)}
+          >
+            <Icon name="settings" size={20} color="#1890ff" />
+            <Text style={[styles.actionButtonText, { color: '#1890ff' }]}>Adjust Member</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.actionButton, styles.deleteButton]}
@@ -475,13 +592,13 @@ const AdminGroups = ({ onLogout }) => {
           <View style={styles.emptyState}>
             <Icon name="group" size={48} color="#ccc" />
             <Text style={styles.emptyText}>
-              {searchText || classFilter !== 'all' || statusFilter !== 'all' 
-                ? 'No groups match your filters' 
+              {searchText || classFilter !== 'all' || statusFilter !== 'all'
+                ? 'No groups match your filters'
                 : 'No groups found'}
             </Text>
             {(!searchText && classFilter === 'all' && statusFilter === 'all') && (
-              <TouchableOpacity 
-                style={styles.emptyButton} 
+              <TouchableOpacity
+                style={styles.emptyButton}
                 onPress={() => setCreateGroupModalVisible(true)}
               >
                 <Text style={styles.emptyButtonText}>Create First Group</Text>
@@ -690,7 +807,7 @@ const AdminGroups = ({ onLogout }) => {
                     styles.selectButtonText,
                     !createGroupFormData.classId && styles.selectButtonPlaceholder
                   ]}>
-                    {createGroupFormData.classId 
+                    {createGroupFormData.classId
                       ? getClassName(createGroupFormData.classId)
                       : 'Select IoT subject'}
                   </Text>
@@ -721,7 +838,7 @@ const AdminGroups = ({ onLogout }) => {
                     styles.selectButtonText,
                     !createGroupFormData.lecturer && styles.selectButtonPlaceholder
                   ]}>
-                    {createGroupFormData.lecturer 
+                    {createGroupFormData.lecturer
                       ? lecturers.find(l => l.id === createGroupFormData.lecturer)?.fullName || lecturers.find(l => l.id === createGroupFormData.lecturer)?.name || 'Selected'
                       : 'Select lecturer'}
                   </Text>
@@ -804,6 +921,82 @@ const AdminGroups = ({ onLogout }) => {
             ))}
           </View>
         </TouchableOpacity>
+      </Modal>
+
+      {/* Adjust Member Modal */}
+      <Modal
+        visible={adjustMemberModalVisible}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setAdjustMemberModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>
+                Adjust Members - {selectedGroupForAdjust?.groupName}
+              </Text>
+              <TouchableOpacity onPress={() => setAdjustMemberModalVisible(false)}>
+                <Icon name="close" size={24} color="#666" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={styles.modalBody}>
+              <Text style={styles.modalDescription}>
+                Manage group members: Remove members or promote to leader
+              </Text>
+
+              {detailedMembers.length > 0 ? (
+                detailedMembers.map((member, index) => (
+                  <View key={member.accountId || index} style={styles.adjustMemberItem}>
+                    <View style={styles.memberInfoSection}>
+                      <Icon name="account-circle" size={24} color="#667eea" />
+                      <View style={styles.memberDetails}>
+                        <Text style={styles.memberNameText}>{member.name || member.email}</Text>
+                        <Text style={styles.memberEmailText}>{member.email}</Text>
+                      </View>
+                      {member.isLeader && (
+                        <View style={styles.leaderBadge}>
+                          <Text style={styles.leaderText}>LEADER</Text>
+                        </View>
+                      )}
+                    </View>
+
+                    <View style={styles.memberActions}>
+                      {!member.isLeader && (
+                        <TouchableOpacity
+                          style={styles.promoteButton}
+                          onPress={() => handlePromoteToLeader(member.accountId, member.name || member.email)}
+                        >
+                          <Icon name="arrow-upward" size={16} color="#52c41a" />
+                          <Text style={styles.promoteButtonText}>Promote</Text>
+                        </TouchableOpacity>
+                      )}
+                      <TouchableOpacity
+                        style={styles.removeButton}
+                        onPress={() => handleRemoveMember(member.accountId, member.name || member.email)}
+                      >
+                        <Icon name="person-remove" size={16} color="#ff4d4f" />
+                        <Text style={styles.removeButtonText}>Remove</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                ))
+              ) : (
+                <Text style={styles.noMembersText}>No members in this group</Text>
+              )}
+            </ScrollView>
+
+            <View style={styles.modalFooter}>
+              <TouchableOpacity
+                style={styles.modalButton}
+                onPress={() => setAdjustMemberModalVisible(false)}
+              >
+                <Text style={styles.modalButtonText}>Close</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
       </Modal>
 
       {/* Status Filter Modal */}
@@ -1292,6 +1485,66 @@ const styles = StyleSheet.create({
   modalButtonText: {
     color: '#fff',
     fontSize: 16,
+    fontWeight: '600',
+  },
+  adjustMemberItem: {
+    backgroundColor: '#f9f9f9',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+  },
+  memberInfoSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  memberDetails: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  memberNameText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#2c3e50',
+    marginBottom: 2,
+  },
+  memberEmailText: {
+    fontSize: 13,
+    color: '#666',
+  },
+  memberActions: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 8,
+  },
+  promoteButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#52c41a20',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    gap: 4,
+  },
+  promoteButtonText: {
+    color: '#52c41a',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  removeButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ff4d4f20',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    gap: 4,
+  },
+  removeButtonText: {
+    color: '#ff4d4f',
+    fontSize: 13,
     fontWeight: '600',
   },
 });
