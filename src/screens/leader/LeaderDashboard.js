@@ -11,10 +11,11 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import { MaterialIcons as Icon } from '@expo/vector-icons';
 import LeaderLayout from '../../components/LeaderLayout';
-import { 
-  borrowingRequestAPI, 
-  walletTransactionAPI, 
-  walletAPI 
+import {
+  borrowingRequestAPI,
+  walletTransactionAPI,
+  walletAPI,
+  kitAPI
 } from '../../services/api';
 
 const LeaderDashboard = ({ user, onLogout }) => {
@@ -24,7 +25,7 @@ const LeaderDashboard = ({ user, onLogout }) => {
     activeRentals: 0,
     walletBalance: 0,
     pendingRequests: 0,
-    totalSpent: 0,
+    availableKits: 0,
   });
   const [rentalRequests, setRentalRequests] = useState([]);
   const [wallet, setWallet] = useState({ balance: 0 });
@@ -42,13 +43,14 @@ const LeaderDashboard = ({ user, onLogout }) => {
       let loadedRentalRequests = [];
       let walletData = { balance: 0 };
       let transactions = [];
+      let availableKitsCount = 0;
 
       // Load rental requests
       try {
         if (user?.id) {
           const rentalResponse = await borrowingRequestAPI.getByUser(user.id);
-          loadedRentalRequests = Array.isArray(rentalResponse) 
-            ? rentalResponse 
+          loadedRentalRequests = Array.isArray(rentalResponse)
+            ? rentalResponse
             : (rentalResponse?.data || []);
           // Sort by createdAt descending
           loadedRentalRequests.sort((a, b) => {
@@ -75,10 +77,10 @@ const LeaderDashboard = ({ user, onLogout }) => {
       // Load transactions
       try {
         const transactionsResponse = await walletTransactionAPI.getHistory();
-        const transactionsData = Array.isArray(transactionsResponse) 
-          ? transactionsResponse 
+        const transactionsData = Array.isArray(transactionsResponse)
+          ? transactionsResponse
           : (transactionsResponse?.data || []);
-        
+
         // Map transactions to match expected structure (similar to LeaderPortal.js)
         const mappedTransactions = transactionsData.map(txn => ({
           type: txn.type || txn.transactionType || 'UNKNOWN',
@@ -90,19 +92,28 @@ const LeaderDashboard = ({ user, onLogout }) => {
           id: txn.id,
           createdAt: txn.createdAt || txn.transactionDate
         }));
-        
+
         // Sort by createdAt descending (newest first)
         mappedTransactions.sort((a, b) => {
           const dateA = new Date(a.createdAt || 0);
           const dateB = new Date(b.createdAt || 0);
           return dateB - dateA;
         });
-        
+
         transactions = mappedTransactions;
         setTransactions(mappedTransactions);
       } catch (error) {
         console.error('Error loading transactions:', error);
         setTransactions([]);
+      }
+
+      // Load available kits
+      try {
+        const kitsResponse = await kitAPI.getAllKits();
+        const kitsData = kitsResponse?.data || kitsResponse || [];
+        availableKitsCount = kitsData.filter(kit => kit.status === 'AVAILABLE').length;
+      } catch (error) {
+        console.error('Error loading kits:', error);
       }
 
       // Calculate stats
@@ -113,22 +124,11 @@ const LeaderDashboard = ({ user, onLogout }) => {
         req => req.status === 'PENDING' || req.status === 'PENDING_APPROVAL'
       ).length;
 
-      const currentMonth = new Date().getMonth();
-      const currentYear = new Date().getFullYear();
-      const monthlySpent = transactions
-        .filter(txn => {
-          const txnDate = new Date(txn.createdAt || txn.transactionDate);
-          return txnDate.getMonth() === currentMonth && 
-                 txnDate.getFullYear() === currentYear &&
-                 txn.amount < 0;
-        })
-        .reduce((sum, txn) => sum + Math.abs(txn.amount || 0), 0);
-
       const stats = {
         activeRentals: activeRentalsCount,
         walletBalance: walletData.balance || 0,
         pendingRequests: pendingRequestsCount,
-        totalSpent: monthlySpent,
+        availableKits: availableKitsCount,
       };
       console.log('LeaderDashboard: Stats calculated:', stats);
       setDashboardStats(stats);
@@ -181,9 +181,9 @@ const LeaderDashboard = ({ user, onLogout }) => {
   };
 
   console.log('LeaderDashboard: Rendering with stats:', dashboardStats);
-  
+
   return (
-    <LeaderLayout 
+    <LeaderLayout
       title="Leader Dashboard"
       rightAction={{
         icon: 'logout',
@@ -216,23 +216,23 @@ const LeaderDashboard = ({ user, onLogout }) => {
             suffix=" rentals"
           />
           <StatCard
-            title="Wallet Balance"
-            value={dashboardStats.walletBalance}
-            icon="account-balance-wallet"
-            color="#52c41a"
-            suffix=" VND"
-          />
-          <StatCard
             title="Pending Requests"
             value={dashboardStats.pendingRequests}
             icon="schedule"
-            color="#faad14"
+            color="#52c41a"
             suffix=" requests"
           />
           <StatCard
-            title="Monthly Spent"
-            value={dashboardStats.totalSpent}
-            icon="attach-money"
+            title="Available Kits"
+            value={dashboardStats.availableKits}
+            icon="build"
+            color="#faad14"
+            suffix=" kits"
+          />
+          <StatCard
+            title="Wallet Balance"
+            value={dashboardStats.walletBalance}
+            icon="account-balance-wallet"
             color="#722ed1"
             suffix=" VND"
           />
@@ -242,7 +242,7 @@ const LeaderDashboard = ({ user, onLogout }) => {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Quick Actions</Text>
           <View style={styles.actionsGrid}>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.actionCard}
               onPress={() => {
                 if (navigation) {
@@ -254,7 +254,7 @@ const LeaderDashboard = ({ user, onLogout }) => {
               <Icon name="shopping-cart" size={32} color="#667eea" />
               <Text style={styles.actionText}>Rent Kit</Text>
             </TouchableOpacity>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.actionCard}
               onPress={() => {
                 if (navigation) {
@@ -266,7 +266,7 @@ const LeaderDashboard = ({ user, onLogout }) => {
               <Icon name="settings" size={32} color="#667eea" />
               <Text style={styles.actionText}>Rent Component</Text>
             </TouchableOpacity>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.actionCard}
               onPress={() => {
                 if (navigation) {
@@ -278,7 +278,7 @@ const LeaderDashboard = ({ user, onLogout }) => {
               <Icon name="account-balance-wallet" size={32} color="#667eea" />
               <Text style={styles.actionText}>Wallet</Text>
             </TouchableOpacity>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.actionCard}
               onPress={() => {
                 if (navigation) {
@@ -290,7 +290,7 @@ const LeaderDashboard = ({ user, onLogout }) => {
               <Icon name="history" size={32} color="#667eea" />
               <Text style={styles.actionText}>My Rentals</Text>
             </TouchableOpacity>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.actionCard}
               onPress={() => {
                 if (navigation) {
@@ -302,7 +302,7 @@ const LeaderDashboard = ({ user, onLogout }) => {
               <Icon name="group" size={32} color="#667eea" />
               <Text style={styles.actionText}>Groups</Text>
             </TouchableOpacity>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.actionCard}
               onPress={() => {
                 if (navigation) {
@@ -323,16 +323,16 @@ const LeaderDashboard = ({ user, onLogout }) => {
           {transactions.slice(0, 5).map((transaction) => {
             // Determine color based on transaction type (similar to LeaderPortal.js)
             const typeUpper = (transaction.type || '').toUpperCase();
-            const isPositiveTransaction = 
-              typeUpper === 'TOP_UP' || 
-              typeUpper === 'TOPUP' || 
+            const isPositiveTransaction =
+              typeUpper === 'TOP_UP' ||
+              typeUpper === 'TOPUP' ||
               typeUpper === 'REFUND';
-            const isNegativeTransaction = 
-              typeUpper === 'RENTAL_FEE' || 
-              typeUpper === 'PENALTY_PAYMENT' || 
-              typeUpper === 'PENALTY' || 
+            const isNegativeTransaction =
+              typeUpper === 'RENTAL_FEE' ||
+              typeUpper === 'PENALTY_PAYMENT' ||
+              typeUpper === 'PENALTY' ||
               typeUpper === 'FINE';
-            
+
             // Use type-based color if available, otherwise fallback to amount-based
             let amountColor = '#595959'; // default gray
             if (isPositiveTransaction) {
@@ -381,9 +381,9 @@ const LeaderDashboard = ({ user, onLogout }) => {
             return (
               <View key={transaction.id} style={styles.activityItem}>
                 <View style={styles.activityIcon}>
-                  <Icon 
+                  <Icon
                     name={iconName}
-                    size={20} 
+                    size={20}
                     color={iconColor}
                   />
                 </View>
@@ -405,14 +405,14 @@ const LeaderDashboard = ({ user, onLogout }) => {
                     {transaction.description || transaction.date || 'N/A'}
                   </Text>
                   <Text style={styles.activityTime}>
-                    {transaction.createdAt 
+                    {transaction.createdAt
                       ? new Date(transaction.createdAt).toLocaleDateString('vi-VN', {
-                          day: '2-digit',
-                          month: '2-digit',
-                          year: 'numeric',
-                          hour: '2-digit',
-                          minute: '2-digit'
-                        })
+                        day: '2-digit',
+                        month: '2-digit',
+                        year: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                      })
                       : transaction.date || 'N/A'}
                   </Text>
                 </View>

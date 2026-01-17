@@ -28,7 +28,6 @@ import LeaderComponentRental from '../screens/leader/LeaderComponentRental';
 import LeaderWallet from '../screens/leader/LeaderWallet';
 import LeaderProfile from '../screens/leader/LeaderProfile';
 import LeaderSettings from '../screens/leader/LeaderSettings';
-import QRScannerScreen from '../screens/leader/QRScannerScreen';
 import GroupManagementScreen from '../screens/leader/GroupManagementScreen';
 
 // Lecturer Screens

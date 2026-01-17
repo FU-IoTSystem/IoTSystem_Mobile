@@ -494,7 +494,11 @@ const AdminGroups = ({ onLogout }) => {
             <Text style={styles.actionButtonText}>Add Student</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={styles.actionButton}
+            style={[styles.actionButton, {
+              justifyContent: 'center',
+              alignItems: 'center',
+              flexDirection: 'row',
+            },]}
             onPress={() => handleOpenAdjustMemberModal(item)}
           >
             <Icon name="settings" size={20} color="#1890ff" />

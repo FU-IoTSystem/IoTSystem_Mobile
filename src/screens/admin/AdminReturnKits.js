@@ -996,7 +996,7 @@ const AdminReturnKits = ({ onLogout, route }) => {
                     </View>
                   </View>
                   <View style={styles.detailsRow}>
-                    <Text style={styles.detailsLabel}>Kit Name:</Text>
+                    <Text style={styles.detailsLabel}>{selectedRental.requestType === 'BORROW_COMPONENT' ? 'Component Name:' : 'Kit Name:'}</Text>
                     <Text style={styles.detailsValue}>{selectedKit.kitName || selectedKit.name}</Text>
                   </View>
 

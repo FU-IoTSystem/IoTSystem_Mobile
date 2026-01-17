@@ -32,7 +32,7 @@ const LecturerKitRental = ({ user }) => {
   const [showQRModal, setShowQRModal] = useState(false);
   const [submittedRequest, setSubmittedRequest] = useState(null);
   const [searchText, setSearchText] = useState('');
-  const [filterStatus, setFilterStatus] = useState('all');
+  const [filterStatus, setFilterStatus] = useState('AVAILABLE');
   const [filterType, setFilterType] = useState('all');
   const [statusFilterModalVisible, setStatusFilterModalVisible] = useState(false);
   const [typeFilterModalVisible, setTypeFilterModalVisible] = useState(false);
